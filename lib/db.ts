@@ -21,6 +21,7 @@ export interface Persona {
   personalityPrompt: string;
   intensityLevel: number; // 1-3
   objectionStrategy: string;
+  gender: "male" | "female";
   traits: {
     aggressiveness: number;
     interruptionFrequency: string;

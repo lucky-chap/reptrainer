@@ -13,8 +13,11 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
+  UserX,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useGeminiLive } from "@/hooks/use-gemini-live";
 import type { Product, Persona, Session } from "@/lib/db";
@@ -39,34 +42,110 @@ export function RoleplaySession({ persona, onBack }: RoleplaySessionProps) {
   const [savedSession, setSavedSession] = useState<Session | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [userName, setUserName] = useState("");
+  const [nameSubmitted, setNameSubmitted] = useState(false);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>>(null);
 
   // Build system prompt
-  const systemPrompt = `You are playing the role of "${persona.name}", a ${persona.role}.
+  const intensityLabel = [
+    "friendly skeptic",
+    "tough negotiator",
+    "hostile gatekeeper",
+  ][persona.intensityLevel - 1];
+
+  const displayName = userName.trim() || "Sales Rep";
+
+  const systemPrompt = `You are an enterprise-level buyer named "${persona.name}", a ${persona.role}.
 
 ${persona.personalityPrompt}
 
-Behavior Rules:
-- Your intensity level is ${persona.intensityLevel}/3 (${["friendly skeptic", "tough negotiator", "hostile gatekeeper"][persona.intensityLevel - 1]}).
+You are intelligent, skeptical, time-conscious, and financially responsible.
+Your role is to simulate a high-pressure real-world sales meeting.
+
+The sales rep you're meeting with is named "${displayName}".
+
+You are evaluating "${product?.companyName || "a product"}" — ${product?.description || "a software product"}.
+
+─── INTENSITY & STYLE ───
+- Intensity level: ${persona.intensityLevel}/3 (${intensityLabel}).
 - Interruption frequency: ${persona.traits.interruptionFrequency}.
-- Your objection style is: ${persona.traits.objectionStyle}.
+- Objection style: ${persona.traits.objectionStyle}.
 - ${persona.objectionStrategy}
 
-Additional behavior guidelines:
-- Interrupt occasionally when the sales rep is rambling or giving vague answers.
-- Push for ROI proof and concrete numbers.
-- Raise pricing objections.
-- If the rep avoids answering a question, repeat the objection with a stronger tone.
-- Do not be easily convinced — make them earn it.
-- Keep your responses concise but challenging.
-- If the rep gives a truly compelling answer backed by evidence, you can acknowledge it but still probe further.
-- You are evaluating "${product?.companyName || "a product"}" — ${product?.description || "a software product"}.
+─── EVALUATION CRITERIA ───
+You continuously evaluate the sales rep for:
+- Confidence
+- Clarity
+- Directness
+- ROI quantification
+- Objection handling
+- Avoidance behavior
+- Rambling
 
-${product?.objections && product.objections.length > 0 ? `Key objections you should raise during the conversation:\n${product.objections.map((o, i) => `${i + 1}. ${o}`).join("\n")}` : ""}
+─── BEHAVIOR RULES ───
 
-Remember: You are the BUYER, not the sales rep. Start by introducing yourself and asking the rep to pitch their product to you.`;
+1. INTERRUPT the rep if:
+   - They avoid answering your question.
+   - They speak vaguely or use buzzwords without substance.
+   - They show uncertainty or hedge excessively.
+   - They ramble without getting to the point.
+
+2. SKEPTICAL MODE (default):
+   - Ask sharp clarification questions.
+   - Demand specific numbers, timelines, and case studies.
+   - Repeat objections more firmly if not addressed directly.
+   - Push for measurable ROI.
+
+3. VEXED MODE (triggered by repeated vagueness or avoidance):
+   - Interrupt mid-sentence.
+   - Ask rapid-fire direct questions.
+   - Keep responses short and impatient.
+   - Challenge the rep's credibility.
+   - Demand concrete proof, not promises.
+
+4. DISENGAGED MODE (triggered if repeatedly unimpressed):
+   - Reduce engagement and enthusiasm.
+   - Give shorter, less interested responses.
+   - Express doubt clearly ("I'm not sure this is for us").
+   - Signal that you're losing patience.
+
+5. ENDING THE MEETING (if value isn't demonstrated after multiple attempts):
+   - Wind down naturally — express that you're not convinced.
+   - End with a professional closing. Use phrases like:
+     "I appreciate your time, but I don't think this is the right fit for us."
+     "Thank you for the presentation, but we're going to pass on this."
+     "I need to wrap up — I don't see enough value here for us to move forward."
+     "I've heard enough. Thank you for your time, but this isn't what we're looking for."
+   - Say goodbye naturally, like a real executive would.
+   - After your closing, stay completely silent. Do NOT respond to anything else the rep says. The meeting is done.
+
+${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIONS TO RAISE ───\nThese are your primary concerns. Raise them naturally during the conversation:\n${product.objections.map((o, i) => `${i + 1}. ${o}`).join("\n")}` : ""}
+
+─── CRITICAL RULES ───
+- Never break character. You are a REAL buyer, not an AI.
+- Never explain the simulation or reference it being a training exercise.
+- Start by introducing yourself briefly, then ask ${displayName} to pitch their product to you.
+- Keep your opening warm but professional — let the rep set the tone before you push back.
+- If the rep earns your respect with compelling, evidence-backed answers, you can soften slightly — but never become easy.
+- You are the BUYER, not the sales rep. Do not pitch for them or fill in gaps they should address.`;
+
+  // Map persona gender to a matching Gemini voice
+  const MALE_VOICES = ["Puck", "Charon", "Fenrir", "Orus"];
+  const FEMALE_VOICES = ["Kore", "Aoede", "Leda", "Zephyr"];
+
+  const getVoiceForPersona = useCallback(() => {
+    const gender = persona.gender || "female";
+    const voices = gender === "male" ? MALE_VOICES : FEMALE_VOICES;
+    // Pick a consistent voice per persona (based on name hash)
+    const hash = persona.name
+      .split("")
+      .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    return voices[hash % voices.length];
+  }, [persona.gender, persona.name]);
+
+  const voiceName = getVoiceForPersona();
 
   const handleTranscriptUpdate = useCallback(() => {
     // Auto-scroll transcript
@@ -80,17 +159,25 @@ Remember: You are the BUYER, not the sales rep. Start by introducing yourself an
     setErrorMessage(error);
   }, []);
 
+  const handlePersonaLeft = useCallback(() => {
+    // The AI persona has decided to end the meeting
+    console.log("Persona has left the call");
+  }, []);
+
   const {
     isConnected,
     isConnecting,
     transcript,
+    personaLeft,
     connect,
     disconnect,
     getDuration,
   } = useGeminiLive({
     systemPrompt,
+    voiceName,
     onTranscriptUpdate: handleTranscriptUpdate,
     onError: handleError,
+    onPersonaLeft: handlePersonaLeft,
   });
 
   // Load product
@@ -121,18 +208,15 @@ Remember: You are the BUYER, not the sales rep. Start by introducing yourself an
     const duration = getDuration();
     disconnect();
 
-    // Build transcript text
-    const transcriptText = transcript
-      .map(
-        (entry) =>
-          `${entry.role === "user" ? "Sales Rep" : persona.name}: ${entry.text}`,
-      )
-      .join("\n\n");
-
-    if (transcriptText.trim().length === 0) {
-      onBack();
-      return;
-    }
+    const transcriptText =
+      transcript.length > 0
+        ? transcript
+            .map(
+              (entry) =>
+                `${entry.role === "user" ? displayName : persona.name}: ${entry.text}`,
+            )
+            .join("\n\n")
+        : `[No transcript was captured for this ${formatTime(duration)} call with ${persona.name}]`;
 
     setEvaluating(true);
 
@@ -216,6 +300,76 @@ Remember: You are the BUYER, not the sales rep. Start by introducing yourself an
     );
   }
 
+  // Show name input before proceeding
+  if (!nameSubmitted) {
+    return (
+      <div className="space-y-6 animate-fade-up">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
+            <ArrowLeft className="size-4" />
+            Back
+          </Button>
+        </div>
+
+        <Card className="p-8 glass max-w-lg mx-auto">
+          <div className="flex flex-col items-center text-center">
+            <div className="size-16 rounded-2xl bg-gradient-to-br from-emerald-glow/15 to-emerald-glow/5 border border-emerald-glow/15 flex items-center justify-center mb-5">
+              <User className="size-8 text-emerald-glow" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">Before We Start</h2>
+            <p className="text-sm text-muted-foreground mb-6 max-w-sm">
+              Enter your name so {persona.name} knows who they&apos;re meeting
+              with. This will be used in the transcript.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (userName.trim()) setNameSubmitted(true);
+              }}
+              className="w-full space-y-4"
+            >
+              <Input
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="Your name (e.g., Alex Johnson)"
+                className="text-center text-base"
+                autoFocus
+                required
+              />
+              <Button
+                type="submit"
+                className="w-full gap-2"
+                disabled={!userName.trim()}
+              >
+                Continue to Call
+                <Phone className="size-4" />
+              </Button>
+            </form>
+          </div>
+        </Card>
+
+        {/* Persona preview */}
+        <Card className="p-4 glass max-w-lg mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="size-11 rounded-full bg-gradient-to-br from-violet-glow/20 to-blue-glow/10 border border-violet-glow/15 flex items-center justify-center text-lg font-bold text-violet-glow">
+              {persona.name.charAt(0)}
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">{persona.name}</h3>
+              <p className="text-xs text-muted-foreground">{persona.role}</p>
+            </div>
+            <div className="ml-auto text-xs text-muted-foreground">
+              {product?.companyName
+                ? `Evaluating ${product.companyName}`
+                : "Loading product…"}
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Header */}
@@ -251,6 +405,32 @@ Remember: You are the BUYER, not the sales rep. Start by introducing yourself an
         </Card>
       )}
 
+      {/* Persona Left Banner */}
+      {personaLeft && isConnected && (
+        <Card className="p-4 border-amber-glow/30 bg-amber-glow/5 animate-fade-up">
+          <div className="flex items-center gap-3">
+            <UserX className="size-5 text-amber-glow shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-glow">
+                {persona.name} has ended the meeting
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                The buyer has decided to leave. End the call to see your
+                performance review.
+              </p>
+            </div>
+            <Button
+              onClick={handleEndCall}
+              size="sm"
+              className="gap-1.5 bg-amber-glow hover:bg-amber-glow/90 text-black font-medium shrink-0"
+            >
+              <PhoneOff className="size-3.5" />
+              End Call
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* Persona Info Bar */}
       <Card className="p-4 glass">
         <div className="flex items-center justify-between">
@@ -274,9 +454,19 @@ Remember: You are the BUYER, not the sales rep. Start by introducing yourself an
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="size-2 rounded-full bg-emerald-glow animate-pulse" />
-                  <span className="text-xs text-emerald-glow font-medium">
-                    Live
+                  <div
+                    className={`size-2 rounded-full ${
+                      personaLeft
+                        ? "bg-amber-glow"
+                        : "bg-emerald-glow animate-pulse"
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium ${
+                      personaLeft ? "text-amber-glow" : "text-emerald-glow"
+                    }`}
+                  >
+                    {personaLeft ? "Left" : "Live"}
                   </span>
                 </div>
               </>
@@ -299,8 +489,8 @@ Remember: You are the BUYER, not the sales rep. Start by introducing yourself an
                 </div>
                 <h3 className="text-lg font-semibold mb-1">Ready to Dial In</h3>
                 <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">
-                  Start the call to begin your roleplay with {persona.name}.
-                  Treat this like a real sales call.
+                  Hi {displayName}! Start the call to begin your roleplay with{" "}
+                  {persona.name}. Treat this like a real sales call.
                 </p>
                 <Button
                   onClick={connect}
@@ -323,6 +513,30 @@ Remember: You are the BUYER, not the sales rep. Start by introducing yourself an
                 <p className="text-sm text-muted-foreground">
                   Setting up your call with {persona.name}
                 </p>
+              </>
+            ) : personaLeft ? (
+              <>
+                {/* Persona Left State */}
+                <div className="relative mb-6">
+                  <div className="size-24 rounded-full bg-gradient-to-br from-amber-glow/20 to-amber-glow/5 border-2 border-amber-glow/30 flex items-center justify-center">
+                    <UserX className="size-10 text-amber-glow" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold mb-1 text-amber-glow">
+                  Meeting Ended
+                </h3>
+                <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">
+                  {persona.name} has left the meeting. End the call to review
+                  your performance.
+                </p>
+                <Button
+                  onClick={handleEndCall}
+                  size="lg"
+                  className="gap-2 bg-amber-glow hover:bg-amber-glow/90 text-black font-semibold px-8"
+                >
+                  <PhoneOff className="size-5" />
+                  End Call & Review
+                </Button>
               </>
             ) : (
               <>
@@ -410,13 +624,13 @@ Remember: You are the BUYER, not the sales rep. Start by introducing yourself an
                       }`}
                     >
                       <p className="text-[11px] font-medium opacity-60 mb-0.5">
-                        {entry.role === "user" ? "You" : persona.name}
+                        {entry.role === "user" ? displayName : persona.name}
                       </p>
                       {entry.text}
                     </div>
                     {entry.role === "user" && (
-                      <div className="size-8 rounded-full bg-emerald-glow/15 border border-emerald-glow/15 flex items-center justify-center text-xs font-bold text-emerald-glow shrink-0">
-                        You
+                      <div className="size-8 rounded-full bg-emerald-glow/15 border border-emerald-glow/15 flex items-center justify-center text-[10px] font-bold text-emerald-glow shrink-0">
+                        {displayName.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>

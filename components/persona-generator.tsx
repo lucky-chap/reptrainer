@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { v4 as uuidv4 } from "uuid";
 import {
   UserCircle,
   Sparkles,
@@ -15,15 +14,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Product, Persona } from "@/lib/db";
-import {
-  getAllProducts,
-  getAllPersonas,
-  savePersona,
-  deletePersona,
-} from "@/lib/db";
+import { getAllProducts, getAllPersonas, deletePersona } from "@/lib/db";
 
 interface PersonaGeneratorProps {
   onStartRoleplay?: (persona: Persona) => void;
+  onGeneratePersona?: (product: Product) => void;
+  isGenerating?: boolean;
 }
 
 const intensityLabels = [
@@ -37,13 +33,16 @@ const intensityColors = [
   "text-rose-glow bg-rose-glow/10 border-rose-glow/20",
 ];
 
-export function PersonaGenerator({ onStartRoleplay }: PersonaGeneratorProps) {
+export function PersonaGenerator({
+  onStartRoleplay,
+  onGeneratePersona,
+  isGenerating = false,
+}: PersonaGeneratorProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
     null,
   );
-  const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -60,47 +59,27 @@ export function PersonaGenerator({ onStartRoleplay }: PersonaGeneratorProps) {
     loadData();
   }, [loadData]);
 
-  const handleGenerate = async () => {
-    if (!selectedProductId) return;
+  // Re-load data when generation completes (poll while generating)
+  useEffect(() => {
+    if (!isGenerating) {
+      // Generation just finished — reload data to pick up new persona
+      loadData();
+      return;
+    }
+
+    // While generating, poll every 2s to catch completion
+    const interval = setInterval(() => {
+      loadData();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isGenerating, loadData]);
+
+  const handleGenerate = () => {
+    if (!selectedProductId || !onGeneratePersona) return;
     const product = products.find((p) => p.id === selectedProductId);
     if (!product) return;
-
-    setGenerating(true);
-    try {
-      const res = await fetch("/api/persona/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyName: product.companyName,
-          description: product.description,
-          targetCustomer: product.targetCustomer,
-          industry: product.industry,
-          objections: product.objections,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Generation failed");
-
-      const data = await res.json();
-      const persona: Persona = {
-        id: uuidv4(),
-        productId: selectedProductId,
-        name: data.name,
-        role: data.role,
-        personalityPrompt: data.personalityPrompt,
-        intensityLevel: data.intensityLevel,
-        objectionStrategy: data.objectionStrategy,
-        traits: data.traits,
-        createdAt: new Date().toISOString(),
-      };
-
-      await savePersona(persona);
-      loadData();
-    } catch (error) {
-      console.error("Failed to generate persona:", error);
-    } finally {
-      setGenerating(false);
-    }
+    onGeneratePersona(product);
   };
 
   const handleDelete = async (id: string) => {
@@ -160,13 +139,13 @@ export function PersonaGenerator({ onStartRoleplay }: PersonaGeneratorProps) {
             </select>
             <Button
               onClick={handleGenerate}
-              disabled={!selectedProductId || generating}
+              disabled={!selectedProductId || isGenerating}
               className="gap-2 min-w-[160px]"
             >
-              {generating ? (
+              {isGenerating ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Generating...
+                  Generating…
                 </>
               ) : (
                 <>

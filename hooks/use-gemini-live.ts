@@ -11,15 +11,18 @@ export interface TranscriptEntry {
 
 interface UseGeminiLiveOptions {
   systemPrompt: string;
+  voiceName?: string;
   onTranscriptUpdate?: (entries: TranscriptEntry[]) => void;
   onConnectionChange?: (connected: boolean) => void;
   onError?: (error: string) => void;
+  onPersonaLeft?: () => void;
 }
 
 export function useGeminiLive(options: UseGeminiLiveOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [personaLeft, setPersonaLeft] = useState(false);
 
   // Use refs for callbacks to avoid dependency churn
   const optionsRef = useRef(options);
@@ -37,6 +40,42 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const startTimeRef = useRef<number>(0);
   const isCleanedUpRef = useRef(false);
+  const personaLeftRef = useRef(false);
+
+  // Buffer for incremental transcription text
+  const inputTranscriptBufferRef = useRef("");
+  const outputTranscriptBufferRef = useRef("");
+
+  // Closing phrases that indicate the AI is ending the meeting
+  const CLOSING_PHRASES = [
+    "thank you for your time",
+    "thanks for your time",
+    "appreciate your time",
+    "going to pass",
+    "we're going to pass",
+    "not the right fit",
+    "isn't the right fit",
+    "not what we're looking for",
+    "isn't what we're looking for",
+    "need to wrap up",
+    "need to wrap this up",
+    "wrap up here",
+    "end this here",
+    "end this meeting",
+    "i've heard enough",
+    "i have heard enough",
+    "enough value here",
+    "move forward with this",
+    "don't see this working",
+    "not going to work for us",
+    "good luck with everything",
+    "good luck to you",
+    "have a good day",
+    "have a good one",
+    "take care",
+    "goodbye",
+    "good bye",
+  ];
 
   // Cleanup all audio resources
   const cleanup = useCallback(() => {
@@ -136,11 +175,87 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     isPlayingRef.current = false;
   }, []);
 
+  // Check if text contains a closing phrase
+  const containsClosingPhrase = useCallback((text: string): boolean => {
+    const lower = text.toLowerCase();
+    return CLOSING_PHRASES.some((phrase) => lower.includes(phrase));
+  }, []);
+
+  // Add a transcript entry helper
+  const addTranscriptEntry = useCallback((role: "user" | "model", text: string) => {
+    if (!text.trim()) return;
+
+    const now = Date.now();
+    const currentTranscript = transcriptRef.current;
+    let mergedText = text.trim();
+    let isNewEntry = true;
+
+    // Merge consecutive messages from same role if within 5 seconds
+    const MERGE_WINDOW_MS = 5000;
+
+    if (currentTranscript.length > 0) {
+      const lastEntry = currentTranscript[currentTranscript.length - 1];
+      const entryTimeMs = lastEntry.timestamp + startTimeRef.current;
+
+      if (lastEntry.role === role && (now - entryTimeMs) < MERGE_WINDOW_MS) {
+        // Prevent appending the exact same text if the transcription API duplicates part.text
+        if (!lastEntry.text.includes(text.trim()) && !text.trim().includes(lastEntry.text)) {
+          mergedText = lastEntry.text + (lastEntry.text.endsWith(" ") || text.startsWith(" ") ? "" : " ") + text.trim();
+        } else {
+          // If it's a longer version of the same text (e.g. from outputTx API), replace it
+          mergedText = text.trim().length > lastEntry.text.length ? text.trim() : lastEntry.text;
+        }
+
+        isNewEntry = false;
+        
+        // Update the last entry
+        const updatedEntry = { ...lastEntry, text: mergedText };
+        transcriptRef.current = [
+          ...currentTranscript.slice(0, -1),
+          updatedEntry
+        ];
+      }
+    }
+
+    if (isNewEntry) {
+      transcriptRef.current = [
+        ...currentTranscript,
+        {
+          role,
+          text: mergedText,
+          timestamp: now - startTimeRef.current,
+        }
+      ];
+    }
+
+    setTranscript([...transcriptRef.current]);
+    optionsRef.current.onTranscriptUpdate?.([...transcriptRef.current]);
+
+    // Detect AI ending the meeting from its speech using the FULL merged text
+    if (role === "model" && !personaLeftRef.current && containsClosingPhrase(mergedText)) {
+      console.log("[GeminiLive] Closing phrase detected in AI speech:", mergedText.substring(0, 80));
+      personaLeftRef.current = true;
+      setPersonaLeft(true);
+      optionsRef.current.onPersonaLeft?.();
+
+      // Clear audio queue so the AI goes silent after the closing statement
+      audioQueueRef.current = [];
+      isPlayingRef.current = false;
+
+      // Stop sending mic audio
+      if (processorRef.current) {
+        try { processorRef.current.disconnect(); } catch { /* ignore */ }
+      }
+    }
+  }, [containsClosingPhrase]);
+
   // Connect to Gemini Live
   const connect = useCallback(async () => {
     try {
       isCleanedUpRef.current = false;
       setIsConnecting(true);
+      setPersonaLeft(false);
+      personaLeftRef.current = false;
 
       // Get API key from server
       const tokenRes = await fetch("/api/auth/token", { method: "POST" });
@@ -169,8 +284,11 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       transcriptRef.current = [];
       setTranscript([]);
       startTimeRef.current = Date.now();
+      inputTranscriptBufferRef.current = "";
+      outputTranscriptBufferRef.current = "";
 
       const systemPrompt = optionsRef.current.systemPrompt;
+      const voiceName = optionsRef.current.voiceName || "Kore";
 
       // Connect to Gemini Live API with the correct model
       const session = await ai.live.connect({
@@ -183,10 +301,13 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: "Kore",
+                voiceName,
               },
             },
           },
+          // Enable transcription for both input (user) and output (model)
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
         },
         callbacks: {
           onopen: () => {
@@ -207,13 +328,15 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
                   };
                   interrupted?: boolean;
                   turnComplete?: boolean;
+                  inputTranscription?: { text?: string; finished?: boolean };
+                  outputTranscription?: { text?: string; finished?: boolean };
                 }
               | undefined;
 
             if (serverContent?.modelTurn?.parts) {
               for (const part of serverContent.modelTurn.parts) {
-                // Handle audio data
-                if (part.inlineData?.data) {
+                // Handle audio data — skip if persona already left
+                if (part.inlineData?.data && !personaLeftRef.current) {
                   try {
                     const binaryString = atob(part.inlineData.data);
                     const bytes = new Uint8Array(binaryString.length);
@@ -227,17 +350,45 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
                   }
                 }
 
-                // Handle text parts (transcript from model)
+                // Fallback: capture text parts from model turn
+                // (works even if transcription API isn't supported by the model)
                 if (part.text) {
-                  const entry: TranscriptEntry = {
-                    role: "model",
-                    text: part.text,
-                    timestamp: Date.now() - startTimeRef.current,
-                  };
-                  transcriptRef.current = [...transcriptRef.current, entry];
-                  setTranscript([...transcriptRef.current]);
-                  optionsRef.current.onTranscriptUpdate?.([...transcriptRef.current]);
+                  addTranscriptEntry("model", part.text);
                 }
+              }
+            }
+
+            // Handle input transcription (what the user said)
+            // Check both serverContent level and top-level message
+            const inputTx =
+              serverContent?.inputTranscription ||
+              message.inputTranscription;
+            if (inputTx?.text) {
+              inputTranscriptBufferRef.current += inputTx.text;
+              if (inputTx.finished) {
+                addTranscriptEntry("user", inputTranscriptBufferRef.current);
+                inputTranscriptBufferRef.current = "";
+              }
+            }
+
+            // Handle output transcription (what the AI said)
+            // Only use if we didn't already capture via part.text above
+            const outputTx =
+              serverContent?.outputTranscription ||
+              message.outputTranscription;
+            if (outputTx?.text) {
+              outputTranscriptBufferRef.current += outputTx.text;
+              if (outputTx.finished) {
+                // Only add if we have substantial text not already captured
+                const buffered = outputTranscriptBufferRef.current.trim();
+                if (buffered) {
+                  // Check if this duplicates the last model entry
+                  const lastEntry = transcriptRef.current[transcriptRef.current.length - 1];
+                  if (!lastEntry || lastEntry.role !== "model" || lastEntry.text !== buffered) {
+                    addTranscriptEntry("model", buffered);
+                  }
+                }
+                outputTranscriptBufferRef.current = "";
               }
             }
 
@@ -246,6 +397,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
               audioQueueRef.current = [];
               isPlayingRef.current = false;
             }
+
           },
           onerror: (e: Error | Event) => {
             const msg = e instanceof Error ? e.message : "WebSocket error";
@@ -256,6 +408,19 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             const reason = (e as CloseEvent)?.reason || "Connection closed";
             const code = (e as CloseEvent)?.code;
             console.log(`[GeminiLive] Closed: code=${code} reason="${reason}"`);
+
+            // Flush any remaining buffered transcriptions
+            if (inputTranscriptBufferRef.current.trim()) {
+              addTranscriptEntry("user", inputTranscriptBufferRef.current);
+              inputTranscriptBufferRef.current = "";
+            }
+            if (outputTranscriptBufferRef.current.trim()) {
+              addTranscriptEntry("model", outputTranscriptBufferRef.current);
+              outputTranscriptBufferRef.current = "";
+            }
+
+
+
             setIsConnected(false);
             setIsConnecting(false);
             optionsRef.current.onConnectionChange?.(false);
@@ -315,10 +480,14 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         error instanceof Error ? error.message : "Failed to connect"
       );
     }
-  }, [cleanup, downsample, float32ToInt16, playAudioQueue]);
+  }, [cleanup, downsample, float32ToInt16, playAudioQueue, addTranscriptEntry]);
 
-  // Disconnect
+  // Disconnect (user-initiated)
   const disconnect = useCallback(() => {
+    // Mark as user-initiated BEFORE closing, so the onclose handler
+    // doesn't misinterpret this as the AI ending the meeting
+    isCleanedUpRef.current = true;
+
     if (sessionRef.current) {
       try {
         sessionRef.current.close();
@@ -336,20 +505,13 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const sendText = useCallback((text: string) => {
     if (!sessionRef.current) return;
 
-    const entry: TranscriptEntry = {
-      role: "user",
-      text,
-      timestamp: Date.now() - startTimeRef.current,
-    };
-    transcriptRef.current = [...transcriptRef.current, entry];
-    setTranscript([...transcriptRef.current]);
-    optionsRef.current.onTranscriptUpdate?.([...transcriptRef.current]);
+    addTranscriptEntry("user", text);
 
     sessionRef.current.sendClientContent({
       turns: [{ role: "user", parts: [{ text }] }],
       turnComplete: true,
     });
-  }, []);
+  }, [addTranscriptEntry]);
 
   // Get duration in seconds
   const getDuration = useCallback(() => {
@@ -387,6 +549,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     isConnected,
     isConnecting,
     transcript,
+    personaLeft,
     connect,
     disconnect,
     sendText,
