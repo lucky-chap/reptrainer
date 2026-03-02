@@ -1,0 +1,31 @@
+import { Router, type Request, type Response, type NextFunction } from "express";
+import { z } from "zod";
+import { validateBody } from "../middleware/validate.js";
+import { generatePersona } from "../services/gemini.js";
+
+export const personaRoutes: Router = Router();
+
+const generatePersonaSchema = z.object({
+  companyName: z.string().min(1),
+  description: z.string().min(1),
+  targetCustomer: z.string().min(1),
+  industry: z.string().min(1),
+  objections: z.array(z.string()).min(1),
+});
+
+/**
+ * POST /api/persona/generate
+ * Generates a buyer persona using Gemini AI based on product context.
+ */
+personaRoutes.post(
+  "/generate",
+  validateBody(generatePersonaSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const persona = await generatePersona(req.body);
+      res.json(persona);
+    } catch (error) {
+      next(error);
+    }
+  }
+);

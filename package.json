@@ -1,0 +1,20 @@
+{
+  "name": "reptrainer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "dev:web": "pnpm --filter @reptrainer/web dev",
+    "dev:api": "pnpm --filter @reptrainer/api dev",
+    "build": "pnpm -r run build",
+    "build:web": "pnpm --filter @reptrainer/web build",
+    "build:api": "pnpm --filter @reptrainer/api build",
+    "lint": "pnpm -r run lint",
+    "clean": "pnpm -r run clean",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

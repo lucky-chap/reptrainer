@@ -1,0 +1,25 @@
+import { z } from "zod";
+
+const envSchema = z.object({
+  PORT: z.coerce.number().default(4000),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
+  GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
+  CORS_ORIGIN: z.string().default("http://localhost:3000"),
+});
+
+function validateEnv() {
+  const result = envSchema.safeParse(process.env);
+
+  if (!result.success) {
+    console.error("❌ Invalid environment variables:");
+    console.error(result.error.flatten().fieldErrors);
+    process.exit(1);
+  }
+
+  return result.data;
+}
+
+export const env = validateEnv();
+export type Env = z.infer<typeof envSchema>;

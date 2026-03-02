@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RepTrainer (DealPilot)
+
+> A real-time AI flight simulator for enterprise sales teams.
+
+AI-powered sales roleplay platform that simulates high-pressure buyer conversations using voice-based roleplay with Gemini Live API.
+
+---
+
+## Monorepo Structure
+
+```
+reptrainer/
+├── apps/
+│   ├── web/          →  Next.js frontend (TypeScript, Tailwind, shadcn)
+│   └── api/          →  Express backend (TypeScript, Gemini AI)
+├── packages/
+│   ├── shared/       →  Shared types, constants, utilities
+│   └── tsconfig/     →  Shared TypeScript configurations
+├── plans/            →  Product specs & implementation plans
+├── package.json      →  Root workspace scripts
+└── pnpm-workspace.yaml
+```
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- **Node.js** ≥ 20
+- **pnpm** ≥ 9
+- A **Gemini API key** from [Google AI Studio](https://aistudio.google.com)
+
+### Install Dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Configure Environment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# API backend
+cp apps/api/.env.example apps/api/.env
+# Edit apps/api/.env with your GEMINI_API_KEY
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Web frontend
+# Edit apps/web/.env.local with your GEMINI_API_KEY
+```
 
-## Learn More
+### Run Development Servers
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Start both web and API concurrently
+pnpm dev
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Or start individually
+pnpm dev:web    # Next.js on http://localhost:3000
+pnpm dev:api    # Express on http://localhost:4000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Build
 
-## Deploy on Vercel
+```bash
+pnpm build      # Build all packages
+pnpm build:web  # Build only web
+pnpm build:api  # Build only API
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Layer     | Technology                                   |
+| --------- | -------------------------------------------- |
+| Frontend  | Next.js 16, React 19, Tailwind CSS 4, shadcn |
+| Backend   | Express 5, TypeScript, Zod                   |
+| AI (Live) | Gemini Live API via `@google/genai`          |
+| AI (Text) | Gemini 2.5 Flash                             |
+| Storage   | IndexedDB (client-side MVP)                  |
+| Tooling   | pnpm workspaces, tsx                         |
+
+## API Endpoints
+
+| Method | Path                    | Description                   |
+| ------ | ----------------------- | ----------------------------- |
+| GET    | `/api/health`           | Health check                  |
+| POST   | `/api/auth/token`       | Get Gemini API key            |
+| POST   | `/api/persona/generate` | Generate buyer persona via AI |
+| POST   | `/api/session/evaluate` | Evaluate roleplay via AI      |
