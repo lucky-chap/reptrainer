@@ -1,21 +1,69 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display, JetBrains_Mono } from "next/font/google";
+import {
+  Inter,
+  Playfair_Display,
+  JetBrains_Mono,
+  Instrument_Serif,
+} from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-inter",
 });
 
-const playfair = Playfair_Display({
+const playfair = Instrument_Serif({
   subsets: ["latin"],
   variable: "--font-serif",
   style: ["normal", "italic"],
+  weight: ["400"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-geist-mono",
+});
+
+const bdoGrotesk = localFont({
+  variable: "--font-sans",
+  src: [
+    {
+      path: "../public/fonts/BDOGrotesk/BDOGrotesk-Light.woff2",
+      weight: "300",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/BDOGrotesk/BDOGrotesk-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/BDOGrotesk/BDOGrotesk-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/BDOGrotesk/BDOGrotesk-DemiBold.woff2",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/BDOGrotesk/BDOGrotesk-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/BDOGrotesk/BDOGrotesk-ExtraBold.woff2",
+      weight: "800",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/BDOGrotesk/BDOGrotesk-Black.woff2",
+      weight: "900",
+      style: "normal",
+    },
+  ],
 });
 
 export const metadata: Metadata = {
@@ -32,7 +80,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${playfair.variable} ${jetbrainsMono.variable}`}
+      className={`${bdoGrotesk.variable} ${inter.variable} ${playfair.variable} ${jetbrainsMono.variable}`}
     >
       <body className="antialiased min-h-screen bg-background font-sans">
         {children}

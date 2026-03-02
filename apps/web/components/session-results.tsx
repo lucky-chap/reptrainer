@@ -11,8 +11,6 @@ import {
   Clock,
   RotateCcw,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import type { Session, Persona, Product } from "@/lib/db";
 
 interface SessionResultsProps {
@@ -38,24 +36,24 @@ function ScoreRing({
 
   const colorMap: Record<string, { stroke: string; text: string; bg: string }> =
     {
-      emerald: {
-        stroke: "oklch(0.72 0.17 162)",
-        text: "text-emerald-glow",
-        bg: "bg-emerald-glow/10",
+      charcoal: {
+        stroke: "#1A1A1A",
+        text: "text-charcoal",
+        bg: "bg-charcoal/10",
       },
-      blue: {
-        stroke: "oklch(0.67 0.17 250)",
-        text: "text-blue-glow",
-        bg: "bg-blue-glow/10",
+      warm: {
+        stroke: "#8A8578",
+        text: "text-warm-gray",
+        bg: "bg-warm-gray/10",
       },
-      amber: {
-        stroke: "oklch(0.79 0.16 75)",
-        text: "text-amber-glow",
-        bg: "bg-amber-glow/10",
+      light: {
+        stroke: "#B5AFA5",
+        text: "text-warm-gray-light",
+        bg: "bg-warm-gray-light/20",
       },
     };
 
-  const c = colorMap[color] || colorMap.emerald;
+  const c = colorMap[color] || colorMap.charcoal;
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -66,7 +64,7 @@ function ScoreRing({
             cy="50"
             r="45"
             fill="none"
-            stroke="oklch(0.22 0.01 260)"
+            stroke="var(--color-cream-dark)"
             strokeWidth="6"
           />
           <circle
@@ -84,7 +82,7 @@ function ScoreRing({
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span className={`text-2xl font-bold ${c.text}`}>{score}</span>
-          <span className="text-xs text-muted-foreground">/10</span>
+          <span className="text-xs text-warm-gray">/10</span>
         </div>
       </div>
       <div className="flex items-center gap-1.5">
@@ -93,7 +91,7 @@ function ScoreRing({
         >
           <Icon className={`size-3.5 ${c.text}`} />
         </div>
-        <span className="text-sm font-medium">{label}</span>
+        <span className="text-sm font-medium text-charcoal">{label}</span>
       </div>
     </div>
   );
@@ -120,37 +118,40 @@ export function SessionResults({
     <div className="space-y-6 animate-fade-up">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
-          <ArrowLeft className="size-4" />
-          Back to Personas
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
+        <button
           onClick={onBack}
-          className="gap-2"
+          className="inline-flex items-center gap-2 text-sm text-warm-gray hover:text-charcoal transition-colors"
+        >
+          <ArrowLeft className="size-4" />
+          Back
+        </button>
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cream-dark text-charcoal text-sm font-medium hover:bg-charcoal hover:text-cream transition-colors"
         >
           <RotateCcw className="size-4" />
           New Session
-        </Button>
+        </button>
       </div>
 
       {/* Session Meta */}
-      <Card className="p-5 glass">
+      <div className="bg-white rounded-2xl border border-border/60 p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="size-12 rounded-full bg-gradient-to-br from-violet-glow/20 to-blue-glow/10 border border-violet-glow/15 flex items-center justify-center text-xl font-bold text-violet-glow">
+            <div className="size-12 rounded-full bg-charcoal flex items-center justify-center text-xl font-bold text-cream">
               {persona.name.charAt(0)}
             </div>
             <div>
-              <h2 className="text-xl font-bold">Session Complete</h2>
-              <p className="text-sm text-muted-foreground">
+              <h2 className="text-xl font-bold text-charcoal heading-serif">
+                Session <em>Complete.</em>
+              </h2>
+              <p className="text-sm text-warm-gray">
                 Call with {persona.name} ({persona.role})
                 {product && ` • ${product.companyName}`}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-sm text-warm-gray">
             <Clock className="size-4" />
             <span className="font-mono">
               {Math.floor(session.durationSeconds / 60)}m{" "}
@@ -158,30 +159,20 @@ export function SessionResults({
             </span>
           </div>
         </div>
-      </Card>
+      </div>
 
       {evaluation ? (
         <>
           {/* Overall Score */}
-          <Card className="p-8 glass text-center">
-            <p className="text-sm text-muted-foreground mb-2 uppercase tracking-wider">
+          <div className="bg-white rounded-2xl border border-border/60 p-10 text-center">
+            <p className="text-xs text-warm-gray mb-2 uppercase tracking-widest font-medium">
               Overall Score
             </p>
-            <div className="text-6xl font-bold mb-1">
-              <span
-                className={
-                  overallScore >= 7
-                    ? "text-emerald-glow"
-                    : overallScore >= 4
-                      ? "text-amber-glow"
-                      : "text-rose-glow"
-                }
-              >
-                {overallScore}
-              </span>
-              <span className="text-2xl text-muted-foreground">/10</span>
+            <div className="heading-serif text-6xl mb-1">
+              <span className="text-charcoal">{overallScore}</span>
+              <span className="text-2xl text-warm-gray">/10</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-warm-gray">
               {overallScore >= 8
                 ? "Excellent performance! You handled this call like a pro."
                 : overallScore >= 6
@@ -190,110 +181,116 @@ export function SessionResults({
                     ? "Decent effort. Focus on the tips below to level up."
                     : "This was a tough call. Use the feedback to improve."}
             </p>
-          </Card>
+          </div>
 
           {/* Score Rings */}
-          <Card className="p-8 glass">
+          <div className="bg-white rounded-2xl border border-border/60 p-10">
             <div className="flex flex-wrap items-center justify-around gap-8">
               <ScoreRing
                 score={evaluation.objectionHandlingScore}
                 label="Objection Handling"
                 icon={Target}
-                color="emerald"
+                color="charcoal"
               />
               <ScoreRing
                 score={evaluation.confidenceScore}
                 label="Confidence"
                 icon={Shield}
-                color="blue"
+                color="warm"
               />
               <ScoreRing
                 score={evaluation.clarityScore}
                 label="Clarity"
                 icon={Eye}
-                color="amber"
+                color="light"
               />
             </div>
-          </Card>
+          </div>
 
           {/* Feedback */}
           <div className="grid gap-4 sm:grid-cols-3">
             {/* Strengths */}
-            <Card className="p-5 glass">
+            <div className="bg-white rounded-2xl border border-border/60 p-6">
               <div className="flex items-center gap-2 mb-4">
-                <div className="size-8 rounded-lg bg-emerald-glow/10 flex items-center justify-center">
-                  <ThumbsUp className="size-4 text-emerald-glow" />
+                <div className="size-8 rounded-lg bg-charcoal/10 flex items-center justify-center">
+                  <ThumbsUp className="size-4 text-charcoal" />
                 </div>
-                <h3 className="font-semibold text-sm">Strengths</h3>
+                <h3 className="font-semibold text-sm text-charcoal">
+                  Strengths
+                </h3>
               </div>
               <ul className="space-y-2.5">
                 {evaluation.strengths.map((s: string, i: number) => (
                   <li
                     key={i}
-                    className="text-sm text-muted-foreground flex items-start gap-2"
+                    className="text-sm text-warm-gray flex items-start gap-2"
                   >
-                    <span className="size-1.5 rounded-full bg-emerald-glow mt-1.5 shrink-0" />
+                    <span className="size-1.5 rounded-full bg-charcoal mt-1.5 shrink-0" />
                     {s}
                   </li>
                 ))}
               </ul>
-            </Card>
+            </div>
 
             {/* Weaknesses */}
-            <Card className="p-5 glass">
+            <div className="bg-white rounded-2xl border border-border/60 p-6">
               <div className="flex items-center gap-2 mb-4">
-                <div className="size-8 rounded-lg bg-rose-glow/10 flex items-center justify-center">
-                  <ThumbsDown className="size-4 text-rose-glow" />
+                <div className="size-8 rounded-lg bg-warm-gray/10 flex items-center justify-center">
+                  <ThumbsDown className="size-4 text-warm-gray" />
                 </div>
-                <h3 className="font-semibold text-sm">Areas to Improve</h3>
+                <h3 className="font-semibold text-sm text-charcoal">
+                  Areas to Improve
+                </h3>
               </div>
               <ul className="space-y-2.5">
                 {evaluation.weaknesses.map((w: string, i: number) => (
                   <li
                     key={i}
-                    className="text-sm text-muted-foreground flex items-start gap-2"
+                    className="text-sm text-warm-gray flex items-start gap-2"
                   >
-                    <span className="size-1.5 rounded-full bg-rose-glow mt-1.5 shrink-0" />
+                    <span className="size-1.5 rounded-full bg-warm-gray mt-1.5 shrink-0" />
                     {w}
                   </li>
                 ))}
               </ul>
-            </Card>
+            </div>
 
             {/* Tips */}
-            <Card className="p-5 glass">
+            <div className="bg-white rounded-2xl border border-border/60 p-6">
               <div className="flex items-center gap-2 mb-4">
-                <div className="size-8 rounded-lg bg-amber-glow/10 flex items-center justify-center">
-                  <Lightbulb className="size-4 text-amber-glow" />
+                <div className="size-8 rounded-lg bg-cream-dark flex items-center justify-center">
+                  <Lightbulb className="size-4 text-warm-gray" />
                 </div>
-                <h3 className="font-semibold text-sm">Pro Tips</h3>
+                <h3 className="font-semibold text-sm text-charcoal">
+                  Pro Tips
+                </h3>
               </div>
               <ul className="space-y-2.5">
                 {evaluation.improvementTips.map((t: string, i: number) => (
                   <li
                     key={i}
-                    className="text-sm text-muted-foreground flex items-start gap-2"
+                    className="text-sm text-warm-gray flex items-start gap-2"
                   >
-                    <span className="size-1.5 rounded-full bg-amber-glow mt-1.5 shrink-0" />
+                    <span className="size-1.5 rounded-full bg-warm-gray-light mt-1.5 shrink-0" />
                     {t}
                   </li>
                 ))}
               </ul>
-            </Card>
+            </div>
           </div>
         </>
       ) : (
-        <Card className="p-8 glass text-center">
-          <p className="text-muted-foreground">
+        <div className="bg-white rounded-2xl border border-border/60 p-10 text-center">
+          <p className="text-warm-gray">
             Evaluation could not be generated for this session.
           </p>
-        </Card>
+        </div>
       )}
 
       {/* Transcript */}
-      <Card className="p-5 glass">
-        <h3 className="font-semibold mb-4 flex items-center gap-2">
-          <span className="size-2 rounded-full bg-muted-foreground" />
+      <div className="bg-white rounded-2xl border border-border/60 p-6">
+        <h3 className="font-semibold text-charcoal mb-4 flex items-center gap-2">
+          <span className="size-2 rounded-full bg-charcoal" />
           Full Transcript
         </h3>
         <div className="max-h-[400px] overflow-y-auto space-y-3">
@@ -302,10 +299,10 @@ export function SessionResults({
             return (
               <div
                 key={i}
-                className={`text-sm rounded-lg px-3 py-2 ${
+                className={`text-sm rounded-xl px-4 py-3 ${
                   isRep
-                    ? "bg-emerald-glow/5 border-l-2 border-emerald-glow/30"
-                    : "bg-secondary/40 border-l-2 border-violet-glow/30"
+                    ? "bg-charcoal/5 border-l-2 border-charcoal/30"
+                    : "bg-cream-dark/50 border-l-2 border-warm-gray/30"
                 }`}
               >
                 {line}
@@ -313,7 +310,7 @@ export function SessionResults({
             );
           })}
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
