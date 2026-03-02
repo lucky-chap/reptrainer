@@ -1,61 +1,25 @@
-"use client";
-
-import { useState } from "react";
-import { AppShell, type AppView } from "@/components/app-shell";
-import { ProductSetup } from "@/components/product-setup";
-import { PersonaGenerator } from "@/components/persona-generator";
-import { RoleplaySession } from "@/components/roleplay-session";
-import { SessionHistory } from "@/components/session-history";
-import { GenerationBanner } from "@/components/generation-banner";
-import { useBackgroundGeneration } from "@/hooks/use-background-generation";
-import type { Persona } from "@/lib/db";
+import { Navbar } from "@/components/landing/navbar";
+import { HeroSection } from "@/components/landing/hero-section";
+import { FeaturesSection } from "@/components/landing/features-section";
+import { PerformanceSection } from "@/components/landing/performance-section";
+import { HowItWorksSection } from "@/components/landing/how-it-works-section";
+import { TestimonialsSection } from "@/components/landing/testimonials-section";
+import { PricingSection } from "@/components/landing/pricing-section";
+import { Footer } from "@/components/landing/footer";
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<AppView>("products");
-  const [activePersona, setActivePersona] = useState<Persona | null>(null);
-
-  const { tasks, isGenerating, generatePersona, dismissTask } =
-    useBackgroundGeneration();
-
-  const handleStartRoleplay = (persona: Persona) => {
-    setActivePersona(persona);
-    setCurrentView("roleplay");
-  };
-
-  const handleBackFromRoleplay = () => {
-    setActivePersona(null);
-    setCurrentView("personas");
-  };
-
   return (
     <>
-      <AppShell currentView={currentView} onViewChange={setCurrentView}>
-        {currentView === "products" && <ProductSetup />}
-        {currentView === "personas" && (
-          <PersonaGenerator
-            onStartRoleplay={handleStartRoleplay}
-            onGeneratePersona={generatePersona}
-            isGenerating={isGenerating}
-          />
-        )}
-        {currentView === "roleplay" && activePersona && (
-          <RoleplaySession
-            persona={activePersona}
-            onBack={handleBackFromRoleplay}
-          />
-        )}
-        {currentView === "roleplay" && !activePersona && (
-          <PersonaGenerator
-            onStartRoleplay={handleStartRoleplay}
-            onGeneratePersona={generatePersona}
-            isGenerating={isGenerating}
-          />
-        )}
-        {currentView === "history" && <SessionHistory />}
-      </AppShell>
-
-      {/* Global generation notifications — persists across tab switches */}
-      <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
+      <Navbar />
+      <main>
+        <HeroSection />
+        <FeaturesSection />
+        <PerformanceSection />
+        <HowItWorksSection />
+        <TestimonialsSection />
+        <PricingSection />
+      </main>
+      <Footer />
     </>
   );
 }
