@@ -48,6 +48,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingRef = useRef(false);
+  const connectingOscRef = useRef<OscillatorNode | null>(null);
+  const connectingGainRef = useRef<GainNode | null>(null);
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const startTimeRef = useRef<number>(0);
   const isCleanedUpRef = useRef(false);
@@ -132,6 +134,69 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     audioQueueRef.current = [];
     isPlayingRef.current = false;
   }, []);
+
+  // Connection sound effects
+  const playSoundEffect = useCallback(
+    (type: "connecting" | "success" | "stop") => {
+      if (!playbackCtxRef.current || playbackCtxRef.current.state === "closed")
+        return;
+      const ctx = playbackCtxRef.current;
+
+      // Use a ref to track the connecting oscillator
+      if (type === "stop") {
+        if (connectingOscRef.current) {
+          try {
+            connectingOscRef.current.stop();
+            connectingOscRef.current.disconnect();
+          } catch (e) {}
+          connectingOscRef.current = null;
+        }
+        if (connectingGainRef.current) {
+          connectingGainRef.current.disconnect();
+          connectingGainRef.current = null;
+        }
+        return;
+      }
+
+      if (type === "connecting") {
+        // Pulse sound
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+
+        // Simple pulse effect
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        for (let i = 0; i < 60; i += 2) {
+          gain.gain.linearRampToValueAtTime(0.05, ctx.currentTime + i);
+          gain.gain.linearRampToValueAtTime(0, ctx.currentTime + i + 1);
+        }
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+
+        connectingOscRef.current = osc;
+        connectingGainRef.current = gain;
+        return;
+      }
+
+      if (type === "success") {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+      }
+    },
+    [],
+  );
 
   // Convert Float32 PCM to Int16 PCM
   const float32ToInt16 = useCallback(
@@ -313,6 +378,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     try {
       isCleanedUpRef.current = false;
       setIsConnecting(true);
+      playSoundEffect("connecting");
       setPersonaLeft(false);
       personaLeftRef.current = false;
 
@@ -444,6 +510,30 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         // Handle Setup Complete
         if (message.setupComplete || message.setup_complete) {
           console.log("[VertexAI] Setup completed successfully");
+          playSoundEffect("stop");
+          playSoundEffect("success");
+
+          // Trigger initial AI greeting
+          if (ws.readyState === WebSocket.OPEN) {
+            console.log("[VertexAI] Triggering initial AI greeting...");
+            ws.send(
+              JSON.stringify({
+                client_content: {
+                  turns: [
+                    {
+                      role: "user",
+                      parts: [
+                        {
+                          text: "[SYSTEM_GREETING_START: Please initiate the conversation as the buyer.]",
+                        },
+                      ],
+                    },
+                  ],
+                  turn_complete: true,
+                },
+              }),
+            );
+          }
           return;
         }
 

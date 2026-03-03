@@ -224,7 +224,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         ? transcript
             .map(
               (entry) =>
-                `${entry.role === "user" ? displayName : persona.name}: ${entry.text}`,
+                `${entry.role === "user" ? "Sales Rep" : "Buyer"}: ${entry.text}`,
             )
             .join("\n\n")
         : `[No transcript was captured for this ${formatTime(duration)} call with ${persona.name}]`;

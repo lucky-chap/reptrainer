@@ -6,6 +6,7 @@ import {
   EvaluateSessionRequest,
   EvaluateSessionResponse,
   GEMINI_TEXT_MODEL,
+  GEMINI_EVALUATION_MODEL,
 } from "@reptrainer/shared";
 
 // Initialize Vertex AI
@@ -15,6 +16,7 @@ const vertexAI = new VertexAI({
 });
 
 const TEXT_MODEL = GEMINI_TEXT_MODEL; // Stable Vertex model
+const EVALUATION_MODEL = GEMINI_EVALUATION_MODEL; // Stable Vertex model
 
 /**
  * Extracts JSON from a potentially markdown-wrapped AI response.
@@ -100,7 +102,7 @@ export async function evaluateSession(
   } = input;
 
   const model = vertexAI.getGenerativeModel({
-    model: TEXT_MODEL,
+    model: EVALUATION_MODEL,
     generationConfig: {
       responseMimeType: "application/json",
     } as GenerationConfig,
