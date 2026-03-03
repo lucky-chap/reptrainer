@@ -5,7 +5,9 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
-  GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
+  GEMINI_API_KEY: z.string().optional(),
+  GOOGLE_CLOUD_PROJECT: z.string().min(1, "GOOGLE_CLOUD_PROJECT is required"),
+  GOOGLE_CLOUD_LOCATION: z.string().default("us-central1"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
 });
 

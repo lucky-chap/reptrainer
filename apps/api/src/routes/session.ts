@@ -1,7 +1,12 @@
-import { Router, type Request, type Response, type NextFunction } from "express";
+import {
+  Router,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
-import { evaluateSession } from "../services/gemini.js";
+import { evaluateSession } from "../services/vertex.js";
 
 export const sessionRoutes: Router = Router();
 
@@ -27,5 +32,5 @@ sessionRoutes.post(
     } catch (error) {
       next(error);
     }
-  }
+  },
 );

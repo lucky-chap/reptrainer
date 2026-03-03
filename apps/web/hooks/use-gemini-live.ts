@@ -83,11 +83,19 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     isCleanedUpRef.current = true;
 
     if (processorRef.current) {
-      try { processorRef.current.disconnect(); } catch { /* ignore */ }
+      try {
+        processorRef.current.disconnect();
+      } catch {
+        /* ignore */
+      }
       processorRef.current = null;
     }
     if (sourceRef.current) {
-      try { sourceRef.current.disconnect(); } catch { /* ignore */ }
+      try {
+        sourceRef.current.disconnect();
+      } catch {
+        /* ignore */
+      }
       sourceRef.current = null;
     }
     if (mediaStreamRef.current) {
@@ -95,11 +103,19 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       mediaStreamRef.current = null;
     }
     if (micCtxRef.current) {
-      try { micCtxRef.current.close(); } catch { /* ignore */ }
+      try {
+        micCtxRef.current.close();
+      } catch {
+        /* ignore */
+      }
       micCtxRef.current = null;
     }
     if (playbackCtxRef.current) {
-      try { playbackCtxRef.current.close(); } catch { /* ignore */ }
+      try {
+        playbackCtxRef.current.close();
+      } catch {
+        /* ignore */
+      }
       playbackCtxRef.current = null;
     }
     audioQueueRef.current = [];
@@ -107,14 +123,17 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   }, []);
 
   // Convert Float32 PCM to Int16 PCM
-  const float32ToInt16 = useCallback((float32Array: Float32Array): Int16Array => {
-    const int16Array = new Int16Array(float32Array.length);
-    for (let i = 0; i < float32Array.length; i++) {
-      const s = Math.max(-1, Math.min(1, float32Array[i]));
-      int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-    }
-    return int16Array;
-  }, []);
+  const float32ToInt16 = useCallback(
+    (float32Array: Float32Array): Int16Array => {
+      const int16Array = new Int16Array(float32Array.length);
+      for (let i = 0; i < float32Array.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Array[i]));
+        int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return int16Array;
+    },
+    [],
+  );
 
   // Downsample from source rate to 16kHz
   const downsample = useCallback(
@@ -129,7 +148,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       }
       return result;
     },
-    []
+    [],
   );
 
   // Play audio from the queue
@@ -145,7 +164,11 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
 
     // Resume context if suspended (browser autoplay policy)
     if (ctx.state === "suspended") {
-      try { await ctx.resume(); } catch { /* ignore */ }
+      try {
+        await ctx.resume();
+      } catch {
+        /* ignore */
+      }
     }
 
     while (audioQueueRef.current.length > 0) {
@@ -182,72 +205,97 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   }, []);
 
   // Add a transcript entry helper
-  const addTranscriptEntry = useCallback((role: "user" | "model", text: string) => {
-    if (!text.trim()) return;
+  const addTranscriptEntry = useCallback(
+    (role: "user" | "model", text: string) => {
+      if (!text.trim()) return;
 
-    const now = Date.now();
-    const currentTranscript = transcriptRef.current;
-    let mergedText = text.trim();
-    let isNewEntry = true;
+      const now = Date.now();
+      const currentTranscript = transcriptRef.current;
+      let mergedText = text.trim();
+      let isNewEntry = true;
 
-    // Merge consecutive messages from same role if within 5 seconds
-    const MERGE_WINDOW_MS = 5000;
+      // Merge consecutive messages from same role if within 5 seconds
+      const MERGE_WINDOW_MS = 5000;
 
-    if (currentTranscript.length > 0) {
-      const lastEntry = currentTranscript[currentTranscript.length - 1];
-      const entryTimeMs = lastEntry.timestamp + startTimeRef.current;
+      if (currentTranscript.length > 0) {
+        const lastEntry = currentTranscript[currentTranscript.length - 1];
+        const entryTimeMs = lastEntry.timestamp + startTimeRef.current;
 
-      if (lastEntry.role === role && (now - entryTimeMs) < MERGE_WINDOW_MS) {
-        // Prevent appending the exact same text if the transcription API duplicates part.text
-        if (!lastEntry.text.includes(text.trim()) && !text.trim().includes(lastEntry.text)) {
-          mergedText = lastEntry.text + (lastEntry.text.endsWith(" ") || text.startsWith(" ") ? "" : " ") + text.trim();
-        } else {
-          // If it's a longer version of the same text (e.g. from outputTx API), replace it
-          mergedText = text.trim().length > lastEntry.text.length ? text.trim() : lastEntry.text;
+        if (lastEntry.role === role && now - entryTimeMs < MERGE_WINDOW_MS) {
+          // Prevent appending the exact same text if the transcription API duplicates part.text
+          if (
+            !lastEntry.text.includes(text.trim()) &&
+            !text.trim().includes(lastEntry.text)
+          ) {
+            mergedText =
+              lastEntry.text +
+              (lastEntry.text.endsWith(" ") || text.startsWith(" ")
+                ? ""
+                : " ") +
+              text.trim();
+          } else {
+            // If it's a longer version of the same text (e.g. from outputTx API), replace it
+            mergedText =
+              text.trim().length > lastEntry.text.length
+                ? text.trim()
+                : lastEntry.text;
+          }
+
+          isNewEntry = false;
+
+          // Update the last entry
+          const updatedEntry = { ...lastEntry, text: mergedText };
+          transcriptRef.current = [
+            ...currentTranscript.slice(0, -1),
+            updatedEntry,
+          ];
         }
+      }
 
-        isNewEntry = false;
-        
-        // Update the last entry
-        const updatedEntry = { ...lastEntry, text: mergedText };
+      if (isNewEntry) {
         transcriptRef.current = [
-          ...currentTranscript.slice(0, -1),
-          updatedEntry
+          ...currentTranscript,
+          {
+            role,
+            text: mergedText,
+            timestamp: now - startTimeRef.current,
+          },
         ];
       }
-    }
 
-    if (isNewEntry) {
-      transcriptRef.current = [
-        ...currentTranscript,
-        {
-          role,
-          text: mergedText,
-          timestamp: now - startTimeRef.current,
+      setTranscript([...transcriptRef.current]);
+      optionsRef.current.onTranscriptUpdate?.([...transcriptRef.current]);
+
+      // Detect AI ending the meeting from its speech using the FULL merged text
+      if (
+        role === "model" &&
+        !personaLeftRef.current &&
+        containsClosingPhrase(mergedText)
+      ) {
+        console.log(
+          "[GeminiLive] Closing phrase detected in AI speech:",
+          mergedText.substring(0, 80),
+        );
+        personaLeftRef.current = true;
+        setPersonaLeft(true);
+        optionsRef.current.onPersonaLeft?.();
+
+        // Clear audio queue so the AI goes silent after the closing statement
+        audioQueueRef.current = [];
+        isPlayingRef.current = false;
+
+        // Stop sending mic audio
+        if (processorRef.current) {
+          try {
+            processorRef.current.disconnect();
+          } catch {
+            /* ignore */
+          }
         }
-      ];
-    }
-
-    setTranscript([...transcriptRef.current]);
-    optionsRef.current.onTranscriptUpdate?.([...transcriptRef.current]);
-
-    // Detect AI ending the meeting from its speech using the FULL merged text
-    if (role === "model" && !personaLeftRef.current && containsClosingPhrase(mergedText)) {
-      console.log("[GeminiLive] Closing phrase detected in AI speech:", mergedText.substring(0, 80));
-      personaLeftRef.current = true;
-      setPersonaLeft(true);
-      optionsRef.current.onPersonaLeft?.();
-
-      // Clear audio queue so the AI goes silent after the closing statement
-      audioQueueRef.current = [];
-      isPlayingRef.current = false;
-
-      // Stop sending mic audio
-      if (processorRef.current) {
-        try { processorRef.current.disconnect(); } catch { /* ignore */ }
       }
-    }
-  }, [containsClosingPhrase]);
+    },
+    [containsClosingPhrase],
+  );
 
   // Connect to Gemini Live
   const connect = useCallback(async () => {
@@ -257,14 +305,21 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       setPersonaLeft(false);
       personaLeftRef.current = false;
 
-      // Get API key from server
-      const tokenRes = await fetch("/api/auth/token", { method: "POST" });
+      // Get access token from Node.js backend
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const tokenRes = await fetch(`${baseUrl}/api/auth/token`, {
+        method: "POST",
+      });
       const tokenData = await tokenRes.json();
 
       if (!tokenData.apiKey) {
-        throw new Error("Failed to get API key. Make sure GEMINI_API_KEY is set in .env.local");
+        throw new Error("Failed to get access token from backend.");
       }
 
+      // For Vertex AI, we'll use a direct WebSocket connection to the Vertex AI Live endpoint
+      // as the @google/genai web SDK is primarily built for Google AI Studio (API Keys).
+      // However, we can use the same message protocol.
       const ai = new GoogleGenAI({ apiKey: tokenData.apiKey });
 
       // Set up playback audio context (24kHz for Gemini output)
@@ -361,8 +416,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             // Handle input transcription (what the user said)
             // Check both serverContent level and top-level message
             const inputTx =
-              serverContent?.inputTranscription ||
-              message.inputTranscription;
+              serverContent?.inputTranscription || message.inputTranscription;
             if (inputTx?.text) {
               inputTranscriptBufferRef.current += inputTx.text;
               if (inputTx.finished) {
@@ -374,8 +428,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             // Handle output transcription (what the AI said)
             // Only use if we didn't already capture via part.text above
             const outputTx =
-              serverContent?.outputTranscription ||
-              message.outputTranscription;
+              serverContent?.outputTranscription || message.outputTranscription;
             if (outputTx?.text) {
               outputTranscriptBufferRef.current += outputTx.text;
               if (outputTx.finished) {
@@ -383,8 +436,13 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
                 const buffered = outputTranscriptBufferRef.current.trim();
                 if (buffered) {
                   // Check if this duplicates the last model entry
-                  const lastEntry = transcriptRef.current[transcriptRef.current.length - 1];
-                  if (!lastEntry || lastEntry.role !== "model" || lastEntry.text !== buffered) {
+                  const lastEntry =
+                    transcriptRef.current[transcriptRef.current.length - 1];
+                  if (
+                    !lastEntry ||
+                    lastEntry.role !== "model" ||
+                    lastEntry.text !== buffered
+                  ) {
                     addTranscriptEntry("model", buffered);
                   }
                 }
@@ -397,7 +455,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
               audioQueueRef.current = [];
               isPlayingRef.current = false;
             }
-
           },
           onerror: (e: Error | Event) => {
             const msg = e instanceof Error ? e.message : "WebSocket error";
@@ -419,8 +476,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
               outputTranscriptBufferRef.current = "";
             }
 
-
-
             setIsConnected(false);
             setIsConnecting(false);
             optionsRef.current.onConnectionChange?.(false);
@@ -433,7 +488,9 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       // Set up microphone streaming via a separate AudioContext
       // Browsers typically capture at 44.1kHz or 48kHz — we downsample to 16kHz
       micCtxRef.current = new AudioContext();
-      const micSource = micCtxRef.current.createMediaStreamSource(mediaStreamRef.current);
+      const micSource = micCtxRef.current.createMediaStreamSource(
+        mediaStreamRef.current,
+      );
       const processor = micCtxRef.current.createScriptProcessor(4096, 1, 1);
 
       micSource.connect(processor);
@@ -470,14 +527,18 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       sourceRef.current = micSource;
       processorRef.current = processor;
 
-      console.log("[GeminiLive] Mic streaming started at", actualSampleRate, "Hz");
+      console.log(
+        "[GeminiLive] Mic streaming started at",
+        actualSampleRate,
+        "Hz",
+      );
     } catch (error) {
       console.error("[GeminiLive] Connection error:", error);
       setIsConnecting(false);
       setIsConnected(false);
       cleanup();
       optionsRef.current.onError?.(
-        error instanceof Error ? error.message : "Failed to connect"
+        error instanceof Error ? error.message : "Failed to connect",
       );
     }
   }, [cleanup, downsample, float32ToInt16, playAudioQueue, addTranscriptEntry]);
@@ -502,16 +563,19 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   }, [cleanup]);
 
   // Send a text message to the session
-  const sendText = useCallback((text: string) => {
-    if (!sessionRef.current) return;
+  const sendText = useCallback(
+    (text: string) => {
+      if (!sessionRef.current) return;
 
-    addTranscriptEntry("user", text);
+      addTranscriptEntry("user", text);
 
-    sessionRef.current.sendClientContent({
-      turns: [{ role: "user", parts: [{ text }] }],
-      turnComplete: true,
-    });
-  }, [addTranscriptEntry]);
+      sessionRef.current.sendClientContent({
+        turns: [{ role: "user", parts: [{ text }] }],
+        turnComplete: true,
+      });
+    },
+    [addTranscriptEntry],
+  );
 
   // Get duration in seconds
   const getDuration = useCallback(() => {
@@ -523,24 +587,44 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   useEffect(() => {
     return () => {
       if (sessionRef.current) {
-        try { sessionRef.current.close(); } catch { /* */ }
+        try {
+          sessionRef.current.close();
+        } catch {
+          /* */
+        }
         sessionRef.current = null;
       }
       // Inline cleanup to avoid stale ref issues
       if (processorRef.current) {
-        try { processorRef.current.disconnect(); } catch { /* */ }
+        try {
+          processorRef.current.disconnect();
+        } catch {
+          /* */
+        }
       }
       if (sourceRef.current) {
-        try { sourceRef.current.disconnect(); } catch { /* */ }
+        try {
+          sourceRef.current.disconnect();
+        } catch {
+          /* */
+        }
       }
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       }
       if (micCtxRef.current) {
-        try { micCtxRef.current.close(); } catch { /* */ }
+        try {
+          micCtxRef.current.close();
+        } catch {
+          /* */
+        }
       }
       if (playbackCtxRef.current) {
-        try { playbackCtxRef.current.close(); } catch { /* */ }
+        try {
+          playbackCtxRef.current.close();
+        } catch {
+          /* */
+        }
       }
     };
   }, []); // Empty deps — only runs on unmount

@@ -30,7 +30,7 @@ export function useBackgroundGeneration() {
       setTimeout(() => {
         setTasks((prev) => prev.filter((pt) => pt.id !== t.id));
         activeRef.current.delete(t.id);
-      }, 5000)
+      }, 5000),
     );
 
     return () => timers.forEach(clearTimeout);
@@ -51,7 +51,9 @@ export function useBackgroundGeneration() {
     setTasks((prev) => [...prev, task]);
 
     try {
-      const res = await fetch("/api/persona/generate", {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const res = await fetch(`${baseUrl}/api/persona/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -88,9 +90,13 @@ export function useBackgroundGeneration() {
         setTasks((prev) =>
           prev.map((t) =>
             t.id === taskId
-              ? { ...t, status: "completed" as const, personaName: persona.name }
-              : t
-          )
+              ? {
+                  ...t,
+                  status: "completed" as const,
+                  personaName: persona.name,
+                }
+              : t,
+          ),
         );
       }
     } catch (error) {
@@ -107,8 +113,8 @@ export function useBackgroundGeneration() {
                       ? error.message
                       : "Generation failed",
                 }
-              : t
-          )
+              : t,
+          ),
         );
       }
     } finally {

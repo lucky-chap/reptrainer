@@ -7,8 +7,6 @@ import {
   PhoneOff,
   Mic,
   MicOff,
-  Clock,
-  Radio,
   MessageSquare,
   ArrowLeft,
   Loader2,
@@ -222,7 +220,9 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
 
     try {
       // Evaluate
-      const evalRes = await fetch("/api/session/evaluate", {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const evalRes = await fetch(`${baseUrl}/api/session/evaluate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -311,13 +311,15 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
           </Button>
         </div>
 
-        <Card className="p-8 glass max-w-lg mx-auto">
+        <Card className="p-10 bg-white border border-border/60 rounded-3xl max-w-lg mx-auto shadow-sm">
           <div className="flex flex-col items-center text-center">
-            <div className="size-16 rounded-2xl bg-gradient-to-br from-emerald-glow/15 to-emerald-glow/5 border border-emerald-glow/15 flex items-center justify-center mb-5">
-              <User className="size-8 text-emerald-glow" />
+            <div className="size-20 rounded-2xl bg-cream flex items-center justify-center mb-6">
+              <User className="size-10 text-charcoal" />
             </div>
-            <h2 className="text-xl font-bold mb-2">Before We Start</h2>
-            <p className="text-sm text-muted-foreground mb-6 max-w-sm">
+            <h2 className="heading-serif text-3xl text-charcoal mb-3">
+              Before We Start
+            </h2>
+            <p className="text-sm text-warm-gray mb-8 max-w-sm leading-relaxed">
               Enter your name so {persona.name} knows who they&apos;re meeting
               with. This will be used in the transcript.
             </p>
@@ -327,39 +329,41 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
                 e.preventDefault();
                 if (userName.trim()) setNameSubmitted(true);
               }}
-              className="w-full space-y-4"
+              className="w-full space-y-5"
             >
               <Input
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
                 placeholder="Your name (e.g., Alex Johnson)"
-                className="text-center text-base"
+                className="h-14 text-center text-base rounded-2xl border-border/60 bg-cream/30 focus:bg-white focus:ring-charcoal/10 transition-all"
                 autoFocus
                 required
               />
               <Button
                 type="submit"
-                className="w-full gap-2"
+                className="w-full h-14 rounded-2xl bg-charcoal text-cream hover:bg-charcoal-light gap-3 text-base font-semibold transition-all shadow-md active:scale-[0.98]"
                 disabled={!userName.trim()}
               >
                 Continue to Call
-                <Phone className="size-4" />
+                <Phone className="size-5" />
               </Button>
             </form>
           </div>
         </Card>
 
         {/* Persona preview */}
-        <Card className="p-4 glass max-w-lg mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="size-11 rounded-full bg-gradient-to-br from-violet-glow/20 to-blue-glow/10 border border-violet-glow/15 flex items-center justify-center text-lg font-bold text-violet-glow">
+        <Card className="p-5 bg-white/60 border border-border/40 rounded-2xl max-w-lg mx-auto">
+          <div className="flex items-center gap-4">
+            <div className="size-12 rounded-full bg-charcoal flex items-center justify-center text-lg font-bold text-cream shrink-0">
               {persona.name.charAt(0)}
             </div>
-            <div>
-              <h3 className="font-semibold text-sm">{persona.name}</h3>
-              <p className="text-xs text-muted-foreground">{persona.role}</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-charcoal text-sm truncate">
+                {persona.name}
+              </h3>
+              <p className="text-xs text-warm-gray truncate">{persona.role}</p>
             </div>
-            <div className="ml-auto text-xs text-muted-foreground">
+            <div className="text-[11px] text-warm-gray-light font-medium bg-cream/50 px-3 py-1 rounded-full border border-border/20">
               {product?.companyName
                 ? `Evaluating ${product.companyName}`
                 : "Loading product…"}
@@ -431,214 +435,293 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
         </Card>
       )}
 
-      {/* Persona Info Bar */}
-      <Card className="p-4 glass">
-        <div className="flex items-center justify-between">
+      {/* Call Area — Google Meet-style layout */}
+      <div
+        className="bg-white border border-border/40 rounded-[2rem] overflow-hidden shadow-xl flex flex-col"
+        style={{ height: "calc(100vh - 200px)", minHeight: "550px" }}
+      >
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-between px-6 py-3 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="size-12 rounded-full bg-gradient-to-br from-violet-glow/20 to-blue-glow/10 border border-violet-glow/15 flex items-center justify-center text-xl font-bold text-violet-glow">
-              {persona.name.charAt(0)}
+            <div className="size-8 rounded-lg bg-amber-glow flex items-center justify-center">
+              <Phone className="size-4 text-black" />
             </div>
             <div>
-              <h3 className="font-semibold text-base">{persona.name}</h3>
-              <p className="text-xs text-muted-foreground">{persona.role}</p>
+              <h3 className="text-sm font-semibold text-charcoal leading-tight">
+                Sales Roleplay Session
+              </h3>
+              <p className="text-[11px] text-warm-gray">
+                {persona.name} · {persona.role}
+              </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {isConnected && (
-              <>
-                <div className="flex items-center gap-2 text-sm">
-                  <Clock className="size-4 text-muted-foreground" />
-                  <span className="font-mono text-emerald-glow font-bold">
-                    {formatTime(callDuration)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className={`size-2 rounded-full ${
-                      personaLeft
-                        ? "bg-amber-glow"
-                        : "bg-emerald-glow animate-pulse"
-                    }`}
-                  />
-                  <span
-                    className={`text-xs font-medium ${
-                      personaLeft ? "text-amber-glow" : "text-emerald-glow"
-                    }`}
-                  >
-                    {personaLeft ? "Left" : "Live"}
-                  </span>
-                </div>
-              </>
+              <div className="flex items-center gap-2 bg-cream px-3 py-1.5 rounded-full border border-border/40">
+                <div
+                  className={`size-2 rounded-full ${personaLeft ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`}
+                />
+                <span className="text-xs text-charcoal font-medium font-mono">
+                  {formatTime(callDuration)}
+                </span>
+              </div>
             )}
+            <div className="flex items-center -space-x-2">
+              <div className="size-8 rounded-full bg-cream border-2 border-white flex items-center justify-center text-[10px] font-bold text-charcoal shadow-sm">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+              <div className="size-8 rounded-full bg-cream border-2 border-white flex items-center justify-center text-[10px] font-bold text-charcoal shadow-sm">
+                {persona.name.charAt(0)}
+              </div>
+            </div>
           </div>
         </div>
-      </Card>
 
-      {/* Call Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Call Controls */}
-        <div className="lg:col-span-1">
-          <Card className="p-6 glass flex flex-col items-center justify-center min-h-[300px]">
-            {!isConnected && !isConnecting ? (
-              <>
-                <div className="relative mb-6">
-                  <div className="size-24 rounded-full bg-gradient-to-br from-emerald-glow/20 to-emerald-glow/5 border-2 border-emerald-glow/20 flex items-center justify-center">
-                    <Phone className="size-10 text-emerald-glow" />
+        {/* Main Content Area */}
+        <div className="flex-1 flex gap-3 px-3 pb-3 min-h-0">
+          {/* Left: Stage + Controls */}
+          <div className="flex-1 flex flex-col gap-3 min-w-0">
+            {/* Main Speaker Stage */}
+            <div className="flex-1 bg-cream/40 border border-border/40 rounded-2xl relative flex items-center justify-center overflow-hidden">
+              {/* "You" label top-left */}
+              {isConnected && !personaLeft && (
+                <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+                  <div className="size-8 rounded-full bg-white shadow-sm flex items-center justify-center text-xs font-bold text-charcoal border border-border/40">
+                    {displayName.charAt(0).toUpperCase()}
                   </div>
+                  <span className="text-xs text-charcoal font-medium">
+                    {displayName}
+                  </span>
                 </div>
-                <h3 className="text-lg font-semibold mb-1">Ready to Dial In</h3>
-                <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">
-                  Hi {displayName}! Start the call to begin your roleplay with{" "}
-                  {persona.name}. Treat this like a real sales call.
-                </p>
-                <Button
-                  onClick={connect}
-                  size="lg"
-                  className="gap-2 bg-emerald-glow hover:bg-emerald-glow/90 text-black font-semibold px-8"
-                >
-                  <Phone className="size-5" />
-                  Start Call
-                </Button>
-              </>
-            ) : isConnecting ? (
-              <>
-                <div className="relative mb-6">
-                  <div className="size-24 rounded-full bg-gradient-to-br from-amber-glow/20 to-amber-glow/5 border-2 border-amber-glow/20 flex items-center justify-center">
-                    <Radio className="size-10 text-amber-glow animate-pulse" />
-                  </div>
-                  <div className="absolute inset-0 rounded-full border-2 border-amber-glow/30 animate-pulse-ring" />
-                </div>
-                <h3 className="text-lg font-semibold mb-1">Connecting...</h3>
-                <p className="text-sm text-muted-foreground">
-                  Setting up your call with {persona.name}
-                </p>
-              </>
-            ) : personaLeft ? (
-              <>
-                {/* Persona Left State */}
-                <div className="relative mb-6">
-                  <div className="size-24 rounded-full bg-gradient-to-br from-amber-glow/20 to-amber-glow/5 border-2 border-amber-glow/30 flex items-center justify-center">
-                    <UserX className="size-10 text-amber-glow" />
-                  </div>
-                </div>
-                <h3 className="text-lg font-semibold mb-1 text-amber-glow">
-                  Meeting Ended
-                </h3>
-                <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">
-                  {persona.name} has left the meeting. End the call to review
-                  your performance.
-                </p>
-                <Button
-                  onClick={handleEndCall}
-                  size="lg"
-                  className="gap-2 bg-amber-glow hover:bg-amber-glow/90 text-black font-semibold px-8"
-                >
-                  <PhoneOff className="size-5" />
-                  End Call & Review
-                </Button>
-              </>
-            ) : (
-              <>
-                {/* Live Call State */}
-                <div className="relative mb-6">
-                  <div className="size-24 rounded-full bg-gradient-to-br from-emerald-glow/20 to-emerald-glow/5 border-2 border-emerald-glow/30 flex items-center justify-center">
-                    <Mic className="size-10 text-emerald-glow" />
-                  </div>
-                  <div className="absolute inset-0 rounded-full border-2 border-emerald-glow/20 animate-pulse-ring" />
-                </div>
-
-                {/* Audio Visualizer */}
-                <div className="flex items-end gap-1 h-6 mb-4">
-                  {Array.from({ length: 7 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="w-1 bg-emerald-glow/60 rounded-full animate-sound-wave"
-                      style={{
-                        animationDelay: `${i * 0.1}s`,
-                        height: "4px",
-                      }}
-                    />
-                  ))}
-                </div>
-
-                <p className="text-sm text-emerald-glow font-medium mb-6">
-                  Call in progress...
-                </p>
-
-                <Button
-                  onClick={handleEndCall}
-                  size="lg"
-                  className="gap-2 bg-destructive hover:bg-destructive/90 text-white font-semibold px-8"
-                >
-                  <PhoneOff className="size-5" />
-                  End Call
-                </Button>
-              </>
-            )}
-          </Card>
-        </div>
-
-        {/* Transcript Panel */}
-        <div className="lg:col-span-2">
-          <Card className="glass flex flex-col h-[500px]">
-            <div className="px-5 py-3 border-b border-border/50 flex items-center gap-2">
-              <MessageSquare className="size-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Live Transcript</h3>
-              {transcript.length > 0 && (
-                <span className="text-[11px] text-muted-foreground ml-auto">
-                  {transcript.length} messages
-                </span>
               )}
-            </div>
 
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {transcript.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <MicOff className="size-8 text-muted-foreground/40 mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    {isConnected
-                      ? "Listening... Start speaking to begin."
-                      : "Start the call to see the conversation transcript here."}
+              {/* Pre-call idle state */}
+              {!isConnected && !isConnecting && !personaLeft && (
+                <div className="flex flex-col items-center justify-center text-center p-6 z-10">
+                  <div className="size-24 sm:size-32 rounded-full bg-white border border-border/60 flex items-center justify-center text-5xl font-bold text-charcoal mb-4 shadow-sm">
+                    {persona.name.charAt(0)}
+                  </div>
+                  <h3 className="text-charcoal text-lg font-semibold mb-1">
+                    Ready to start
+                  </h3>
+                  <p className="text-warm-gray text-sm max-w-[280px]">
+                    Start the call to begin your sales roleplay with{" "}
+                    {persona.name}.
                   </p>
                 </div>
-              ) : (
-                transcript.map((entry, i) => (
-                  <div
-                    key={i}
-                    className={`flex gap-3 animate-fade-up ${
-                      entry.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                    style={{ animationDelay: `${Math.min(i * 50, 200)}ms` }}
-                  >
-                    {entry.role === "model" && (
-                      <div className="size-8 rounded-full bg-gradient-to-br from-violet-glow/20 to-blue-glow/10 border border-violet-glow/15 flex items-center justify-center text-xs font-bold text-violet-glow shrink-0">
-                        {persona.name.charAt(0)}
-                      </div>
-                    )}
-                    <div
-                      className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${
-                        entry.role === "user"
-                          ? "bg-emerald-glow/10 text-emerald-glow border border-emerald-glow/15"
-                          : "bg-secondary/80 text-foreground"
-                      }`}
-                    >
-                      <p className="text-[11px] font-medium opacity-60 mb-0.5">
-                        {entry.role === "user" ? displayName : persona.name}
-                      </p>
-                      {entry.text}
-                    </div>
-                    {entry.role === "user" && (
-                      <div className="size-8 rounded-full bg-emerald-glow/15 border border-emerald-glow/15 flex items-center justify-center text-[10px] font-bold text-emerald-glow shrink-0">
-                        {displayName.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                ))
               )}
-              <div ref={transcriptEndRef} />
+
+              {/* Connecting state */}
+              {isConnecting && (
+                <div className="flex flex-col items-center justify-center text-center p-6 z-10">
+                  <div className="size-24 sm:size-32 rounded-full bg-white border border-border/60 flex items-center justify-center mb-4 relative shadow-sm">
+                    <Loader2 className="size-10 text-charcoal animate-spin" />
+                    <div className="absolute inset-0 rounded-full border-2 border-charcoal/10 animate-pulse-ring" />
+                  </div>
+                  <h3 className="text-charcoal text-lg font-semibold mb-1">
+                    Connecting...
+                  </h3>
+                  <p className="text-warm-gray text-sm">
+                    Setting up your call with {persona.name}
+                  </p>
+                </div>
+              )}
+
+              {/* Live call: persona avatar with visualizer */}
+              {isConnected && !personaLeft && (
+                <div className="flex flex-col items-center justify-center z-10">
+                  <div className="size-28 sm:size-36 rounded-full bg-white border border-border/60 flex items-center justify-center text-5xl font-bold text-charcoal relative shadow-md">
+                    {persona.name.charAt(0)}
+                    <div className="absolute inset-[-15%] rounded-full border-2 border-charcoal/10 animate-pulse-ring" />
+                  </div>
+                  {/* Audio visualizer */}
+                  <div className="flex items-end gap-1.5 h-8 mt-5">
+                    {Array.from({ length: 7 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="w-1 bg-charcoal/40 rounded-full animate-sound-wave"
+                        style={{
+                          animationDelay: `${i * 0.12}s`,
+                          height: "4px",
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Persona left state */}
+              {personaLeft && (
+                <div className="flex flex-col items-center justify-center text-center p-6 z-10">
+                  <div className="size-24 rounded-full bg-white border border-border/60 flex items-center justify-center mb-4 shadow-sm">
+                    <UserX className="size-10 text-charcoal/40" />
+                  </div>
+                  <h3 className="text-charcoal text-lg font-semibold mb-1">
+                    {persona.name} left
+                  </h3>
+                  <p className="text-warm-gray text-sm max-w-[260px]">
+                    The buyer has ended the meeting. End the call to see your
+                    review.
+                  </p>
+                </div>
+              )}
+
+              {/* Participant name badge bottom-left */}
+              <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm border border-border/40 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
+                <span className="text-sm font-medium text-charcoal">
+                  {persona.name}
+                </span>
+                {personaLeft ? (
+                  <MicOff className="size-3.5 text-rose-600" />
+                ) : (
+                  <Mic className="size-3.5 text-charcoal/60" />
+                )}
+              </div>
             </div>
-          </Card>
+
+            {/* Floating Call Controls */}
+            <div className="flex items-center justify-center gap-3 py-2 shrink-0">
+              {/* Mic toggle */}
+              <button className="size-11 rounded-full bg-white border border-border/40 hover:bg-cream flex items-center justify-center text-charcoal transition-colors shadow-sm">
+                {isConnected ? (
+                  <Mic className="size-5" />
+                ) : (
+                  <MicOff className="size-5 text-warm-gray" />
+                )}
+              </button>
+
+              {/* Start / End Call */}
+              {!isConnected && !isConnecting && !personaLeft ? (
+                <button
+                  onClick={connect}
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-all duration-200 group"
+                >
+                  <Phone className="size-4" />
+                  <span className="text-sm">Start Call</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleEndCall}
+                  className="size-11 rounded-full bg-rose-500 hover:bg-rose-600 flex items-center justify-center text-white transition-colors shadow-lg shadow-rose-500/20"
+                >
+                  <PhoneOff className="size-5" />
+                </button>
+              )}
+            </div>
+
+            {/* Bottom Participant Strip */}
+          </div>
+
+          {/* Right Sidebar */}
+          <div className="hidden lg:flex w-[320px] xl:w-[360px] flex-col gap-3 shrink-0">
+            {/* Meeting Overview Card */}
+            <div className="bg-white rounded-2xl p-5 shadow-sm shrink-0">
+              <h3 className="font-semibold text-charcoal text-lg mb-2">
+                Meeting overview
+              </h3>
+              <p className="text-xs text-warm-gray leading-relaxed mb-4">
+                You&apos;re in a live sales roleplay with{" "}
+                <strong className="text-charcoal">{persona.name}</strong> (
+                {persona.role}). This session is designed to test your pitch,
+                objection handling, and closing skills.
+                {product?.companyName && (
+                  <>
+                    {" "}
+                    You&apos;re pitching{" "}
+                    <strong className="text-charcoal">
+                      {product.companyName}
+                    </strong>
+                    .
+                  </>
+                )}
+              </p>
+              <div className="flex gap-2">
+                <div className="flex-1 bg-cream rounded-xl px-3 py-2 text-center">
+                  <p className="text-[10px] text-warm-gray uppercase tracking-wider mb-0.5">
+                    Intensity
+                  </p>
+                  <p className="text-sm font-semibold text-charcoal">
+                    {persona.intensityLevel}/3
+                  </p>
+                </div>
+                <div className="flex-1 bg-cream rounded-xl px-3 py-2 text-center">
+                  <p className="text-[10px] text-warm-gray uppercase tracking-wider mb-0.5">
+                    Duration
+                  </p>
+                  <p className="text-sm font-semibold text-charcoal font-mono">
+                    {formatTime(callDuration)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Chat / Transcript */}
+            <div className="flex-1 bg-white rounded-2xl flex flex-col overflow-hidden shadow-sm min-h-0">
+              <div className="px-5 py-3 border-b border-border/40 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="size-4 text-charcoal" />
+                  <h3 className="font-semibold text-charcoal text-sm">Chat</h3>
+                </div>
+                {transcript.length > 0 && (
+                  <span className="text-[10px] text-warm-gray bg-cream px-2 py-0.5 rounded-full">
+                    {transcript.length} msgs
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {transcript.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <div className="size-10 rounded-full bg-cream flex items-center justify-center mb-3">
+                      <MessageSquare className="size-4 text-warm-gray" />
+                    </div>
+                    <p className="text-xs text-warm-gray max-w-[180px]">
+                      {isConnected
+                        ? "Listening... conversation will appear here."
+                        : "Start the call to see the live transcript."}
+                    </p>
+                  </div>
+                ) : (
+                  transcript.map((entry, i) => (
+                    <div
+                      key={i}
+                      className={`flex gap-2.5 animate-fade-up ${
+                        entry.role === "user" ? "flex-row-reverse" : "flex-row"
+                      }`}
+                      style={{ animationDelay: `${Math.min(i * 50, 200)}ms` }}
+                    >
+                      <div
+                        className={`size-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                          entry.role === "model"
+                            ? "bg-charcoal text-cream"
+                            : "bg-cream-dark text-charcoal"
+                        }`}
+                      >
+                        {entry.role === "model"
+                          ? persona.name.charAt(0)
+                          : displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] ${
+                          entry.role === "user"
+                            ? "bg-charcoal text-white rounded-tr-sm"
+                            : "bg-cream/80 text-charcoal rounded-tl-sm"
+                        }`}
+                      >
+                        <p
+                          className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${entry.role === "user" ? "text-white/50" : "text-warm-gray"}`}
+                        >
+                          {entry.role === "user" ? displayName : persona.name}
+                        </p>
+                        <p className="leading-relaxed">{entry.text}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div ref={transcriptEndRef} className="h-2" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
