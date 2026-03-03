@@ -21,11 +21,12 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useGeminiLive } from "@/hooks/use-gemini-live";
 import type { Product, Persona, Session } from "@/lib/db";
-import { getProduct, saveSession } from "@/lib/db";
+import { saveSession } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
 
 interface RoleplaySessionProps {
   persona: Persona;
+  product: Product;
   onBack: () => void;
 }
 
@@ -35,8 +36,11 @@ function formatTime(seconds: number): string {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
-export function RoleplaySession({ persona, onBack }: RoleplaySessionProps) {
-  const [product, setProduct] = useState<Product | null>(null);
+export function RoleplaySession({
+  persona,
+  product,
+  onBack,
+}: RoleplaySessionProps) {
   const [callDuration, setCallDuration] = useState(0);
   const [showResults, setShowResults] = useState(false);
   const [savedSession, setSavedSession] = useState<Session | null>(null);
@@ -194,13 +198,6 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
     onPersonaLeft: handlePersonaLeft,
   });
 
-  // Load product
-  useEffect(() => {
-    getProduct(persona.productId).then((p) => {
-      if (p) setProduct(p);
-    });
-  }, [persona.productId]);
-
   // Timer
   useEffect(() => {
     if (isConnected) {
@@ -264,7 +261,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         id: uuidv4(),
         personaId: persona.id,
         userName: displayName,
-        productId: persona.productId,
+        productId: product.id,
         transcript: transcriptText,
         durationSeconds: duration,
         evaluation: evalRes.ok ? evaluation : null,
@@ -281,7 +278,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         id: uuidv4(),
         personaId: persona.id,
         userName: displayName,
-        productId: persona.productId,
+        productId: product.id,
         transcript: transcriptText,
         durationSeconds: duration,
         evaluation: null,
