@@ -6,6 +6,7 @@ import {
 } from "express";
 import { GoogleAuth } from "google-auth-library";
 import { env } from "../config/env.js";
+import { getLiveSetupConfig } from "../services/vertex.js";
 
 export const authRoutes: Router = Router();
 
@@ -22,13 +23,25 @@ authRoutes.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const client = await auth.getClient();
-      const token = await client.getAccessToken();
+      const tokenResult = await client.getAccessToken();
+      const accessToken = tokenResult.token;
+      const { systemPrompt, voiceName } = req.body;
+
+      const setupConfig = systemPrompt
+        ? getLiveSetupConfig(
+            env.GOOGLE_CLOUD_PROJECT,
+            env.GOOGLE_CLOUD_LOCATION,
+            systemPrompt,
+            voiceName,
+          )
+        : null;
 
       res.json({
-        token: token.token,
+        token: accessToken,
         project: env.GOOGLE_CLOUD_PROJECT,
         location: env.GOOGLE_CLOUD_LOCATION,
         apiKey: env.GEMINI_API_KEY,
+        setupConfig,
       });
     } catch (error) {
       next(error);

@@ -42,11 +42,13 @@ export interface SessionEvaluation {
 export interface Session {
   id: string;
   personaId: string;
+  userName?: string;
   productId: string;
   transcript: string;
   durationSeconds: number;
   evaluation: SessionEvaluation | null;
   createdAt: string;
+  insights?: { insight: string; timestamp: number }[];
 }
 
 // ─── IndexedDB Schema ─────────────────────────────────────────────────────
@@ -110,18 +112,21 @@ export async function getProduct(id: string): Promise<Product | undefined> {
   return db.get("products", id);
 }
 
-export async function seedDemoProducts(db: IDBPDatabase<ReptrainerDB>): Promise<void> {
+export async function seedDemoProducts(
+  db: IDBPDatabase<ReptrainerDB>,
+): Promise<void> {
   const demoProducts: Product[] = [
     {
       id: uuidv4(),
       companyName: "DataStream Pro",
       industry: "Enterprise Data Analytics",
-      description: "A real-time data streaming platform that unifies disparate data sources into a single source of truth for analytics teams.",
+      description:
+        "A real-time data streaming platform that unifies disparate data sources into a single source of truth for analytics teams.",
       targetCustomer: "VP of Data Engineering / CDO at Fortune 500 companies",
       objections: [
         "We already use Snowflake and are happy.",
         "Migration sounds like a multi-year nightmare.",
-        "Your pricing model is too unpredictable."
+        "Your pricing model is too unpredictable.",
       ],
       createdAt: new Date(Date.now() - 1000).toISOString(),
     },
@@ -129,12 +134,13 @@ export async function seedDemoProducts(db: IDBPDatabase<ReptrainerDB>): Promise<
       id: uuidv4(),
       companyName: "SecureNet Zero",
       industry: "Cybersecurity",
-      description: "Zero-trust network access (ZTNA) and endpoint security suite designed to replace legacy VPNs for remote workforces.",
+      description:
+        "Zero-trust network access (ZTNA) and endpoint security suite designed to replace legacy VPNs for remote workforces.",
       targetCustomer: "CISO or IT Director at mid-market financial services",
       objections: [
         "We're locked into a 3-year contract with Palo Alto.",
         "Our legacy systems don't support zero-trust models.",
-        "It will cause too much friction for our employees."
+        "It will cause too much friction for our employees.",
       ],
       createdAt: new Date(Date.now() - 2000).toISOString(),
     },
@@ -142,12 +148,13 @@ export async function seedDemoProducts(db: IDBPDatabase<ReptrainerDB>): Promise<
       id: uuidv4(),
       companyName: "CloudBuild",
       industry: "DevOps / Infrastructure",
-      description: "Platform engineering solution that provides developers with self-serve infrastructure while maintaining central compliance.",
+      description:
+        "Platform engineering solution that provides developers with self-serve infrastructure while maintaining central compliance.",
       targetCustomer: "VP of Engineering or Head of DevOps at tech scale-ups",
       objections: [
         "Our engineers prefer to write their own Terraform scripts.",
         "We tried an internal developer portal before and no one used it.",
-        "It seems too expensive for the ROI."
+        "It seems too expensive for the ROI.",
       ],
       createdAt: new Date(Date.now() - 3000).toISOString(),
     },
@@ -155,12 +162,13 @@ export async function seedDemoProducts(db: IDBPDatabase<ReptrainerDB>): Promise<
       id: uuidv4(),
       companyName: "SalesOptimizer",
       industry: "Sales Enablement Software",
-      description: "AI-driven conversation intelligence and coaching platform that analyzes sales calls to improve rep win rates.",
+      description:
+        "AI-driven conversation intelligence and coaching platform that analyzes sales calls to improve rep win rates.",
       targetCustomer: "VP of Sales or Revenue Operations Leader",
       objections: [
         "We currently use Gong and it's heavily integrated into our stack.",
         "Our reps hate feeling micromanaged by AI.",
-        "We don't have the bandwidth to train the AI to our specific methodology."
+        "We don't have the bandwidth to train the AI to our specific methodology.",
       ],
       createdAt: new Date(Date.now() - 4000).toISOString(),
     },
@@ -168,15 +176,17 @@ export async function seedDemoProducts(db: IDBPDatabase<ReptrainerDB>): Promise<
       id: uuidv4(),
       companyName: "HRConnect",
       industry: "Human Resources tech",
-      description: "Global payroll, benefits administration, and employee engagement platform for distributed, remote-first teams.",
-      targetCustomer: "CHRO or VP of People at remote-first mid-market companies",
+      description:
+        "Global payroll, benefits administration, and employee engagement platform for distributed, remote-first teams.",
+      targetCustomer:
+        "CHRO or VP of People at remote-first mid-market companies",
       objections: [
         "We just use Deel which is good enough.",
         "Switching HR systems is too risky right now.",
-        "How do you handle compliance in obscure international jurisdictions?"
+        "How do you handle compliance in obscure international jurisdictions?",
       ],
       createdAt: new Date(Date.now() - 5000).toISOString(),
-    }
+    },
   ];
 
   const tx = db.transaction("products", "readwrite");
@@ -214,10 +224,14 @@ export async function getPersona(id: string): Promise<Persona | undefined> {
 }
 
 export async function getPersonasByProduct(
-  productId: string
+  productId: string,
 ): Promise<Persona[]> {
   const db = await getDB();
-  const personas = await db.getAllFromIndex("personas", "by-product", productId);
+  const personas = await db.getAllFromIndex(
+    "personas",
+    "by-product",
+    productId,
+  );
   return personas.reverse();
 }
 
@@ -245,13 +259,13 @@ export async function getSession(id: string): Promise<Session | undefined> {
 }
 
 export async function getSessionsByPersona(
-  personaId: string
+  personaId: string,
 ): Promise<Session[]> {
   const db = await getDB();
   const sessions = await db.getAllFromIndex(
     "sessions",
     "by-persona",
-    personaId
+    personaId,
   );
   return sessions.reverse();
 }

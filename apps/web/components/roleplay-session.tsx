@@ -183,6 +183,9 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
     disconnect,
     getDuration,
     logManualInsight,
+    isRecording,
+    startRecording,
+    downloadRecording,
   } = useGeminiLive({
     systemPrompt,
     voiceName,
@@ -215,6 +218,13 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
     };
   }, [isConnected, getDuration]);
 
+  // Handle auto-recording
+  useEffect(() => {
+    if (isConnected && !isRecording && startRecording) {
+      startRecording();
+    }
+  }, [isConnected, isRecording, startRecording]);
+
   const handleEndCall = async () => {
     const duration = getDuration();
     disconnect();
@@ -224,7 +234,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         ? transcript
             .map(
               (entry) =>
-                `${entry.role === "user" ? "Sales Rep" : "Buyer"}: ${entry.text}`,
+                `${entry.role === "user" ? displayName : persona.name}: ${entry.text}`,
             )
             .join("\n\n")
         : `[No transcript was captured for this ${formatTime(duration)} call with ${persona.name}]`;
@@ -253,10 +263,12 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
       const session: Session = {
         id: uuidv4(),
         personaId: persona.id,
+        userName: displayName,
         productId: persona.productId,
         transcript: transcriptText,
         durationSeconds: duration,
         evaluation: evalRes.ok ? evaluation : null,
+        insights: insights, // Save the real-time insights
         createdAt: new Date().toISOString(),
       };
 
@@ -268,10 +280,12 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
       const session: Session = {
         id: uuidv4(),
         personaId: persona.id,
+        userName: displayName,
         productId: persona.productId,
         transcript: transcriptText,
         durationSeconds: duration,
         evaluation: null,
+        insights: insights,
         createdAt: new Date().toISOString(),
       };
       await saveSession(session);

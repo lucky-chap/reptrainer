@@ -207,6 +207,32 @@ export function SessionResults({
             </div>
           </div>
 
+          {/* Real-time Sales Insights */}
+          {session.insights && session.insights.length > 0 && (
+            <div className="bg-white rounded-2xl border border-border/60 p-6">
+              <h3 className="font-semibold text-charcoal mb-4 flex items-center gap-2">
+                <span className="size-2 rounded-full bg-cream-dark" />
+                Real-time Sales Insights
+              </h3>
+              <div className="space-y-3">
+                {session.insights.map((insight, i) => (
+                  <div
+                    key={i}
+                    className="flex gap-4 items-start p-3 rounded-xl bg-warm-gray-light/5 border border-warm-gray-light/10"
+                  >
+                    <div className="text-xs font-mono text-warm-gray pt-1 shrink-0">
+                      {Math.floor(insight.timestamp / 60)}:
+                      {(insight.timestamp % 60).toString().padStart(2, "0")}
+                    </div>
+                    <div className="text-sm text-charcoal leading-relaxed">
+                      {insight.insight}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Feedback */}
           <div className="grid gap-4 sm:grid-cols-3">
             {/* Strengths */}
@@ -293,19 +319,49 @@ export function SessionResults({
           <span className="size-2 rounded-full bg-charcoal" />
           Full Transcript
         </h3>
-        <div className="max-h-[400px] overflow-y-auto space-y-3">
+        <div className="max-h-[500px] overflow-y-auto space-y-6 pr-2 custom-scrollbar">
           {session.transcript.split("\n\n").map((line, i) => {
-            const isRep = line.startsWith("Sales Rep:");
+            const colonIndex = line.indexOf(": ");
+            const speaker =
+              colonIndex !== -1 ? line.substring(0, colonIndex) : "";
+            const text =
+              colonIndex !== -1 ? line.substring(colonIndex + 2) : line;
+            const isUser =
+              speaker === session.userName || speaker === "Sales Rep";
+
             return (
               <div
                 key={i}
-                className={`text-sm rounded-xl px-4 py-3 ${
-                  isRep
-                    ? "bg-charcoal/5 border-l-2 border-charcoal/30"
-                    : "bg-cream-dark/50 border-l-2 border-warm-gray/30"
-                }`}
+                className={`flex gap-4 ${isUser ? "flex-row-reverse text-right" : "flex-row text-left"}`}
               >
-                {line}
+                {/* Avatar */}
+                <div
+                  className={`size-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 shadow-sm border ${
+                    isUser
+                      ? "bg-charcoal text-cream border-charcoal/20"
+                      : "bg-white text-charcoal border-border/60"
+                  }`}
+                >
+                  {speaker.charAt(0).toUpperCase()}
+                </div>
+
+                {/* Message Bubble */}
+                <div
+                  className={`max-w-[80%] space-y-1 ${isUser ? "items-end" : "items-start"}`}
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-warm-gray px-1">
+                    {speaker}
+                  </p>
+                  <div
+                    className={`rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-sm border ${
+                      isUser
+                        ? "bg-charcoal text-cream border-charcoal/80 rounded-tr-none"
+                        : "bg-white text-charcoal border-border/60 rounded-tl-none"
+                    }`}
+                  >
+                    {text}
+                  </div>
+                </div>
               </div>
             );
           })}

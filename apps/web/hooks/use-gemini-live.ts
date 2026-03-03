@@ -55,9 +55,18 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const isCleanedUpRef = useRef(false);
   const personaLeftRef = useRef(false);
 
+  // Recording refs
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const mixedStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(
+    null,
+  );
+  const [isRecording, setIsRecording] = useState(false);
+
   // Buffer for incremental transcription text
   const inputTranscriptBufferRef = useRef("");
   const outputTranscriptBufferRef = useRef("");
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   // Closing phrases that indicate the AI is ending the meeting
   const CLOSING_PHRASES = [
@@ -131,8 +140,25 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       }
       playbackCtxRef.current = null;
     }
+    if (currentSourceRef.current) {
+      try {
+        currentSourceRef.current.stop();
+      } catch {
+        /* ignore */
+      }
+      currentSourceRef.current = null;
+    }
     audioQueueRef.current = [];
     isPlayingRef.current = false;
+
+    // Recording cleanup
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+    }
+    recorderRef.current = null;
+    recordedChunksRef.current = [];
+    mixedStreamDestRef.current = null;
+    setIsRecording(false);
   }, []);
 
   // Connection sound effects
@@ -247,7 +273,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       }
     }
 
-    while (audioQueueRef.current.length > 0) {
+    while (audioQueueRef.current.length > 0 && !isCleanedUpRef.current) {
       const pcmData = audioQueueRef.current.shift()!;
       const int16Array = new Int16Array(pcmData);
       const float32Array = new Float32Array(int16Array.length);
@@ -265,8 +291,20 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       source.buffer = audioBuffer;
       source.connect(ctx.destination);
 
+      // Connect to recording mixer if active
+      if (mixedStreamDestRef.current) {
+        source.connect(mixedStreamDestRef.current);
+      }
+
+      currentSourceRef.current = source;
+
       await new Promise<void>((resolve) => {
-        source.onended = () => resolve();
+        source.onended = () => {
+          if (currentSourceRef.current === source) {
+            currentSourceRef.current = null;
+          }
+          resolve();
+        };
         source.start();
       });
     }
@@ -373,6 +411,49 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     [containsClosingPhrase],
   );
 
+  // Start recording the session
+  const startRecording = useCallback(() => {
+    if (!mixedStreamDestRef.current) return;
+
+    try {
+      const recorder = new MediaRecorder(mixedStreamDestRef.current.stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        console.log("[Recorder] Session recording stopped");
+      };
+
+      recorder.start();
+      recorderRef.current = recorder;
+      setIsRecording(true);
+      console.log("[Recorder] Session recording started");
+    } catch (err) {
+      console.error("[Recorder] Failed to start recording:", err);
+    }
+  }, []);
+
+  // Stop and download recording
+  const downloadRecording = useCallback(() => {
+    if (recordedChunksRef.current.length === 0) return;
+
+    const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sales-session-${Date.now()}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+
   // Connect to Vertex AI Multimodal Live
   const connect = useCallback(async () => {
     try {
@@ -385,8 +466,13 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       // Get access token and project info from Node.js backend
       const baseUrl =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const systemPrompt = optionsRef.current.systemPrompt;
+      const voiceName = optionsRef.current.voiceName || "Kore";
+
       const tokenRes = await fetch(`${baseUrl}/api/auth/token`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ systemPrompt, voiceName }),
       });
       const tokenData = await tokenRes.json();
 
@@ -394,13 +480,18 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         throw new Error("Failed to get authentication data from backend.");
       }
 
-      const { token, project, location } = tokenData;
+      const { token, project, location, setupConfig } = tokenData;
 
       // Set up playback audio context (24kHz for Gemini output)
-      playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
+      const playbackCtx = new AudioContext({ sampleRate: 24000 });
+      playbackCtxRef.current = playbackCtx;
+
+      // Set up recording mixer
+      const mixer = playbackCtx.createMediaStreamDestination();
+      mixedStreamDestRef.current = mixer;
 
       // Request microphone access
-      mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({
+      const micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           echoCancellation: true,
@@ -408,6 +499,11 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           autoGainControl: true,
         },
       });
+      mediaStreamRef.current = micStream;
+
+      // Connect mic to mixer
+      const mixerMicSource = playbackCtx.createMediaStreamSource(micStream);
+      mixerMicSource.connect(mixer);
 
       // Reset transcript
       transcriptRef.current = [];
@@ -416,11 +512,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       inputTranscriptBufferRef.current = "";
       outputTranscriptBufferRef.current = "";
 
-      const systemPrompt = optionsRef.current.systemPrompt;
-      const voiceName = optionsRef.current.voiceName || "Kore";
-
       // Construct Vertex AI WebSocket URL
-      // access_token is used as a query parameter because browser WebSockets don't support custom headers
       const host = `${location}-aiplatform.googleapis.com`;
       const url = `wss://${host}/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent?access_token=${token}`;
 
@@ -431,56 +523,21 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
 
       ws.onopen = () => {
         console.log("[VertexAI] WebSocket opened. Sending setup...");
-        // Send setup message as required by Vertex Bidi service
-        const setupMsg = {
-          setup: {
-            model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
-            generation_config: {
-              response_modalities: ["AUDIO"],
-              speech_config: {
-                voice_config: {
-                  prebuilt_voice_config: {
-                    voice_name: voiceName,
-                  },
-                },
+        // Send setup message provided by the backend
+        if (setupConfig) {
+          ws.send(JSON.stringify(setupConfig));
+        } else {
+          // Fallback if backend didn't provide setupConfig
+          const fallbackSetup = {
+            setup: {
+              model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
+              generation_config: {
+                response_modalities: ["AUDIO", "TEXT"],
               },
             },
-            system_instruction: {
-              parts: [{ text: systemPrompt }],
-            },
-            // Tool declarations
-            tools: [
-              {
-                function_declarations: [
-                  {
-                    name: "log_sales_insight",
-                    description:
-                      "Record a key insight or moment from the sales call for later review.",
-                    parameters: {
-                      type: "object",
-                      properties: {
-                        insight: {
-                          type: "string",
-                          description: "The description of the sales insight.",
-                        },
-                        timestamp: {
-                          type: "number",
-                          description:
-                            "The timestamp in seconds from the start of the call.",
-                        },
-                      },
-                      required: ["insight"],
-                    },
-                  },
-                ],
-              },
-            ],
-            // Vertex AI specific transcription configuration
-            input_audio_transcription: {},
-            output_audio_transcription: {},
-          },
-        };
-        ws.send(JSON.stringify(setupMsg));
+          };
+          ws.send(JSON.stringify(fallbackSetup));
+        }
         setIsConnected(true);
         setIsConnecting(false);
         optionsRef.current.onConnectionChange?.(true);
@@ -564,12 +621,38 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
               }
             }
 
-            // Capture text parts
+            // Note: text parts from modelTurn are logged but not added to transcript
+            // to avoid duplicates with output transcription events
             if (part.text) {
-              console.log("[VertexAI] Received text part:", part.text);
-              addTranscriptEntry("model", part.text);
+              console.log(
+                "[VertexAI] Model text part (for transcript):",
+                part.text,
+              );
+              // Only add if we're not also getting output transcription
+              // Since we use AUDIO modality, the model's spoken words come as audio
+              // and text appears here as a supplementary transcript
+              outputTranscriptBufferRef.current += part.text;
             }
           }
+        }
+
+        // Handle turn completion — flush buffered output text
+        if (serverContent?.turnComplete || serverContent?.turn_complete) {
+          const buffered = outputTranscriptBufferRef.current.trim();
+          if (buffered) {
+            addTranscriptEntry("model", buffered);
+
+            // Check for closing phrases
+            if (containsClosingPhrase(buffered)) {
+              console.log("[VertexAI] Closing phrase detected in model turn");
+              personaLeftRef.current = true;
+              setPersonaLeft(true);
+              audioQueueRef.current = [];
+              isPlayingRef.current = false;
+              optionsRef.current.onPersonaLeft?.();
+            }
+          }
+          outputTranscriptBufferRef.current = "";
         }
 
         // Handle Tool Calls (Function Calls)
@@ -615,8 +698,10 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           serverContent?.input_transcription;
 
         if (inputTx?.text) {
+          // Accumulate incremental transcription
           inputTranscriptBufferRef.current += inputTx.text;
-          if (inputTx.finished) {
+          // If the message says it's final, add to the UI transcript
+          if (inputTx.finished || inputTx.is_final) {
             addTranscriptEntry("user", inputTranscriptBufferRef.current);
             inputTranscriptBufferRef.current = "";
           }
@@ -629,20 +714,14 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           serverContent?.output_transcription;
 
         if (outputTx?.text) {
+          // Accumulate incremental AI transcription
           outputTranscriptBufferRef.current += outputTx.text;
-          if (outputTx.finished) {
-            const buffered = outputTranscriptBufferRef.current.trim();
-            if (buffered) {
-              const lastEntry =
-                transcriptRef.current[transcriptRef.current.length - 1];
-              if (
-                !lastEntry ||
-                lastEntry.role !== "model" ||
-                lastEntry.text !== buffered
-              ) {
-                addTranscriptEntry("model", buffered);
-              }
-            }
+          // If the message is final, add to the UI transcript.
+          // Note: we also add transcript entries on model_turn part.text
+          // and flush on turnComplete. We need to be careful not to double-add.
+          // The addTranscriptEntry helper already merges or updates entries.
+          addTranscriptEntry("model", outputTranscriptBufferRef.current);
+          if (outputTx.finished || outputTx.is_final) {
             outputTranscriptBufferRef.current = "";
           }
         }
@@ -878,5 +957,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     sendText,
     logManualInsight,
     getDuration,
+    isRecording,
+    startRecording,
+    downloadRecording,
   };
 }

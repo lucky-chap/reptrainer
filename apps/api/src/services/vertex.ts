@@ -7,6 +7,7 @@ import {
   EvaluateSessionResponse,
   GEMINI_TEXT_MODEL,
   GEMINI_EVALUATION_MODEL,
+  GEMINI_LIVE_MODEL,
 } from "@reptrainer/shared";
 
 // Initialize Vertex AI
@@ -151,4 +152,71 @@ Return ONLY valid JSON in this format:
   }
 
   return JSON.parse(jsonStr) as EvaluateSessionResponse;
+}
+
+/**
+ * Get the setup configuration for Vertex AI Multimodal Live.
+ */
+export function getLiveSetupConfig(
+  project: string,
+  location: string,
+  systemPrompt: string,
+  voiceName: string = "Kore",
+) {
+  return {
+    setup: {
+      model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
+      generation_config: {
+        response_modalities: ["AUDIO"],
+        speech_config: {
+          voice_config: {
+            prebuilt_voice_config: {
+              voice_name: voiceName,
+            },
+          },
+        },
+      },
+      system_instruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      input_audio_transcription: {},
+      output_audio_transcription: {},
+      realtime_input_config: {
+        automatic_activity_detection: {
+          silence_duration_ms: 2000,
+          start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
+          end_of_speech_sensitivity: "END_SENSITIVITY_LOW",
+        },
+      },
+      tools: [
+        {
+          google_search: {},
+        },
+        {
+          function_declarations: [
+            {
+              name: "log_sales_insight",
+              description:
+                "Record a key insight or moment from the sales call for later review.",
+              parameters: {
+                type: "object",
+                properties: {
+                  insight: {
+                    type: "string",
+                    description: "The description of the sales insight.",
+                  },
+                  timestamp: {
+                    type: "number",
+                    description:
+                      "The timestamp in seconds from the start of the call.",
+                  },
+                },
+                required: ["insight"],
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
 }
