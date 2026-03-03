@@ -1,10 +1,11 @@
 import { VertexAI, GenerationConfig } from "@google-cloud/vertexai";
 import { env } from "../config/env.js";
-import type {
+import {
   GeneratePersonaRequest,
   GeneratePersonaResponse,
   EvaluateSessionRequest,
   EvaluateSessionResponse,
+  GEMINI_TEXT_MODEL,
 } from "@reptrainer/shared";
 
 // Initialize Vertex AI
@@ -13,7 +14,7 @@ const vertexAI = new VertexAI({
   location: env.GOOGLE_CLOUD_LOCATION,
 });
 
-const TEXT_MODEL = "gemini-1.5-flash-002"; // Stable Vertex model
+const TEXT_MODEL = GEMINI_TEXT_MODEL; // Stable Vertex model
 
 /**
  * Extracts JSON from a potentially markdown-wrapped AI response.

@@ -13,6 +13,8 @@ import {
   AlertCircle,
   UserX,
   User,
+  Zap,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +44,7 @@ export function RoleplaySession({ persona, onBack }: RoleplaySessionProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userName, setUserName] = useState("");
   const [nameSubmitted, setNameSubmitted] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"chat" | "insights">("chat");
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>>(null);
@@ -127,7 +130,15 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
 - Start by introducing yourself briefly, then ask ${displayName} to pitch their product to you.
 - Keep your opening warm but professional — let the rep set the tone before you push back.
 - If the rep earns your respect with compelling, evidence-backed answers, you can soften slightly — but never become easy.
-- You are the BUYER, not the sales rep. Do not pitch for them or fill in gaps they should address.`;
+- You are the BUYER, not the sales rep. Do not pitch for them or fill in gaps they should address.
+
+─── SALES COACHING & INSIGHTS (SILENT) ───
+You have access to the "log_sales_insight" tool. Use it in the following ways:
+1. **AUTONOMOUS LOGGING**: As the meeting progresses, identify 3-5 key moments where the rep shows a specific strength or a clear area for improvement (e.g., "Handled the price objection with ROI data" or "Avoided the direct question about security"). Call the tool IMMEDIATELY when these moments occur.
+2. **BUTTON TRIGGERS**: If you receive "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]", IMMEDIATELY call "log_sales_insight" with a summary of the rep's most recent performance. Do this SILENTLY; do not break character.
+3. **VOCAL CUES**: If the rep says "Remember this" or "Log that", call the tool and acknowledge them briefly in character (e.g., "Noted. Now, about your implementation timeline...").
+
+**CRITICAL**: Never mention "tools", "logging", or being an AI. Stay 100% in your persona as ${persona.name}.`;
 
   // Map persona gender to a matching Gemini voice
   const MALE_VOICES = ["Puck", "Charon", "Fenrir", "Orus"];
@@ -166,10 +177,12 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
     isConnected,
     isConnecting,
     transcript,
+    insights,
     personaLeft,
     connect,
     disconnect,
     getDuration,
+    logManualInsight,
   } = useGeminiLive({
     systemPrompt,
     voiceName,
@@ -590,6 +603,17 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
                 )}
               </button>
 
+              {/* Log Insight Button */}
+              {isConnected && !personaLeft && (
+                <button
+                  onClick={logManualInsight}
+                  title="Log Sales Insight"
+                  className="size-11 rounded-full bg-white border border-border/40 hover:bg-cream flex items-center justify-center text-amber-500 transition-colors shadow-sm"
+                >
+                  <Lightbulb className="size-5" />
+                </button>
+              )}
+
               {/* Start / End Call */}
               {!isConnected && !isConnecting && !personaLeft ? (
                 <button
@@ -656,70 +680,130 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
             </div>
 
             {/* Chat / Transcript */}
-            <div className="flex-1 bg-white rounded-2xl flex flex-col overflow-hidden shadow-sm min-h-0">
-              <div className="px-5 py-3 border-b border-border/40 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="size-4 text-charcoal" />
-                  <h3 className="font-semibold text-charcoal text-sm">Chat</h3>
-                </div>
-                {transcript.length > 0 && (
-                  <span className="text-[10px] text-warm-gray bg-cream px-2 py-0.5 rounded-full">
-                    {transcript.length} msgs
+            <div className="px-2 py-2 border-b border-border/40 flex items-center gap-1 shrink-0 bg-cream/20">
+              <button
+                onClick={() => setSidebarTab("chat")}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                  sidebarTab === "chat"
+                    ? "bg-white text-charcoal shadow-sm border border-border/40"
+                    : "text-warm-gray hover:text-charcoal"
+                }`}
+              >
+                <MessageSquare className="size-3.5" />
+                Chat
+              </button>
+              <button
+                onClick={() => setSidebarTab("insights")}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                  sidebarTab === "insights"
+                    ? "bg-white text-charcoal shadow-sm border border-border/40"
+                    : "text-warm-gray hover:text-charcoal"
+                }`}
+              >
+                <Zap className="size-3.5" />
+                Insights
+                {insights.length > 0 && (
+                  <span className="flex size-4 items-center justify-center bg-amber-500 text-[9px] text-white rounded-full">
+                    {insights.length}
                   </span>
                 )}
-              </div>
+              </button>
+            </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {transcript.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <div className="size-10 rounded-full bg-cream flex items-center justify-center mb-3">
-                      <MessageSquare className="size-4 text-warm-gray" />
-                    </div>
-                    <p className="text-xs text-warm-gray max-w-[180px]">
-                      {isConnected
-                        ? "Listening... conversation will appear here."
-                        : "Start the call to see the live transcript."}
-                    </p>
-                  </div>
-                ) : (
-                  transcript.map((entry, i) => (
-                    <div
-                      key={i}
-                      className={`flex gap-2.5 animate-fade-up ${
-                        entry.role === "user" ? "flex-row-reverse" : "flex-row"
-                      }`}
-                      style={{ animationDelay: `${Math.min(i * 50, 200)}ms` }}
-                    >
-                      <div
-                        className={`size-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                          entry.role === "model"
-                            ? "bg-charcoal text-cream"
-                            : "bg-cream-dark text-charcoal"
-                        }`}
-                      >
-                        {entry.role === "model"
-                          ? persona.name.charAt(0)
-                          : displayName.charAt(0).toUpperCase()}
+            <div className="flex-1 overflow-y-auto p-4">
+              {sidebarTab === "chat" ? (
+                <div className="space-y-4">
+                  {transcript.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center py-10">
+                      <div className="size-10 rounded-full bg-cream flex items-center justify-center mb-3">
+                        <MessageSquare className="size-4 text-warm-gray" />
                       </div>
+                      <p className="text-xs text-warm-gray max-w-[180px]">
+                        {isConnected
+                          ? "Listening... conversation will appear here."
+                          : "Start the call to see the live transcript."}
+                      </p>
+                    </div>
+                  ) : (
+                    transcript.map((entry, i) => (
                       <div
-                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] ${
+                        key={i}
+                        className={`flex gap-2.5 animate-fade-up ${
                           entry.role === "user"
-                            ? "bg-charcoal text-white rounded-tr-sm"
-                            : "bg-cream/80 text-charcoal rounded-tl-sm"
+                            ? "flex-row-reverse"
+                            : "flex-row"
                         }`}
+                        style={{
+                          animationDelay: `${Math.min(i * 50, 200)}ms`,
+                        }}
                       >
-                        <p
-                          className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${entry.role === "user" ? "text-white/50" : "text-warm-gray"}`}
+                        <div
+                          className={`size-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                            entry.role === "model"
+                              ? "bg-charcoal text-cream"
+                              : "bg-cream-dark text-charcoal"
+                          }`}
                         >
-                          {entry.role === "user" ? displayName : persona.name}
-                        </p>
-                        <p className="leading-relaxed">{entry.text}</p>
+                          {entry.role === "model"
+                            ? persona.name.charAt(0)
+                            : displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div
+                          className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] ${
+                            entry.role === "user"
+                              ? "bg-charcoal text-white rounded-tr-sm"
+                              : "bg-cream/80 text-charcoal rounded-tl-sm"
+                          }`}
+                        >
+                          <p
+                            className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${entry.role === "user" ? "text-white/50" : "text-warm-gray"}`}
+                          >
+                            {entry.role === "user" ? displayName : persona.name}
+                          </p>
+                          <p className="leading-relaxed">{entry.text}</p>
+                        </div>
                       </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {insights.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center py-10">
+                      <div className="size-10 rounded-full bg-cream flex items-center justify-center mb-3">
+                        <Zap className="size-4 text-warm-gray" />
+                      </div>
+                      <p className="text-xs text-warm-gray max-w-[180px]">
+                        No insights logged yet. The AI will log key moments, or
+                        you can click the lightbulb to save a moment.
+                      </p>
                     </div>
-                  ))
-                )}
-                <div ref={transcriptEndRef} className="h-2" />
-              </div>
+                  ) : (
+                    insights.map((insight, i) => (
+                      <div
+                        key={i}
+                        className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 animate-fade-up"
+                        style={{
+                          animationDelay: `${Math.min(i * 50, 200)}ms`,
+                        }}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-bold text-amber-600 uppercase tracking-tight">
+                            Sales Insight
+                          </span>
+                          <span className="text-[10px] font-mono text-warm-gray">
+                            {formatTime(insight.timestamp)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-charcoal leading-relaxed pr-2">
+                          {insight.insight}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+              <div ref={transcriptEndRef} className="h-2" />
             </div>
           </div>
         </div>

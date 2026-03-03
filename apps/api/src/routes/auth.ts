@@ -5,6 +5,7 @@ import {
   type NextFunction,
 } from "express";
 import { GoogleAuth } from "google-auth-library";
+import { env } from "../config/env.js";
 
 export const authRoutes: Router = Router();
 
@@ -23,7 +24,12 @@ authRoutes.post(
       const client = await auth.getClient();
       const token = await client.getAccessToken();
 
-      res.json({ apiKey: token.token });
+      res.json({
+        token: token.token,
+        project: env.GOOGLE_CLOUD_PROJECT,
+        location: env.GOOGLE_CLOUD_LOCATION,
+        apiKey: env.GEMINI_API_KEY,
+      });
     } catch (error) {
       next(error);
     }

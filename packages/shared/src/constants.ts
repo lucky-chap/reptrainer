@@ -1,7 +1,9 @@
-// ─── Shared Constants ───────────────────────────────────────────────────────
-
 /** Gemini model used for text generation (persona, evaluation) */
-export const GEMINI_TEXT_MODEL = "gemini-2.5-flash";
+export const GEMINI_TEXT_MODEL = "gemini-1.5-flash";
+
+/** Gemini model used for the Multimodal Live API (WebSocket) */
+export const GEMINI_LIVE_MODEL =
+  "gemini-2.5-flash-native-audio-preview-12-2025";
 
 /** Scoring range */
 export const MIN_SCORE = 1;

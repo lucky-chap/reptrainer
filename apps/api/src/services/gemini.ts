@@ -1,12 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
-import { GEMINI_TEXT_MODEL } from "@reptrainer/shared/src";
+import { GEMINI_TEXT_MODEL } from "@reptrainer/shared/";
 import { env } from "../config/env.js";
 import type {
   GeneratePersonaRequest,
   GeneratePersonaResponse,
   EvaluateSessionRequest,
   EvaluateSessionResponse,
-} from "@reptrainer/shared/src";
+} from "@reptrainer/shared";
 
 const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
@@ -22,7 +22,7 @@ function extractJson(text: string): string | null {
  * Generate a buyer persona using Gemini based on product context.
  */
 export async function generatePersona(
-  input: GeneratePersonaRequest
+  input: GeneratePersonaRequest,
 ): Promise<GeneratePersonaResponse> {
   const { companyName, description, targetCustomer, industry, objections } =
     input;
@@ -69,7 +69,7 @@ IMPORTANT:
   if (!jsonStr) {
     throw Object.assign(
       new Error("Failed to generate persona. Invalid JSON response from AI."),
-      { statusCode: 502 }
+      { statusCode: 502 },
     );
   }
 
@@ -80,10 +80,15 @@ IMPORTANT:
  * Evaluate a sales roleplay session transcript using Gemini.
  */
 export async function evaluateSession(
-  input: EvaluateSessionRequest
+  input: EvaluateSessionRequest,
 ): Promise<EvaluateSessionResponse> {
-  const { transcript, personaName, personaRole, intensityLevel, durationSeconds } =
-    input;
+  const {
+    transcript,
+    personaName,
+    personaRole,
+    intensityLevel,
+    durationSeconds,
+  } = input;
 
   const prompt = `You are an expert sales performance evaluator and coach. Analyze the following sales roleplay transcript and provide a structured evaluation.
 
@@ -127,7 +132,7 @@ Return ONLY valid JSON in this exact format, no markdown:
   if (!jsonStr) {
     throw Object.assign(
       new Error("Failed to evaluate session. Invalid JSON response from AI."),
-      { statusCode: 502 }
+      { statusCode: 502 },
     );
   }
 

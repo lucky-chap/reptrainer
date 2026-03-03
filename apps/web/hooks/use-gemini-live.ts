@@ -1,11 +1,21 @@
 "use client";
 
 import { useCallback, useRef, useState, useEffect } from "react";
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GEMINI_LIVE_MODEL } from "@reptrainer/shared";
+// Modality constants
+const Modality = {
+  AUDIO: "AUDIO",
+  TEXT: "TEXT",
+} as const;
 
 export interface TranscriptEntry {
   role: "user" | "model";
   text: string;
+  timestamp: number;
+}
+
+export interface SalesInsight {
+  insight: string;
   timestamp: number;
 }
 
@@ -22,6 +32,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [insights, setInsights] = useState<SalesInsight[]>([]);
   const [personaLeft, setPersonaLeft] = useState(false);
 
   // Use refs for callbacks to avoid dependency churn
@@ -297,7 +308,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     [containsClosingPhrase],
   );
 
-  // Connect to Gemini Live
+  // Connect to Vertex AI Multimodal Live
   const connect = useCallback(async () => {
     try {
       isCleanedUpRef.current = false;
@@ -305,7 +316,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       setPersonaLeft(false);
       personaLeftRef.current = false;
 
-      // Get access token from Node.js backend
+      // Get access token and project info from Node.js backend
       const baseUrl =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
       const tokenRes = await fetch(`${baseUrl}/api/auth/token`, {
@@ -313,14 +324,11 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       });
       const tokenData = await tokenRes.json();
 
-      if (!tokenData.apiKey) {
-        throw new Error("Failed to get access token from backend.");
+      if (!tokenData.token || !tokenData.project) {
+        throw new Error("Failed to get authentication data from backend.");
       }
 
-      // For Vertex AI, we'll use a direct WebSocket connection to the Vertex AI Live endpoint
-      // as the @google/genai web SDK is primarily built for Google AI Studio (API Keys).
-      // However, we can use the same message protocol.
-      const ai = new GoogleGenAI({ apiKey: tokenData.apiKey });
+      const { token, project, location } = tokenData;
 
       // Set up playback audio context (24kHz for Gemini output)
       playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
@@ -345,148 +353,260 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       const systemPrompt = optionsRef.current.systemPrompt;
       const voiceName = optionsRef.current.voiceName || "Kore";
 
-      // Connect to Gemini Live API with the correct model
-      const session = await ai.live.connect({
-        model: "gemini-2.5-flash-native-audio-preview-12-2025",
-        config: {
-          responseModalities: [Modality.AUDIO],
-          systemInstruction: {
-            parts: [{ text: systemPrompt }],
-          },
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName,
+      // Construct Vertex AI WebSocket URL
+      // access_token is used as a query parameter because browser WebSockets don't support custom headers
+      const host = `${location}-aiplatform.googleapis.com`;
+      const url = `wss://${host}/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent?access_token=${token}`;
+
+      console.log("[VertexAI] Connecting to", host);
+      const ws = new WebSocket(url);
+
+      ws.binaryType = "arraybuffer";
+
+      ws.onopen = () => {
+        console.log("[VertexAI] WebSocket opened. Sending setup...");
+        // Send setup message as required by Vertex Bidi service
+        const setupMsg = {
+          setup: {
+            model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
+            generation_config: {
+              response_modalities: ["AUDIO"],
+              speech_config: {
+                voice_config: {
+                  prebuilt_voice_config: {
+                    voice_name: voiceName,
+                  },
+                },
               },
             },
+            system_instruction: {
+              parts: [{ text: systemPrompt }],
+            },
+            // Tool declarations
+            tools: [
+              {
+                function_declarations: [
+                  {
+                    name: "log_sales_insight",
+                    description:
+                      "Record a key insight or moment from the sales call for later review.",
+                    parameters: {
+                      type: "object",
+                      properties: {
+                        insight: {
+                          type: "string",
+                          description: "The description of the sales insight.",
+                        },
+                        timestamp: {
+                          type: "number",
+                          description:
+                            "The timestamp in seconds from the start of the call.",
+                        },
+                      },
+                      required: ["insight"],
+                    },
+                  },
+                ],
+              },
+            ],
+            // Vertex AI specific transcription configuration
+            input_audio_transcription: {},
+            output_audio_transcription: {},
           },
-          // Enable transcription for both input (user) and output (model)
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
+        };
+        ws.send(JSON.stringify(setupMsg));
+        setIsConnected(true);
+        setIsConnecting(false);
+        optionsRef.current.onConnectionChange?.(true);
+      };
+
+      ws.onmessage = (event) => {
+        let msgData = event.data;
+        if (msgData instanceof ArrayBuffer) {
+          msgData = new TextDecoder().decode(msgData);
+        }
+
+        let message;
+        try {
+          message = JSON.parse(msgData as string);
+        } catch (err) {
+          console.error("[VertexAI] Failed to parse message:", err);
+          console.error("[VertexAI] Raw data:", msgData);
+          return;
+        }
+
+        // Log everything during development to see the protocol
+        console.log(
+          "[VertexAI] Received:",
+          JSON.stringify(message).substring(0, 200),
+        );
+
+        // Handle Setup Complete
+        if (message.setupComplete || message.setup_complete) {
+          console.log("[VertexAI] Setup completed successfully");
+          return;
+        }
+
+        const serverContent = message.serverContent || message.server_content;
+
+        if (
+          serverContent?.modelTurn?.parts ||
+          serverContent?.model_turn?.parts
+        ) {
+          const parts =
+            serverContent.modelTurn?.parts || serverContent.model_turn?.parts;
+          for (const part of parts) {
+            // Handle audio data — skip if persona already left
+            const inlineData = part.inline_data || part.inlineData;
+            const audioData = inlineData?.data;
+            if (audioData && !personaLeftRef.current) {
+              console.log("[VertexAI] Received audio data chunk");
+              try {
+                const binaryString = atob(audioData);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                  bytes[i] = binaryString.charCodeAt(i);
+                }
+                audioQueueRef.current.push(bytes.buffer);
+                playAudioQueue();
+              } catch (err) {
+                console.error("[VertexAI] Audio decode error:", err);
+              }
+            }
+
+            // Capture text parts
+            if (part.text) {
+              console.log("[VertexAI] Received text part:", part.text);
+              addTranscriptEntry("model", part.text);
+            }
+          }
+        }
+
+        // Handle Tool Calls (Function Calls)
+        const toolCall = message.toolCall || message.tool_call;
+        if (toolCall?.functionCalls || toolCall?.function_calls) {
+          const calls = toolCall.functionCalls || toolCall.function_calls;
+          console.log("[VertexAI] Tool Call received:", calls);
+
+          for (const call of calls) {
+            if (call.name === "log_sales_insight") {
+              console.log("!!! SALES INSIGHT LOGGED:", call.args);
+              const newInsight: SalesInsight = {
+                insight: call.args.insight,
+                timestamp: call.args.timestamp || getDuration(),
+              };
+              setInsights((prev) => [...prev, newInsight]);
+            }
+
+            // Always respond to tool calls to avoid hanging the model
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(
+                JSON.stringify({
+                  tool_response: {
+                    function_responses: [
+                      {
+                        name: call.name,
+                        response: { success: true },
+                        id: call.id,
+                      },
+                    ],
+                  },
+                }),
+              );
+            }
+          }
+        }
+
+        // Handle transcription
+        const inputTx =
+          message.inputTranscription ||
+          message.input_transcription ||
+          serverContent?.inputTranscription ||
+          serverContent?.input_transcription;
+
+        if (inputTx?.text) {
+          inputTranscriptBufferRef.current += inputTx.text;
+          if (inputTx.finished) {
+            addTranscriptEntry("user", inputTranscriptBufferRef.current);
+            inputTranscriptBufferRef.current = "";
+          }
+        }
+
+        const outputTx =
+          message.outputTranscription ||
+          message.output_transcription ||
+          serverContent?.outputTranscription ||
+          serverContent?.output_transcription;
+
+        if (outputTx?.text) {
+          outputTranscriptBufferRef.current += outputTx.text;
+          if (outputTx.finished) {
+            const buffered = outputTranscriptBufferRef.current.trim();
+            if (buffered) {
+              const lastEntry =
+                transcriptRef.current[transcriptRef.current.length - 1];
+              if (
+                !lastEntry ||
+                lastEntry.role !== "model" ||
+                lastEntry.text !== buffered
+              ) {
+                addTranscriptEntry("model", buffered);
+              }
+            }
+            outputTranscriptBufferRef.current = "";
+          }
+        }
+
+        // Handle interruption
+        if (message.interrupted || serverContent?.interrupted) {
+          audioQueueRef.current = [];
+          isPlayingRef.current = false;
+        }
+      };
+
+      ws.onerror = (e) => {
+        console.error("[VertexAI] WebSocket error:", e);
+        optionsRef.current.onError?.("WebSocket connection error");
+      };
+
+      ws.onclose = (e) => {
+        console.log(`[VertexAI] Closed: code=${e.code} reason="${e.reason}"`);
+
+        if (inputTranscriptBufferRef.current.trim()) {
+          addTranscriptEntry("user", inputTranscriptBufferRef.current);
+          inputTranscriptBufferRef.current = "";
+        }
+        if (outputTranscriptBufferRef.current.trim()) {
+          addTranscriptEntry("model", outputTranscriptBufferRef.current);
+          outputTranscriptBufferRef.current = "";
+        }
+
+        setIsConnected(false);
+        setIsConnecting(false);
+        optionsRef.current.onConnectionChange?.(false);
+      };
+
+      let audioChunkCount = 0;
+      sessionRef.current = {
+        sendRealtimeInput: (input: any) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ realtime_input: input }));
+            audioChunkCount++;
+            if (audioChunkCount % 100 === 0) {
+              console.log(`[VertexAI] Sent ${audioChunkCount} audio chunks`);
+            }
+          }
         },
-        callbacks: {
-          onopen: () => {
-            console.log("[GeminiLive] Connected");
-            setIsConnected(true);
-            setIsConnecting(false);
-            optionsRef.current.onConnectionChange?.(true);
-          },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onmessage: (message: any) => {
-            const serverContent = message.serverContent as
-              | {
-                  modelTurn?: {
-                    parts?: Array<{
-                      inlineData?: { data?: string; mimeType?: string };
-                      text?: string;
-                    }>;
-                  };
-                  interrupted?: boolean;
-                  turnComplete?: boolean;
-                  inputTranscription?: { text?: string; finished?: boolean };
-                  outputTranscription?: { text?: string; finished?: boolean };
-                }
-              | undefined;
-
-            if (serverContent?.modelTurn?.parts) {
-              for (const part of serverContent.modelTurn.parts) {
-                // Handle audio data — skip if persona already left
-                if (part.inlineData?.data && !personaLeftRef.current) {
-                  try {
-                    const binaryString = atob(part.inlineData.data);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                      bytes[i] = binaryString.charCodeAt(i);
-                    }
-                    audioQueueRef.current.push(bytes.buffer);
-                    playAudioQueue();
-                  } catch (err) {
-                    console.error("[GeminiLive] Audio decode error:", err);
-                  }
-                }
-
-                // Fallback: capture text parts from model turn
-                // (works even if transcription API isn't supported by the model)
-                if (part.text) {
-                  addTranscriptEntry("model", part.text);
-                }
-              }
-            }
-
-            // Handle input transcription (what the user said)
-            // Check both serverContent level and top-level message
-            const inputTx =
-              serverContent?.inputTranscription || message.inputTranscription;
-            if (inputTx?.text) {
-              inputTranscriptBufferRef.current += inputTx.text;
-              if (inputTx.finished) {
-                addTranscriptEntry("user", inputTranscriptBufferRef.current);
-                inputTranscriptBufferRef.current = "";
-              }
-            }
-
-            // Handle output transcription (what the AI said)
-            // Only use if we didn't already capture via part.text above
-            const outputTx =
-              serverContent?.outputTranscription || message.outputTranscription;
-            if (outputTx?.text) {
-              outputTranscriptBufferRef.current += outputTx.text;
-              if (outputTx.finished) {
-                // Only add if we have substantial text not already captured
-                const buffered = outputTranscriptBufferRef.current.trim();
-                if (buffered) {
-                  // Check if this duplicates the last model entry
-                  const lastEntry =
-                    transcriptRef.current[transcriptRef.current.length - 1];
-                  if (
-                    !lastEntry ||
-                    lastEntry.role !== "model" ||
-                    lastEntry.text !== buffered
-                  ) {
-                    addTranscriptEntry("model", buffered);
-                  }
-                }
-                outputTranscriptBufferRef.current = "";
-              }
-            }
-
-            // Handle interruption — clear audio queue
-            if (serverContent?.interrupted) {
-              audioQueueRef.current = [];
-              isPlayingRef.current = false;
-            }
-          },
-          onerror: (e: Error | Event) => {
-            const msg = e instanceof Error ? e.message : "WebSocket error";
-            console.error("[GeminiLive] Error:", msg, e);
-            optionsRef.current.onError?.(msg);
-          },
-          onclose: (e: CloseEvent | Event) => {
-            const reason = (e as CloseEvent)?.reason || "Connection closed";
-            const code = (e as CloseEvent)?.code;
-            console.log(`[GeminiLive] Closed: code=${code} reason="${reason}"`);
-
-            // Flush any remaining buffered transcriptions
-            if (inputTranscriptBufferRef.current.trim()) {
-              addTranscriptEntry("user", inputTranscriptBufferRef.current);
-              inputTranscriptBufferRef.current = "";
-            }
-            if (outputTranscriptBufferRef.current.trim()) {
-              addTranscriptEntry("model", outputTranscriptBufferRef.current);
-              outputTranscriptBufferRef.current = "";
-            }
-
-            setIsConnected(false);
-            setIsConnecting(false);
-            optionsRef.current.onConnectionChange?.(false);
-          },
+        sendClientContent: (content: any) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            console.log("[VertexAI] Sending client content:", content);
+            ws.send(JSON.stringify({ client_content: content }));
+          }
         },
-      });
+        close: () => ws.close(),
+      };
 
-      sessionRef.current = session;
-
-      // Set up microphone streaming via a separate AudioContext
-      // Browsers typically capture at 44.1kHz or 48kHz — we downsample to 16kHz
+      // Set up microphone streaming
       micCtxRef.current = new AudioContext();
       const micSource = micCtxRef.current.createMediaStreamSource(
         mediaStreamRef.current,
@@ -499,12 +619,16 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       const actualSampleRate = micCtxRef.current.sampleRate;
 
       processor.onaudioprocess = (e) => {
-        if (!sessionRef.current || isCleanedUpRef.current) return;
+        if (
+          !sessionRef.current ||
+          isCleanedUpRef.current ||
+          ws.readyState !== WebSocket.OPEN
+        )
+          return;
         const inputData = e.inputBuffer.getChannelData(0);
         const downsampled = downsample(inputData, actualSampleRate, 16000);
         const int16Data = float32ToInt16(downsampled);
 
-        // Convert to base64
         const uint8Array = new Uint8Array(int16Data.buffer);
         let binary = "";
         for (let i = 0; i < uint8Array.length; i++) {
@@ -513,27 +637,23 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         const base64 = btoa(binary);
 
         try {
-          session.sendRealtimeInput({
-            audio: {
-              data: base64,
-              mimeType: "audio/pcm;rate=16000",
-            },
+          sessionRef.current.sendRealtimeInput({
+            media_chunks: [
+              {
+                data: base64,
+                mime_type: "audio/l16;rate=16000",
+              },
+            ],
           });
         } catch {
-          // Session might be closing — ignore
+          /* ignore */
         }
       };
 
       sourceRef.current = micSource;
       processorRef.current = processor;
-
-      console.log(
-        "[GeminiLive] Mic streaming started at",
-        actualSampleRate,
-        "Hz",
-      );
     } catch (error) {
-      console.error("[GeminiLive] Connection error:", error);
+      console.error("[VertexAI] Connection error:", error);
       setIsConnecting(false);
       setIsConnected(false);
       cleanup();
@@ -571,17 +691,45 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
 
       sessionRef.current.sendClientContent({
         turns: [{ role: "user", parts: [{ text }] }],
-        turnComplete: true,
+        turn_complete: true,
       });
     },
     [addTranscriptEntry],
   );
+
+  // Manually trigger an insight (meta-command)
+  const logManualInsight = useCallback(() => {
+    if (!sessionRef.current) return;
+    // Send a "hidden" command that the system prompt handles
+    sessionRef.current.sendClientContent({
+      turns: [
+        {
+          role: "user",
+          parts: [{ text: "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]" }],
+        },
+      ],
+      turn_complete: true,
+    });
+  }, []);
 
   // Get duration in seconds
   const getDuration = useCallback(() => {
     if (startTimeRef.current === 0) return 0;
     return Math.round((Date.now() - startTimeRef.current) / 1000);
   }, []);
+
+  return {
+    isConnected,
+    isConnecting,
+    transcript,
+    insights,
+    personaLeft,
+    connect,
+    disconnect,
+    sendText,
+    logManualInsight,
+    getDuration,
+  };
 
   // Cleanup on unmount only (stable dependency — no callback refs)
   useEffect(() => {
@@ -633,10 +781,12 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     isConnected,
     isConnecting,
     transcript,
+    insights,
     personaLeft,
     connect,
     disconnect,
     sendText,
+    logManualInsight,
     getDuration,
   };
 }
