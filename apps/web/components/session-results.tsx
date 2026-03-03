@@ -11,6 +11,7 @@ import {
   Clock,
   RotateCcw,
   Download,
+  Headphones,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { Session, Persona, Product } from "@/lib/db";
@@ -138,6 +139,16 @@ export function SessionResults({
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadAudio = () => {
+    if (!audioUrl) return;
+    const a = document.createElement("a");
+    a.href = audioUrl;
+    a.download = `session-recording-${session.id}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Header */}
@@ -184,15 +195,25 @@ export function SessionResults({
           </div>
         </div>
         {audioUrl && (
-          <div className="mt-6 pt-4 border-t border-border/40">
-            <h4 className="text-xs font-semibold text-charcoal mb-3 uppercase tracking-wider">
-              Session Recording
-            </h4>
-            <audio
-              controls
-              src={audioUrl}
-              className="w-full h-10 appearance-none bg-cream/50 rounded-lg outline-none [&::-webkit-media-controls-panel]:bg-cream/50 [&::-webkit-media-controls-play-button]:bg-charcoal [&::-webkit-media-controls-play-button]:rounded-full [&::-webkit-media-controls-play-button]:text-cream"
-            />
+          <div className="mt-6 pt-5 border-t border-border/40">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="size-7 rounded-lg bg-charcoal/5 flex items-center justify-center">
+                  <Headphones className="size-3.5 text-charcoal" />
+                </div>
+                <h4 className="text-xs font-semibold text-charcoal uppercase tracking-wider">
+                  Session Recording
+                </h4>
+              </div>
+              <button
+                onClick={handleDownloadAudio}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-cream-dark/10 text-warm-gray hover:text-charcoal hover:bg-cream transition-colors border border-border/40 hover:border-border/80"
+              >
+                <Download className="size-3.5" />
+                Download
+              </button>
+            </div>
+            <audio controls src={audioUrl} className="w-full h-10 rounded-lg" />
           </div>
         )}
       </div>

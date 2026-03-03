@@ -155,12 +155,16 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     audioQueueRef.current = [];
     isPlayingRef.current = false;
 
-    // Recording cleanup
+    // Recording cleanup — stop recorder but do NOT clear recorded chunks
+    // so that stopRecording() / getRecordingBlob() can still read them.
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      recorderRef.current.stop();
+      try {
+        recorderRef.current.stop();
+      } catch {
+        /* ignore */
+      }
     }
     recorderRef.current = null;
-    recordedChunksRef.current = [];
     mixedStreamDestRef.current = null;
     setIsRecording(false);
 
@@ -457,24 +461,50 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     }
   }, []);
 
-  // Stop and download recording
-  const downloadRecording = useCallback(() => {
-    if (recordedChunksRef.current.length === 0) return;
+  // Stop recording and return the audio Blob.
+  // Must be called BEFORE disconnect/cleanup so the MediaRecorder can
+  // flush its final data via the ondataavailable event.
+  const stopRecording = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      const recorder = recorderRef.current;
+      if (!recorder || recorder.state === "inactive") {
+        // Recorder already stopped — return whatever chunks we have
+        if (recordedChunksRef.current.length === 0) {
+          resolve(null);
+          return;
+        }
+        const blob = new Blob(recordedChunksRef.current, {
+          type: "audio/webm",
+        });
+        recordedChunksRef.current = [];
+        resolve(blob);
+        return;
+      }
 
-    const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sales-session-${Date.now()}.webm`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      // Listen for the final onstop event which fires after the last ondataavailable
+      recorder.onstop = () => {
+        console.log("[Recorder] Session recording stopped, building blob");
+        if (recordedChunksRef.current.length === 0) {
+          resolve(null);
+          return;
+        }
+        const blob = new Blob(recordedChunksRef.current, {
+          type: "audio/webm",
+        });
+        recordedChunksRef.current = [];
+        resolve(blob);
+      };
+
+      recorder.stop();
+      setIsRecording(false);
+    });
   }, []);
 
   const getRecordingBlob = useCallback(() => {
     if (recordedChunksRef.current.length === 0) return null;
-    return new Blob(recordedChunksRef.current, { type: "audio/webm" });
+    const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
+    recordedChunksRef.current = [];
+    return blob;
   }, []);
 
   // Connect to Vertex AI Multimodal Live
@@ -950,7 +980,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     getDuration,
     isRecording,
     startRecording,
-    downloadRecording,
+    stopRecording,
     getRecordingBlob,
   };
 }

@@ -190,8 +190,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
     logManualInsight,
     isRecording,
     startRecording,
-    downloadRecording,
-    getRecordingBlob,
+    stopRecording,
   } = useGeminiLive({
     systemPrompt,
     voiceName,
@@ -226,6 +225,11 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
 
   const handleEndCall = async () => {
     const duration = getDuration();
+
+    // Stop recording FIRST — this awaits the MediaRecorder flush
+    // so we capture all audio data before cleanup wipes resources.
+    const audioBlob = (await stopRecording()) || undefined;
+
     disconnect();
 
     const transcriptText =
@@ -261,7 +265,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         evaluation: evaluation,
         insights: insights, // Save the real-time insights
         createdAt: new Date().toISOString(),
-        audioBlob: getRecordingBlob() || undefined,
+        audioBlob,
       };
 
       await saveSession(session);
@@ -279,7 +283,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         evaluation: null,
         insights: insights,
         createdAt: new Date().toISOString(),
-        audioBlob: getRecordingBlob() || undefined,
+        audioBlob,
       };
       await saveSession(session);
       setSavedSession(session);
