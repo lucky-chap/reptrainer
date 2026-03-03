@@ -1,0 +1,63 @@
+"use server";
+
+const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const secretKey = process.env.API_SECRET_KEY || "reptrainer-secret-123";
+
+const headers = {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${secretKey}`,
+};
+
+export async function fetchAuthToken(
+  systemPrompt?: string,
+  voiceName?: string,
+) {
+  const res = await fetch(`${baseUrl}/api/auth/token`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ systemPrompt, voiceName }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch auth token: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function generatePersona(data: {
+  companyName: string;
+  description: string;
+  targetCustomer: string;
+  industry: string;
+  objections: string[];
+}) {
+  const res = await fetch(`${baseUrl}/api/persona/generate`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to generate persona: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function evaluateSession(data: {
+  transcript: string;
+  personaName: string;
+  personaRole: string;
+  intensityLevel: number;
+  durationSeconds: number;
+}) {
+  const res = await fetch(`${baseUrl}/api/session/evaluate`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to evaluate session: ${res.statusText}`);
+  }
+  return res.json();
+}

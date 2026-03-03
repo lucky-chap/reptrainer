@@ -2,6 +2,10 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import { GEMINI_LIVE_MODEL } from "@reptrainer/shared";
+import { fetchAuthToken } from "@/app/actions/api";
+
+type RoleGroup = "user" | "model";
+
 // Modality constants
 const Modality = {
   AUDIO: "AUDIO",
@@ -159,6 +163,20 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     recordedChunksRef.current = [];
     mixedStreamDestRef.current = null;
     setIsRecording(false);
+
+    if (connectingOscRef.current) {
+      try {
+        connectingOscRef.current.stop();
+        connectingOscRef.current.disconnect();
+      } catch (e) {}
+      connectingOscRef.current = null;
+    }
+    if (connectingGainRef.current) {
+      try {
+        connectingGainRef.current.disconnect();
+      } catch (e) {}
+      connectingGainRef.current = null;
+    }
   }, []);
 
   // Connection sound effects
@@ -454,6 +472,11 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     URL.revokeObjectURL(url);
   }, []);
 
+  const getRecordingBlob = useCallback(() => {
+    if (recordedChunksRef.current.length === 0) return null;
+    return new Blob(recordedChunksRef.current, { type: "audio/webm" });
+  }, []);
+
   // Connect to Vertex AI Multimodal Live
   const connect = useCallback(async () => {
     try {
@@ -469,12 +492,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       const systemPrompt = optionsRef.current.systemPrompt;
       const voiceName = optionsRef.current.voiceName || "Kore";
 
-      const tokenRes = await fetch(`${baseUrl}/api/auth/token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ systemPrompt, voiceName }),
-      });
-      const tokenData = await tokenRes.json();
+      const tokenData = await fetchAuthToken(systemPrompt, voiceName);
 
       if (!tokenData.token || !tokenData.project) {
         throw new Error("Failed to get authentication data from backend.");
@@ -621,36 +639,22 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
               }
             }
 
-            // Note: text parts from modelTurn are logged but not added to transcript
-            // to avoid duplicates with output transcription events
+            // modelTurn text parts can contain tool/JSON artifacts and duplicate
+            // what outputTranscription already provides cleanly — ignore for transcript
             if (part.text) {
               console.log(
-                "[VertexAI] Model text part (for transcript):",
+                "[VertexAI] Model text part (ignored for transcript):",
                 part.text,
               );
-              // Only add if we're not also getting output transcription
-              // Since we use AUDIO modality, the model's spoken words come as audio
-              // and text appears here as a supplementary transcript
-              outputTranscriptBufferRef.current += part.text;
             }
           }
         }
 
-        // Handle turn completion — flush buffered output text
+        // Handle turn completion — flush any remaining buffered output text
         if (serverContent?.turnComplete || serverContent?.turn_complete) {
           const buffered = outputTranscriptBufferRef.current.trim();
           if (buffered) {
             addTranscriptEntry("model", buffered);
-
-            // Check for closing phrases
-            if (containsClosingPhrase(buffered)) {
-              console.log("[VertexAI] Closing phrase detected in model turn");
-              personaLeftRef.current = true;
-              setPersonaLeft(true);
-              audioQueueRef.current = [];
-              isPlayingRef.current = false;
-              optionsRef.current.onPersonaLeft?.();
-            }
           }
           outputTranscriptBufferRef.current = "";
         }
@@ -716,12 +720,12 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         if (outputTx?.text) {
           // Accumulate incremental AI transcription
           outputTranscriptBufferRef.current += outputTx.text;
-          // If the message is final, add to the UI transcript.
-          // Note: we also add transcript entries on model_turn part.text
-          // and flush on turnComplete. We need to be careful not to double-add.
-          // The addTranscriptEntry helper already merges or updates entries.
-          addTranscriptEntry("model", outputTranscriptBufferRef.current);
+          // Only commit to transcript when the transcription chunk is final
           if (outputTx.finished || outputTx.is_final) {
+            const finalText = outputTranscriptBufferRef.current.trim();
+            if (finalText) {
+              addTranscriptEntry("model", finalText);
+            }
             outputTranscriptBufferRef.current = "";
           }
         }
@@ -887,19 +891,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     return Math.round((Date.now() - startTimeRef.current) / 1000);
   }, []);
 
-  return {
-    isConnected,
-    isConnecting,
-    transcript,
-    insights,
-    personaLeft,
-    connect,
-    disconnect,
-    sendText,
-    logManualInsight,
-    getDuration,
-  };
-
   // Cleanup on unmount only (stable dependency — no callback refs)
   useEffect(() => {
     return () => {
@@ -960,5 +951,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     isRecording,
     startRecording,
     downloadRecording,
+    getRecordingBlob,
   };
 }

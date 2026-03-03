@@ -7,6 +7,7 @@ import {
 import { GoogleAuth } from "google-auth-library";
 import { env } from "../config/env.js";
 import { getLiveSetupConfig } from "../services/vertex.js";
+import { requireApiSecret } from "../middleware/auth.js";
 
 export const authRoutes: Router = Router();
 
@@ -20,6 +21,7 @@ const auth = new GoogleAuth({
  */
 authRoutes.post(
   "/token",
+  requireApiSecret,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const client = await auth.getClient();

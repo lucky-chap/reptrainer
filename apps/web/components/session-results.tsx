@@ -10,7 +10,9 @@ import {
   Lightbulb,
   Clock,
   RotateCcw,
+  Download,
 } from "lucide-react";
+import { useState, useEffect } from "react";
 import type { Session, Persona, Product } from "@/lib/db";
 
 interface SessionResultsProps {
@@ -114,6 +116,28 @@ export function SessionResults({
       )
     : 0;
 
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (session.audioBlob) {
+      const url = URL.createObjectURL(session.audioBlob);
+      setAudioUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [session.audioBlob]);
+
+  const handleDownloadTranscript = () => {
+    const blob = new Blob([session.transcript], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `transcript-${session.id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Header */}
@@ -159,6 +183,18 @@ export function SessionResults({
             </span>
           </div>
         </div>
+        {audioUrl && (
+          <div className="mt-6 pt-4 border-t border-border/40">
+            <h4 className="text-xs font-semibold text-charcoal mb-3 uppercase tracking-wider">
+              Session Recording
+            </h4>
+            <audio
+              controls
+              src={audioUrl}
+              className="w-full h-10 appearance-none bg-cream/50 rounded-lg outline-none [&::-webkit-media-controls-panel]:bg-cream/50 [&::-webkit-media-controls-play-button]:bg-charcoal [&::-webkit-media-controls-play-button]:rounded-full [&::-webkit-media-controls-play-button]:text-cream"
+            />
+          </div>
+        )}
       </div>
 
       {evaluation ? (
@@ -315,10 +351,19 @@ export function SessionResults({
 
       {/* Transcript */}
       <div className="bg-white rounded-2xl border border-border/60 p-6">
-        <h3 className="font-semibold text-charcoal mb-4 flex items-center gap-2">
-          <span className="size-2 rounded-full bg-charcoal" />
-          Full Transcript
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-charcoal flex items-center gap-2">
+            <span className="size-2 rounded-full bg-charcoal" />
+            Full Transcript
+          </h3>
+          <button
+            onClick={handleDownloadTranscript}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-cream dark/10 text-warm-gray hover:text-charcoal hover:bg-cream transition-colors border border-border/40 hover:border-border/80"
+          >
+            <Download className="size-3.5" />
+            Download
+          </button>
+        </div>
         <div className="max-h-[500px] overflow-y-auto space-y-6 pr-2 custom-scrollbar">
           {session.transcript.split("\n\n").map((line, i) => {
             const colonIndex = line.indexOf(": ");

@@ -6,6 +6,7 @@ import {
 } from "express";
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
+import { requireApiSecret } from "../middleware/auth.js";
 import { generatePersona } from "../services/vertex.js";
 
 export const personaRoutes: Router = Router();
@@ -24,6 +25,7 @@ const generatePersonaSchema = z.object({
  */
 personaRoutes.post(
   "/generate",
+  requireApiSecret,
   validateBody(generatePersonaSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {

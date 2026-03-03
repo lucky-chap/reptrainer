@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { generatePersona as generatePersonaAction } from "@/app/actions/api";
 import type { Product, Persona } from "@/lib/db";
 import { savePersona } from "@/lib/db";
 
@@ -51,26 +52,16 @@ export function useBackgroundGeneration() {
     setTasks((prev) => [...prev, task]);
 
     try {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const res = await fetch(`${baseUrl}/api/persona/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyName: product.companyName,
-          description: product.description,
-          targetCustomer: product.targetCustomer,
-          industry: product.industry,
-          objections: product.objections,
-        }),
+      const data = await generatePersonaAction({
+        companyName: product.companyName,
+        description: product.description,
+        targetCustomer: product.targetCustomer,
+        industry: product.industry,
+        objections: product.objections,
       });
 
       // Check if task was cancelled
       if (!activeRef.current.get(taskId)) return;
-
-      if (!res.ok) throw new Error("Generation failed");
-
-      const data = await res.json();
       const persona: Persona = {
         id: uuidv4(),
         productId: product.id,

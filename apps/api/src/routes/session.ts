@@ -6,6 +6,7 @@ import {
 } from "express";
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
+import { requireApiSecret } from "../middleware/auth.js";
 import { evaluateSession } from "../services/vertex.js";
 
 export const sessionRoutes: Router = Router();
@@ -24,6 +25,7 @@ const evaluateSessionSchema = z.object({
  */
 sessionRoutes.post(
   "/evaluate",
+  requireApiSecret,
   validateBody(evaluateSessionSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {

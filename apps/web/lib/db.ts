@@ -49,6 +49,7 @@ export interface Session {
   evaluation: SessionEvaluation | null;
   createdAt: string;
   insights?: { insight: string; timestamp: number }[];
+  audioBlob?: Blob;
 }
 
 // ─── IndexedDB Schema ─────────────────────────────────────────────────────

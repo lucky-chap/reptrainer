@@ -23,6 +23,7 @@ import { useGeminiLive } from "@/hooks/use-gemini-live";
 import type { Product, Persona, Session } from "@/lib/db";
 import { saveSession } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
+import { evaluateSession as evaluateSessionAction } from "@/app/actions/api";
 
 interface RoleplaySessionProps {
   persona: Persona;
@@ -190,6 +191,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
     isRecording,
     startRecording,
     downloadRecording,
+    getRecordingBlob,
   } = useGeminiLive({
     systemPrompt,
     voiceName,
@@ -240,21 +242,13 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
 
     try {
       // Evaluate
-      const baseUrl =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const evalRes = await fetch(`${baseUrl}/api/session/evaluate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcript: transcriptText,
-          personaName: persona.name,
-          personaRole: persona.role,
-          intensityLevel: persona.intensityLevel,
-          durationSeconds: duration,
-        }),
+      const evaluation = await evaluateSessionAction({
+        transcript: transcriptText,
+        personaName: persona.name,
+        personaRole: persona.role,
+        intensityLevel: persona.intensityLevel,
+        durationSeconds: duration,
       });
-
-      const evaluation = await evalRes.json();
 
       // Save session
       const session: Session = {
@@ -264,9 +258,10 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         productId: product.id,
         transcript: transcriptText,
         durationSeconds: duration,
-        evaluation: evalRes.ok ? evaluation : null,
+        evaluation: evaluation,
         insights: insights, // Save the real-time insights
         createdAt: new Date().toISOString(),
+        audioBlob: getRecordingBlob() || undefined,
       };
 
       await saveSession(session);
@@ -284,6 +279,7 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         evaluation: null,
         insights: insights,
         createdAt: new Date().toISOString(),
+        audioBlob: getRecordingBlob() || undefined,
       };
       await saveSession(session);
       setSavedSession(session);
