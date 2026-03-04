@@ -221,7 +221,7 @@ export function getLiveSetupConfig(
             {
               name: "end_roleplay",
               description:
-                "End the sales roleplay session when the buyer has decided to leave the meeting.",
+                "End the sales roleplay session. IMPORTANT: You MUST first speak a complete, natural closing phrase out loud (e.g. 'Thank you for your time, I appreciate the presentation but we're going to pass.') and WAIT until you have fully finished speaking before calling this tool. Do NOT call this tool mid-sentence or before your goodbye is complete.",
               parameters: {
                 type: "object",
                 properties: {},

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Sparkles,
   ChevronRight,
@@ -12,11 +12,12 @@ import {
   UserCircle,
 } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
-import { getAllProducts, getAllPersonas, deletePersona } from "@/lib/db";
+import { subscribeProducts, subscribePersonas, deletePersona } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { RoleplaySession } from "@/components/roleplay-session";
 import { GenerationBanner } from "@/components/generation-banner";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
+import Link from "next/link";
 
 const intensityLabels = [
   "Friendly Skeptic",
@@ -40,32 +41,35 @@ export default function TrainPage() {
 
   const { tasks, isGenerating, dismissTask } = useBackgroundGeneration();
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
     if (!user) return;
-    const [prods, pers] = await Promise.all([
-      getAllProducts(user.uid),
-      getAllPersonas(user.uid),
-    ]);
-    setProducts(prods);
-    setPersonas(pers);
-    setLoading(false);
+
+    // Immediately show UI; data will quickly populate from cache
+    const timer = setTimeout(() => setLoading(false), 100);
+
+    const handleError = (err: Error) => {
+      console.error("Train page subscription error:", err);
+      setLoading(false);
+    };
+
+    const unsubProducts = subscribeProducts(
+      user.uid,
+      (data) => setProducts(data),
+      handleError,
+    );
+
+    const unsubPersonas = subscribePersonas(
+      user.uid,
+      (data) => setPersonas(data),
+      handleError,
+    );
+
+    return () => {
+      clearTimeout(timer);
+      unsubProducts();
+      unsubPersonas();
+    };
   }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user, loadData]);
-
-  // Reload on generation changes
-  useEffect(() => {
-    if (!isGenerating) {
-      loadData();
-      return;
-    }
-    const interval = setInterval(() => loadData(), 2000);
-    return () => clearInterval(interval);
-  }, [isGenerating, loadData]);
 
   const handleStartRoleplay = () => {
     if (!selectedPersonaId || !selectedProductId) return;
@@ -79,7 +83,6 @@ export default function TrainPage() {
 
   const handleDeletePersona = async (id: string) => {
     await deletePersona(id);
-    loadData();
   };
 
   // If actively in a roleplay session, show the session component
@@ -147,18 +150,18 @@ export default function TrainPage() {
                 session.
               </p>
               <div className="flex items-center justify-center gap-4">
-                <a
+                <Link
                   href="/dashboard/products"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors"
                 >
                   Manage Products
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/dashboard/personas"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-border/60 text-charcoal text-sm font-medium hover:bg-cream transition-colors"
                 >
                   Manage Personas
-                </a>
+                </Link>
               </div>
             </div>
           ) : (

@@ -8,6 +8,7 @@ import {
   where,
   orderBy,
   deleteDoc,
+  onSnapshot,
   Timestamp,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -222,4 +223,63 @@ export async function uploadSessionAudio(
   const fileRef = ref(storage, `recordings/${userId}/${sessionId}.webm`);
   await uploadBytes(fileRef, audioBlob);
   return getDownloadURL(fileRef);
+}
+
+// ─── Real-time Subscriptions (cache-first) ───────────────────────────────
+
+export function subscribeProducts(
+  userId: string,
+  onData: (products: Product[]) => void,
+  onError: (err: Error) => void,
+) {
+  const q = query(
+    collection(db, "products"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => d.data() as Product));
+    },
+    onError,
+  );
+}
+
+export function subscribePersonas(
+  userId: string,
+  onData: (personas: Persona[]) => void,
+  onError: (err: Error) => void,
+) {
+  const q = query(
+    collection(db, "personas"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => d.data() as Persona));
+    },
+    onError,
+  );
+}
+
+export function subscribeSessions(
+  userId: string,
+  onData: (sessions: Session[]) => void,
+  onError: (err: Error) => void,
+) {
+  const q = query(
+    collection(db, "sessions"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => d.data() as Session));
+    },
+    onError,
+  );
 }

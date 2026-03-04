@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Product, Persona } from "@/lib/db";
 import { getAllProducts, getAllPersonas, deletePersona } from "@/lib/db";
+import { useAuth } from "@/context/auth-context";
 
 interface PersonaGeneratorProps {
   onStartRoleplay?: (persona: Persona) => void;
@@ -38,6 +39,7 @@ export function PersonaGenerator({
   onGeneratePersona,
   isGenerating = false,
 }: PersonaGeneratorProps) {
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
@@ -46,14 +48,15 @@ export function PersonaGenerator({
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
+    if (!user) return;
     const [prods, pers] = await Promise.all([
-      getAllProducts(),
-      getAllPersonas(),
+      getAllProducts(user.uid),
+      getAllPersonas(user.uid),
     ]);
     setProducts(prods);
     setPersonas(pers);
     setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadData();

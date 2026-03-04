@@ -61,12 +61,12 @@ export function HeroSection() {
           {user ? "Go to Dashboard" : "Get started now"}
           <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
         </Link>
-        <a
+        <Link
           href="#features"
           className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full border border-border text-sm font-medium text-charcoal hover:bg-charcoal/5 transition-all duration-200"
         >
           Explore more
-        </a>
+        </Link>
       </div>
 
       {/* Rating */}

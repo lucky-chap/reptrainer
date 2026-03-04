@@ -1,6 +1,13 @@
 "use client";
 
-import { X, Loader2, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import {
+  X,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Sparkles,
+  Package,
+} from "lucide-react";
 import type { GenerationTask } from "@/hooks/use-background-generation";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +27,7 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
           className={cn(
             "pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg backdrop-blur-xl animate-fade-up",
             task.status === "generating" &&
-              "bg-violet-glow/10 border-violet-glow/25 shadow-violet-glow/10",
+              "bg-charcoal/5 border-charcoal/10 shadow-charcoal/5",
             task.status === "completed" &&
               "bg-emerald-glow/10 border-emerald-glow/25 shadow-emerald-glow/10",
             task.status === "error" &&
@@ -29,8 +36,8 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
         >
           {/* Icon */}
           {task.status === "generating" && (
-            <div className="size-8 rounded-lg bg-violet-glow/15 flex items-center justify-center shrink-0">
-              <Loader2 className="size-4 text-violet-glow animate-spin" />
+            <div className="size-8 rounded-lg bg-charcoal/10 flex items-center justify-center shrink-0">
+              <Loader2 className="size-4 text-charcoal animate-spin" />
             </div>
           )}
           {task.status === "completed" && (
@@ -48,22 +55,27 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
           <div className="flex-1 min-w-0">
             {task.status === "generating" && (
               <>
-                <p className="text-sm font-medium flex items-center gap-1.5">
-                  <Sparkles className="size-3 text-violet-glow" />
-                  Generating persona…
+                <p className="text-sm font-medium flex items-center gap-1.5 text-charcoal">
+                  <Sparkles className="size-3 text-warm-gray" />
+                  Generating {task.type === "product" ? "product" : "persona"}…
                 </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  For {task.productName}
-                </p>
+                {task.type === "persona" && (
+                  <p className="text-xs text-warm-gray truncate">
+                    For {task.productName}
+                  </p>
+                )}
               </>
             )}
             {task.status === "completed" && (
               <>
                 <p className="text-sm font-medium text-emerald-glow">
-                  Persona created!
+                  {task.type === "product" ? "Product" : "Persona"} created!
                 </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {task.personaName} is ready
+                <p className="text-xs text-warm-gray truncate">
+                  {task.type === "product"
+                    ? task.productName
+                    : task.personaName}{" "}
+                  is ready
                 </p>
               </>
             )}
@@ -72,7 +84,7 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
                 <p className="text-sm font-medium text-rose-glow">
                   Generation failed
                 </p>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-warm-gray truncate">
                   {task.error || "Please try again"}
                 </p>
               </>
@@ -83,7 +95,7 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
           {task.status !== "generating" && (
             <button
               onClick={() => onDismiss(task.id)}
-              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              className="text-warm-gray-light hover:text-charcoal transition-colors shrink-0"
             >
               <X className="size-4" />
             </button>

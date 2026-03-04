@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Swords,
@@ -16,7 +16,11 @@ import {
   Activity,
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
-import { getAllSessions, getAllPersonas, getAllProducts } from "@/lib/db";
+import {
+  subscribeProducts,
+  subscribePersonas,
+  subscribeSessions,
+} from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 
 export default function DashboardPage() {
@@ -25,26 +29,52 @@ export default function DashboardPage() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const loadData = useCallback(async () => {
-    if (!user) return;
-
-    const [allSessions, allPersonas, allProducts] = await Promise.all([
-      getAllSessions(user.uid),
-      getAllPersonas(user.uid),
-      getAllProducts(user.uid),
-    ]);
-    setSessions(allSessions);
-    setPersonas(allPersonas);
-    setProducts(allProducts);
-    setLoading(false);
-  }, [user]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user, loadData]);
+    if (!user) return;
+
+    // Set loading false almost immediately so we don't hide the UI
+    // behind a spinner while waiting for all 3 collections.
+    const loadingTimer = setTimeout(() => setLoading(false), 100);
+
+    const handleError = (err: Error) => {
+      console.error("Dashboard subscription error:", err);
+      if (err.message?.includes("index")) {
+        setError(
+          "Database indexes are being prepared. This takes a few minutes.",
+        );
+      } else {
+        setError("Failed to load data. Please refresh.");
+      }
+      setLoading(false);
+    };
+
+    const unsubProducts = subscribeProducts(
+      user.uid,
+      (data) => setProducts(data),
+      handleError,
+    );
+
+    const unsubPersonas = subscribePersonas(
+      user.uid,
+      (data) => setPersonas(data),
+      handleError,
+    );
+
+    const unsubSessions = subscribeSessions(
+      user.uid,
+      (data) => setSessions(data),
+      handleError,
+    );
+
+    return () => {
+      clearTimeout(loadingTimer);
+      unsubProducts();
+      unsubPersonas();
+      unsubSessions();
+    };
+  }, [user]);
 
   // Compute stats
   const totalSessions = sessions.length;
@@ -113,6 +143,26 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="size-8 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+        <div className="size-12 rounded-full bg-red-50 flex items-center justify-center mb-4">
+          <Activity className="size-6 text-red-500" />
+        </div>
+        <h3 className="text-lg font-semibold text-charcoal mb-2">
+          Something went wrong
+        </h3>
+        <p className="text-warm-gray max-w-md mb-6">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-6 py-2.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors"
+        >
+          Try again
+        </button>
       </div>
     );
   }

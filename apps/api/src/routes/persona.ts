@@ -7,7 +7,7 @@ import {
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
 import { requireApiSecret } from "../middleware/auth.js";
-import { generatePersona } from "../services/vertex.js";
+import { generatePersona } from "../services/gemini.js";
 
 export const personaRoutes: Router = Router();
 

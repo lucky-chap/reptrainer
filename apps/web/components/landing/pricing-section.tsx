@@ -188,12 +188,12 @@ export function PricingSection() {
       <div className="reveal mt-16 text-center">
         <p className="text-sm text-warm-gray">
           Why choose Reptrainer?{" "}
-          <a
+          <Link
             href="#features"
             className="font-medium text-charcoal underline decoration-border underline-offset-4 hover:decoration-charcoal transition-colors"
           >
             See all features
-          </a>
+          </Link>
         </p>
       </div>
     </section>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
   Package,
@@ -13,12 +13,17 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { Product } from "@/lib/db";
-import { saveProduct, getAllProducts, deleteProduct } from "@/lib/db";
+import { saveProduct, subscribeProducts, deleteProduct } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
+import { useBackgroundGeneration } from "@/hooks/use-background-generation";
+import { GenerationBanner } from "@/components/generation-banner";
+import { Sparkles, Loader2, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function ProductsPage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [showCreator, setShowCreator] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -28,19 +33,30 @@ export default function ProductsPage() {
   const [industry, setIndustry] = useState("");
   const [objectionInput, setObjectionInput] = useState("");
   const [objections, setObjections] = useState<string[]>([]);
+  const [aiPrompt, setAiPrompt] = useState("");
 
-  const loadProducts = useCallback(async () => {
-    if (!user) return;
-    const prods = await getAllProducts(user.uid);
-    setProducts(prods);
-    setLoading(false);
-  }, [user]);
+  const { tasks, isGenerating, generateProduct, dismissTask } =
+    useBackgroundGeneration();
 
   useEffect(() => {
-    if (user) {
-      loadProducts();
-    }
-  }, [user, loadProducts]);
+    if (!user) return;
+
+    const timer = setTimeout(() => setLoading(false), 100);
+
+    const unsub = subscribeProducts(
+      user.uid,
+      (data) => setProducts(data),
+      (err) => {
+        console.error("Products subscription error:", err);
+        setLoading(false);
+      },
+    );
+
+    return () => {
+      clearTimeout(timer);
+      unsub();
+    };
+  }, [user]);
 
   const handleAddObjection = () => {
     if (objectionInput.trim()) {
@@ -72,12 +88,19 @@ export default function ProductsPage() {
     setIndustry("");
     setObjections([]);
     setShowForm(false);
-    loadProducts();
+    setShowCreator(false);
+  };
+
+  const handleAiGenerate = async () => {
+    await generateProduct({
+      briefDescription: aiPrompt || undefined,
+    });
+    setAiPrompt("");
+    setShowCreator(false);
   };
 
   const handleDelete = async (id: string) => {
     await deleteProduct(id);
-    loadProducts();
   };
 
   if (loading) {
@@ -104,14 +127,18 @@ export default function ProductsPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
-          className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-colors ${
-            showForm
+          onClick={() => {
+            setShowCreator(!showCreator);
+            if (showForm) setShowForm(false);
+          }}
+          className={cn(
+            "inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200",
+            showCreator
               ? "bg-cream-dark text-charcoal"
-              : "bg-charcoal text-cream hover:bg-charcoal-light"
-          }`}
+              : "bg-charcoal text-cream hover:bg-charcoal-light",
+          )}
         >
-          {showForm ? (
+          {showCreator ? (
             <>
               <X className="size-4" />
               Cancel
@@ -119,11 +146,101 @@ export default function ProductsPage() {
           ) : (
             <>
               <Plus className="size-4" />
-              Add Product
+              Create Product
             </>
           )}
         </button>
       </div>
+
+      {/* Generation Options */}
+      {showCreator && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-down">
+          {/* Left: AI Generator */}
+          <div className="bg-white rounded-2xl border border-border/60 p-8 flex flex-col h-full">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
+                <Sparkles className="size-5 text-charcoal" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-charcoal">
+                  Generate with AI
+                </h2>
+                <p className="text-xs text-warm-gray">
+                  Fully automated product profiling
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mt-auto">
+              <input
+                type="text"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="Describe the product or company name…"
+                className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal placeholder:text-warm-gray-light focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+              />
+              <button
+                onClick={handleAiGenerate}
+                disabled={isGenerating}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-4" />
+                    AI Generate
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Custom Generator */}
+          <div className="bg-white rounded-2xl border border-border/60 p-8 flex flex-col h-full">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
+                <Plus className="size-5 text-charcoal" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-charcoal">
+                  Custom Generate
+                </h2>
+                <p className="text-xs text-warm-gray">
+                  Manually enter product details
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-auto">
+              <button
+                onClick={() => setShowForm(!showForm)}
+                className={cn(
+                  "w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  showForm
+                    ? "bg-cream-dark text-charcoal hover:bg-cream-dark/80"
+                    : "bg-white border border-border/60 text-charcoal hover:bg-cream",
+                )}
+              >
+                {showForm ? (
+                  <>
+                    <X className="size-4" />
+                    Cancel Manual Entry
+                  </>
+                ) : (
+                  <>
+                    <Plus className="size-4" />
+                    Create Manually
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
@@ -317,6 +434,7 @@ export default function ProductsPage() {
           ))}
         </div>
       )}
+      <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { authRoutes } from "./routes/auth.js";
 import { personaRoutes } from "./routes/persona.js";
+import { productRoutes } from "./routes/product.js";
 import { sessionRoutes } from "./routes/session.js";
 import { healthRoutes } from "./routes/health.js";
 
@@ -21,7 +22,7 @@ app.use(
   cors({
     origin: env.CORS_ORIGIN,
     credentials: true,
-  })
+  }),
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(requestLogger);
@@ -31,6 +32,7 @@ app.use(requestLogger);
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/persona", personaRoutes);
+app.use("/api/product", productRoutes);
 app.use("/api/session", sessionRoutes);
 
 // ─── Error Handling ─────────────────────────────────────────────────────────

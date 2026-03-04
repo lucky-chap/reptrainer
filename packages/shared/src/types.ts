@@ -89,6 +89,19 @@ export interface EvaluateSessionResponse {
   improvementTips: string[];
 }
 
+export interface GenerateProductRequest {
+  companyName?: string;
+  briefDescription?: string;
+}
+
+export interface GenerateProductResponse {
+  companyName: string;
+  description: string;
+  targetCustomer: string;
+  industry: string;
+  objections: string[];
+}
+
 export interface ApiError {
   error: string;
   details?: string;

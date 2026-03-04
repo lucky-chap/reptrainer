@@ -61,3 +61,18 @@ export async function evaluateSession(data: {
   }
   return res.json();
 }
+export async function generateProduct(data: {
+  companyName?: string;
+  briefDescription?: string;
+}) {
+  const res = await fetch(`${baseUrl}/api/product/generate`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to generate product: ${res.statusText}`);
+  }
+  return res.json();
+}

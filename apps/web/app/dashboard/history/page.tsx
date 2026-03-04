@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   History,
   Clock,
@@ -13,9 +13,9 @@ import {
 import type { Session, Persona, Product } from "@/lib/db";
 import {
   deleteSession,
-  getAllSessions,
-  getAllPersonas,
-  getAllProducts,
+  subscribeSessions,
+  subscribePersonas,
+  subscribeProducts,
 } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
 import { useAuth } from "@/context/auth-context";
@@ -28,35 +28,52 @@ export default function HistoryPage() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
-    if (!user) return;
-    const [allSessions, allPersonas, allProducts] = await Promise.all([
-      getAllSessions(user.uid),
-      getAllPersonas(user.uid),
-      getAllProducts(user.uid),
-    ]);
-
-    const personaMap: Record<string, Persona> = {};
-    allPersonas.forEach((p) => (personaMap[p.id] = p));
-
-    const productMap: Record<string, Product> = {};
-    allProducts.forEach((p) => (productMap[p.id] = p));
-
-    setSessions(allSessions);
-    setPersonas(personaMap);
-    setProducts(productMap);
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user, loadData]);
+    if (!user) return;
+
+    const timer = setTimeout(() => setLoading(false), 100);
+
+    const handleError = (err: Error) => {
+      console.error("History page subscription error:", err);
+      setLoading(false);
+    };
+
+    const unsubSessions = subscribeSessions(
+      user.uid,
+      (data) => setSessions(data),
+      handleError,
+    );
+
+    const unsubPersonas = subscribePersonas(
+      user.uid,
+      (data) => {
+        const personaMap: Record<string, Persona> = {};
+        data.forEach((p) => (personaMap[p.id] = p));
+        setPersonas(personaMap);
+      },
+      handleError,
+    );
+
+    const unsubProducts = subscribeProducts(
+      user.uid,
+      (data) => {
+        const productMap: Record<string, Product> = {};
+        data.forEach((p) => (productMap[p.id] = p));
+        setProducts(productMap);
+      },
+      handleError,
+    );
+
+    return () => {
+      clearTimeout(timer);
+      unsubSessions();
+      unsubPersonas();
+      unsubProducts();
+    };
+  }, [user]);
 
   const handleDelete = async (id: string) => {
     await deleteSession(id);
-    loadData();
   };
 
   if (selectedSession) {

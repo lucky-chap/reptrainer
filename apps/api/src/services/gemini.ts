@@ -1,11 +1,13 @@
 import { GoogleGenAI } from "@google/genai";
-import { GEMINI_TEXT_MODEL } from "@reptrainer/shared/";
+import { GEMINI_TEXT_MODEL } from "@reptrainer/shared";
 import { env } from "../config/env.js";
 import type {
   GeneratePersonaRequest,
   GeneratePersonaResponse,
   EvaluateSessionRequest,
   EvaluateSessionResponse,
+  GenerateProductRequest,
+  GenerateProductResponse,
 } from "@reptrainer/shared";
 
 const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
@@ -16,6 +18,49 @@ const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 function extractJson(text: string): string | null {
   const match = text.match(/\{[\s\S]*\}/);
   return match ? match[0] : null;
+}
+
+/**
+ * Generate a product profile using Gemini.
+ */
+export async function generateProduct(
+  input: GenerateProductRequest,
+): Promise<GenerateProductResponse> {
+  const { companyName, briefDescription } = input;
+
+  const prompt = `You are a product marketing and sales expert. Generate a detailed product profile for a sales training platform.
+${briefDescription ? `- Context/Description: ${briefDescription}` : "- Context: [Generate a realistic, high-value B2B product/service profile]"}
+
+Generate a product profile with the following JSON structure. Return ONLY valid JSON, no markdown:
+{
+  "companyName": "Generate a creative, professional, and memorable company name that fits the product description.",
+  "description": "A concise, high-impact 2-3 sentence description of the product and its value proposition.",
+  "targetCustomer": "A specific description of the ideal customer profile (e.g., 'Enterprise CTOs at fintech companies', 'SMB owners looking to automate marketing').",
+  "industry": "A single, broad industry category (e.g., 'SaaS', 'Healthcare', 'Cybersecurity').",
+  "objections": ["3-5 realistic sales objections this product typically faces"]
+}
+
+IMPORTANT:
+- If company name/description are not provided, be creative but stay professional and realistic.
+- The objections should be challenging and specific to the product's likely friction points.`;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_TEXT_MODEL,
+    contents: prompt,
+    config: { temperature: 1.0 },
+  });
+
+  const text = response.text ?? "";
+  const jsonStr = extractJson(text);
+
+  if (!jsonStr) {
+    throw Object.assign(
+      new Error("Failed to generate product. Invalid JSON response from AI."),
+      { statusCode: 502 },
+    );
+  }
+
+  return JSON.parse(jsonStr) as GenerateProductResponse;
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -11,12 +11,22 @@ import {
   MessageSquareWarning,
   Trash2,
   UserCircle,
+  Plus,
+  Building2,
+  X,
 } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
-import { getAllProducts, getAllPersonas, deletePersona } from "@/lib/db";
+import {
+  subscribeProducts,
+  subscribePersonas,
+  deletePersona,
+  savePersona,
+} from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import { GenerationBanner } from "@/components/generation-banner";
+import { cn } from "@/lib/utils";
+import { v4 as uuidv4 } from "uuid";
 
 const intensityLabels = [
   "Friendly Skeptic",
@@ -32,45 +42,101 @@ export default function PersonasPage() {
     null,
   );
   const [loading, setLoading] = useState(true);
+  const [showCreator, setShowCreator] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  // Manual Form State
+  const [manualName, setManualName] = useState("");
+  const [manualRole, setManualRole] = useState("");
+  const [manualStrategy, setManualStrategy] = useState("");
+  const [manualIntensity, setManualIntensity] = useState(1);
+  const [manualProductId, setManualProductId] = useState("");
 
   const { tasks, isGenerating, generatePersona, dismissTask } =
     useBackgroundGeneration();
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
     if (!user) return;
-    const [prods, pers] = await Promise.all([
-      getAllProducts(user.uid),
-      getAllPersonas(user.uid),
-    ]);
-    setProducts(prods);
-    setPersonas(pers);
-    setLoading(false);
+
+    const timer = setTimeout(() => setLoading(false), 100);
+
+    const handleError = (err: Error) => {
+      console.error("Personas page subscription error:", err);
+      setLoading(false);
+    };
+
+    const unsubProducts = subscribeProducts(
+      user.uid,
+      (data) => setProducts(data),
+      handleError,
+    );
+
+    const unsubPersonas = subscribePersonas(
+      user.uid,
+      (data) => setPersonas(data),
+      handleError,
+    );
+
+    return () => {
+      clearTimeout(timer);
+      unsubProducts();
+      unsubPersonas();
+    };
   }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user, loadData]);
-
-  useEffect(() => {
-    if (!isGenerating) {
-      loadData();
-      return;
-    }
-    const interval = setInterval(() => loadData(), 2000);
-    return () => clearInterval(interval);
-  }, [isGenerating, loadData]);
 
   const handleGenerate = () => {
     if (!selectedProductId) return;
     const product = products.find((p) => p.id === selectedProductId);
-    if (product) generatePersona(product);
+    if (product) {
+      generatePersona(product);
+      setShowCreator(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
     await deletePersona(id);
-    loadData();
+  };
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !manualProductId) return;
+
+    const persona: Persona = {
+      id: uuidv4(),
+      userId: user.uid,
+      productId: manualProductId,
+      name: manualName,
+      role: manualRole,
+      personalityPrompt: `You are ${manualName}, a ${manualRole}. Your strategy is ${manualStrategy}.`,
+      intensityLevel: manualIntensity,
+      objectionStrategy: manualStrategy,
+      gender: "female",
+      traits: {
+        aggressiveness: manualIntensity * 3,
+        interruptionFrequency:
+          manualIntensity === 3
+            ? "frequent"
+            : manualIntensity === 2
+              ? "occasional"
+              : "rare",
+        objectionStyle:
+          manualIntensity === 3
+            ? "aggressive"
+            : manualIntensity === 2
+              ? "firm"
+              : "soft",
+      },
+      createdAt: new Date().toISOString(),
+    };
+
+    await savePersona(persona);
+    setManualName("");
+    setManualRole("");
+    setManualStrategy("");
+    setManualIntensity(1);
+    setManualProductId("");
+    setShowForm(false);
+    setShowCreator(false);
   };
 
   if (loading) {
@@ -85,80 +151,257 @@ export default function PersonasPage() {
     <>
       <div className="space-y-8 animate-fade-up">
         {/* Header */}
-        <div>
-          <span className="text-xs font-medium uppercase tracking-widest text-warm-gray mb-2 block">
-            AI Personas
-          </span>
-          <h1 className="heading-serif text-3xl md:text-4xl lg:text-5xl text-charcoal mb-2">
-            Buyer <em>Personas.</em>
-          </h1>
-          <p className="text-warm-gray text-base max-w-xl">
-            Generate AI-powered buyer personas for realistic sales roleplay.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs font-medium uppercase tracking-widest text-warm-gray mb-2 block">
+              AI Personas
+            </span>
+            <h1 className="heading-serif text-3xl md:text-4xl lg:text-5xl text-charcoal mb-2">
+              Buyer <em>Personas.</em>
+            </h1>
+            <p className="text-warm-gray text-base max-w-xl">
+              Generate AI-powered buyer personas for realistic sales roleplay.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setShowCreator(!showCreator);
+              if (showForm) setShowForm(false);
+            }}
+            className={cn(
+              "inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200",
+              showCreator
+                ? "bg-cream-dark text-charcoal"
+                : "bg-charcoal text-cream hover:bg-charcoal-light",
+            )}
+          >
+            {showCreator ? (
+              <>
+                <X className="size-4" />
+                Cancel
+              </>
+            ) : (
+              <>
+                <Plus className="size-4" />
+                Create Persona
+              </>
+            )}
+          </button>
         </div>
 
-        {/* Generator */}
-        <div className="bg-white rounded-2xl border border-border/60 p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
-              <Sparkles className="size-5 text-charcoal" />
+        {/* Generation Options */}
+        {showCreator && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-down">
+            {/* Left: AI Generator */}
+            <div className="bg-white rounded-2xl border border-border/60 p-8 flex flex-col h-full">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
+                  <Sparkles className="size-5 text-charcoal" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-charcoal">
+                    Generate with AI
+                  </h2>
+                  <p className="text-xs text-warm-gray">
+                    Select a product to generate a unique buyer persona
+                  </p>
+                </div>
+              </div>
+
+              {products.length === 0 ? (
+                <div className="text-center py-6 mt-auto">
+                  <p className="text-sm text-warm-gray mb-3">
+                    Add a product first to generate personas.
+                  </p>
+                  <Link
+                    href="/dashboard/products"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-charcoal text-cream text-sm font-medium"
+                  >
+                    Add a product
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 mt-auto">
+                  <select
+                    value={selectedProductId || ""}
+                    onChange={(e) =>
+                      setSelectedProductId(e.target.value || null)
+                    }
+                    className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+                  >
+                    <option value="">Select a product…</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.companyName} — {p.industry}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleGenerate}
+                    disabled={!selectedProductId || isGenerating}
+                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Generating…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="size-4" />
+                        Generate Persona
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-charcoal">
-                Generate New Persona
-              </h2>
-              <p className="text-xs text-warm-gray">
-                Select a product to generate a unique buyer persona
-              </p>
+
+            {/* Right: Custom Generator */}
+            <div className="bg-white rounded-2xl border border-border/60 p-8 flex flex-col h-full">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
+                  <Plus className="size-5 text-charcoal" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-charcoal">
+                    Custom Generate
+                  </h2>
+                  <p className="text-xs text-warm-gray">
+                    Manually define buyer characteristics
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-auto">
+                <button
+                  onClick={() => setShowForm(!showForm)}
+                  className={cn(
+                    "w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                    showForm
+                      ? "bg-cream-dark text-charcoal hover:bg-cream-dark/80"
+                      : "bg-white border border-border/60 text-charcoal hover:bg-cream",
+                  )}
+                >
+                  {showForm ? (
+                    <>
+                      <X className="size-4" />
+                      Cancel Manual Entry
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="size-4" />
+                      Create Manually
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
+        )}
 
-          {products.length === 0 ? (
-            <div className="text-center py-6">
-              <p className="text-sm text-warm-gray mb-3">
-                Add a product first to generate personas.
-              </p>
-              <Link
-                href="/dashboard/products"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-charcoal text-cream text-sm font-medium"
-              >
-                Add a product
-              </Link>
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <select
-                value={selectedProductId || ""}
-                onChange={(e) => setSelectedProductId(e.target.value || null)}
-                className="flex-1 h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
-              >
-                <option value="">Select a product…</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.companyName} — {p.industry}
-                  </option>
-                ))}
-              </select>
+        {/* Manual Form */}
+        {showForm && (
+          <div className="bg-white rounded-2xl border border-border/60 p-8 animate-fade-up">
+            <form onSubmit={handleManualSubmit} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-charcoal">
+                    Persona Name
+                  </label>
+                  <input
+                    type="text"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="e.g., Sarah Johnson"
+                    required
+                    className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-charcoal">
+                    Professional Role
+                  </label>
+                  <input
+                    type="text"
+                    value={manualRole}
+                    onChange={(e) => setManualRole(e.target.value)}
+                    placeholder="e.g., Head of Procurement"
+                    required
+                    className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-charcoal">
+                  Related Product
+                </label>
+                <select
+                  value={manualProductId}
+                  onChange={(e) => setManualProductId(e.target.value)}
+                  required
+                  className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+                >
+                  <option value="">Select a product…</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.companyName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-charcoal">
+                  Objection Strategy / Personality
+                </label>
+                <textarea
+                  value={manualStrategy}
+                  onChange={(e) => setManualStrategy(e.target.value)}
+                  placeholder="How does this persona react to sales pitches? What are their main concerns?"
+                  rows={3}
+                  required
+                  className="w-full rounded-xl border border-border/60 bg-cream px-4 py-3 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all resize-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-charcoal flex items-center justify-between">
+                  Intensity Level
+                  <span className="text-xs text-warm-gray font-normal">
+                    {intensityLabels[manualIntensity - 1]}
+                  </span>
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3].map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setManualIntensity(level)}
+                      className={cn(
+                        "flex-1 h-12 rounded-xl border text-sm font-medium transition-all",
+                        manualIntensity === level
+                          ? "bg-charcoal text-cream border-charcoal"
+                          : "bg-cream border-border/60 text-charcoal hover:bg-cream-dark",
+                      )}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <button
-                onClick={handleGenerate}
-                disabled={!selectedProductId || isGenerating}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light disabled:opacity-40 disabled:cursor-not-allowed transition-all min-w-[180px]"
+                type="submit"
+                className="w-full h-12 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors"
+                disabled={!manualProductId}
               >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Generating…
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="size-4" />
-                    Generate Persona
-                  </>
-                )}
+                Save Persona
               </button>
-            </div>
-          )}
-        </div>
+            </form>
+          </div>
+        )}
 
         {/* Persona List */}
         {personas.length === 0 ? (
