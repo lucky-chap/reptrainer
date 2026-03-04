@@ -13,6 +13,16 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/auth-context";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navItems = [
   {
@@ -48,6 +58,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { user, loginWithGoogle, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-cream">
@@ -99,8 +110,60 @@ export default function DashboardLayout({
             })}
           </nav>
 
-          {/* Right: placeholder */}
-          <div className="w-20" />
+          {/* Right: User */}
+          <div className="flex items-center gap-4">
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="relative h-9 rounded-full flex items-center gap-2 pl-2 pr-4 hover:bg-charcoal/5 group transition-all"
+                  >
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt={user.displayName || ""}
+                        className="size-7 rounded-full object-cover border border-border/60"
+                      />
+                    ) : (
+                      <div className="size-7 rounded-full bg-cream-dark flex items-center justify-center border border-border/60 text-[10px] font-bold text-charcoal">
+                        {user.displayName?.charAt(0) || "U"}
+                      </div>
+                    )}
+                    <span className="text-sm font-medium text-charcoal hidden sm:inline">
+                      {user.displayName?.split(" ")[0]}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {user.displayName}
+                      </p>
+                      <p className="text-xs leading-none text-warm-gray">
+                        {user.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => logout()}
+                    className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
+                  >
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                onClick={() => loginWithGoogle()}
+                className="rounded-full bg-charcoal text-cream hover:bg-charcoal-light transition-all text-sm h-9 px-5"
+              >
+                Sign In
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 

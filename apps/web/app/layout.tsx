@@ -6,6 +6,7 @@ import {
   Instrument_Serif,
 } from "next/font/google";
 import localFont from "next/font/local";
+import { AuthProvider } from "@/context/auth-context";
 import "./globals.css";
 
 const inter = Inter({
@@ -83,7 +84,7 @@ export default function RootLayout({
       className={`${bdoGrotesk.variable} ${inter.variable} ${playfair.variable} ${jetbrainsMono.variable}`}
     >
       <body className="antialiased min-h-screen bg-background font-sans">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

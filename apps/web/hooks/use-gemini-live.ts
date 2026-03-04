@@ -103,6 +103,87 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     "good bye",
   ];
 
+  // Connection sound effects
+  const playSoundEffect = useCallback(
+    async (type: "connecting" | "success" | "stop") => {
+      const ctx = playbackCtxRef.current;
+      if (!ctx || ctx.state === "closed") return;
+
+      // Always try to resume context (handles autoplay policies)
+      if (ctx.state === "suspended") {
+        try {
+          await ctx.resume();
+        } catch (e) {
+          console.warn("[Audio] Failed to resume context for sound effect");
+        }
+      }
+
+      if (type === "stop") {
+        if (connectingOscRef.current) {
+          try {
+            connectingOscRef.current.stop();
+            connectingOscRef.current.disconnect();
+          } catch (e) {}
+          connectingOscRef.current = null;
+        }
+        if (connectingGainRef.current) {
+          try {
+            connectingGainRef.current.disconnect();
+          } catch (e) {}
+          connectingGainRef.current = null;
+        }
+        return;
+      }
+
+      if (type === "connecting") {
+        // Prevent multiple connecting sounds
+        if (connectingOscRef.current) return;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+
+        // Continuous pulse effect using a recurring ramp
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+
+        const pulse = () => {
+          if (!connectingOscRef.current || isCleanedUpRef.current) return;
+          const now = ctx.currentTime;
+          gain.gain.cancelScheduledValues(now);
+          gain.gain.linearRampToValueAtTime(0.04, now + 0.1);
+          gain.gain.linearRampToValueAtTime(0, now + 0.8);
+          // Recursively schedule instead of a massive loop
+          setTimeout(pulse, 1200);
+        };
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+
+        connectingOscRef.current = osc;
+        connectingGainRef.current = gain;
+        pulse();
+        return;
+      }
+
+      if (type === "success") {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+      }
+    },
+    [],
+  );
+
   // Cleanup all audio resources
   const cleanup = useCallback(() => {
     if (isCleanedUpRef.current) return;
@@ -168,83 +249,9 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     mixedStreamDestRef.current = null;
     setIsRecording(false);
 
-    if (connectingOscRef.current) {
-      try {
-        connectingOscRef.current.stop();
-        connectingOscRef.current.disconnect();
-      } catch (e) {}
-      connectingOscRef.current = null;
-    }
-    if (connectingGainRef.current) {
-      try {
-        connectingGainRef.current.disconnect();
-      } catch (e) {}
-      connectingGainRef.current = null;
-    }
-  }, []);
-
-  // Connection sound effects
-  const playSoundEffect = useCallback(
-    (type: "connecting" | "success" | "stop") => {
-      if (!playbackCtxRef.current || playbackCtxRef.current.state === "closed")
-        return;
-      const ctx = playbackCtxRef.current;
-
-      // Use a ref to track the connecting oscillator
-      if (type === "stop") {
-        if (connectingOscRef.current) {
-          try {
-            connectingOscRef.current.stop();
-            connectingOscRef.current.disconnect();
-          } catch (e) {}
-          connectingOscRef.current = null;
-        }
-        if (connectingGainRef.current) {
-          connectingGainRef.current.disconnect();
-          connectingGainRef.current = null;
-        }
-        return;
-      }
-
-      if (type === "connecting") {
-        // Pulse sound
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(440, ctx.currentTime);
-
-        // Simple pulse effect
-        gain.gain.setValueAtTime(0, ctx.currentTime);
-        for (let i = 0; i < 60; i += 2) {
-          gain.gain.linearRampToValueAtTime(0.05, ctx.currentTime + i);
-          gain.gain.linearRampToValueAtTime(0, ctx.currentTime + i + 1);
-        }
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-
-        connectingOscRef.current = osc;
-        connectingGainRef.current = gain;
-        return;
-      }
-
-      if (type === "success") {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.2);
-      }
-    },
-    [],
-  );
+    // Stop and disconnect all tones
+    playSoundEffect("stop");
+  }, [playSoundEffect]);
 
   // Convert Float32 PCM to Int16 PCM
   const float32ToInt16 = useCallback(
@@ -703,6 +710,24 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
                 timestamp: call.args.timestamp || getDuration(),
               };
               setInsights((prev) => [...prev, newInsight]);
+            }
+
+            if (call.name === "end_roleplay") {
+              console.log("!!! AI CALLED end_roleplay tool");
+              personaLeftRef.current = true;
+              setPersonaLeft(true);
+              optionsRef.current.onPersonaLeft?.();
+
+              // Clear audio queue so the AI goes silent
+              audioQueueRef.current = [];
+              isPlayingRef.current = false;
+
+              // Stop mic
+              if (processorRef.current) {
+                try {
+                  processorRef.current.disconnect();
+                } catch {}
+              }
             }
 
             // Always respond to tool calls to avoid hanging the model

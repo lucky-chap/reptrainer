@@ -12,14 +12,16 @@ import {
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
 import {
+  deleteSession,
   getAllSessions,
   getAllPersonas,
   getAllProducts,
-  deleteSession,
 } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
+import { useAuth } from "@/context/auth-context";
 
 export default function HistoryPage() {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [personas, setPersonas] = useState<Record<string, Persona>>({});
   const [products, setProducts] = useState<Record<string, Product>>({});
@@ -27,10 +29,11 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
+    if (!user) return;
     const [allSessions, allPersonas, allProducts] = await Promise.all([
-      getAllSessions(),
-      getAllPersonas(),
-      getAllProducts(),
+      getAllSessions(user.uid),
+      getAllPersonas(user.uid),
+      getAllProducts(user.uid),
     ]);
 
     const personaMap: Record<string, Persona> = {};
@@ -46,8 +49,10 @@ export default function HistoryPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (user) {
+      loadData();
+    }
+  }, [user, loadData]);
 
   const handleDelete = async (id: string) => {
     await deleteSession(id);

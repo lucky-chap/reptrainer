@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
 
 const plans = [
   {
@@ -45,7 +46,9 @@ const plans = [
 ];
 
 export function PricingSection() {
+  const { user } = useAuth();
   const sectionRef = useRef<HTMLElement>(null);
+  const ctaHref = user ? "/dashboard" : "/auth/signin";
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -132,14 +135,18 @@ export function PricingSection() {
             </p>
 
             <Link
-              href={plan.href}
+              href={ctaHref}
               className={`inline-flex items-center justify-center px-6 py-3 rounded-full text-sm font-medium transition-colors mb-8 ${
                 plan.featured
                   ? "bg-cream text-charcoal hover:bg-cream-dark"
                   : "bg-charcoal text-cream hover:bg-charcoal-light"
               }`}
             >
-              {plan.cta}
+              {user
+                ? plan.featured
+                  ? "Manage Team"
+                  : "Go to Dashboard"
+                : plan.cta}
             </Link>
 
             <div

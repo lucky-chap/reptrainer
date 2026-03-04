@@ -17,28 +17,34 @@ import {
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
 import { getAllSessions, getAllPersonas, getAllProducts } from "@/lib/db";
+import { useAuth } from "@/context/auth-context";
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
+    if (!user) return;
+
     const [allSessions, allPersonas, allProducts] = await Promise.all([
-      getAllSessions(),
-      getAllPersonas(),
-      getAllProducts(),
+      getAllSessions(user.uid),
+      getAllPersonas(user.uid),
+      getAllProducts(user.uid),
     ]);
     setSessions(allSessions);
     setPersonas(allPersonas);
     setProducts(allProducts);
     setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (user) {
+      loadData();
+    }
+  }, [user, loadData]);
 
   // Compute stats
   const totalSessions = sessions.length;
@@ -120,7 +126,7 @@ export default function DashboardPage() {
             Dashboard
           </span>
           <h1 className="heading-serif text-3xl md:text-4xl lg:text-5xl text-charcoal">
-            Welcome <em>back.</em>
+            Welcome <em>{user?.displayName?.split(" ")[0] || "back"}.</em>
           </h1>
           <p className="text-warm-gray mt-2 text-base">
             Here&apos;s how your sales training is progressing.

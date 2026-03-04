@@ -14,8 +14,10 @@ import {
 } from "lucide-react";
 import type { Product } from "@/lib/db";
 import { saveProduct, getAllProducts, deleteProduct } from "@/lib/db";
+import { useAuth } from "@/context/auth-context";
 
 export default function ProductsPage() {
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -28,14 +30,17 @@ export default function ProductsPage() {
   const [objections, setObjections] = useState<string[]>([]);
 
   const loadProducts = useCallback(async () => {
-    const prods = await getAllProducts();
+    if (!user) return;
+    const prods = await getAllProducts(user.uid);
     setProducts(prods);
     setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    if (user) {
+      loadProducts();
+    }
+  }, [user, loadProducts]);
 
   const handleAddObjection = () => {
     if (objectionInput.trim()) {
@@ -52,6 +57,7 @@ export default function ProductsPage() {
     e.preventDefault();
     const product: Product = {
       id: uuidv4(),
+      userId: user?.uid || "anonymous",
       companyName,
       description,
       targetCustomer,

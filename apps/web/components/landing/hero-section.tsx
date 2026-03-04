@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { ArrowRight, Star, Mic, Brain, Target, TrendingUp } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { useAuth } from "@/context/auth-context";
 
 export function HeroSection() {
+  const { user } = useAuth();
   const sectionRef = useRef<HTMLElement>(null);
+  const ctaHref = user ? "/dashboard" : "/auth/signin";
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -52,10 +55,10 @@ export function HeroSection() {
       {/* CTAs */}
       <div className="reveal reveal-delay-3 flex items-center justify-center gap-4 mb-14">
         <Link
-          href="/dashboard/train"
+          href={ctaHref}
           className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-all duration-200 group"
         >
-          Get started now
+          {user ? "Go to Dashboard" : "Get started now"}
           <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
         </Link>
         <a

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { generatePersona as generatePersonaAction } from "@/app/actions/api";
 import type { Product, Persona } from "@/lib/db";
 import { savePersona } from "@/lib/db";
+import { useAuth } from "@/context/auth-context";
 
 export interface GenerationTask {
   id: string;
@@ -17,6 +18,7 @@ export interface GenerationTask {
 }
 
 export function useBackgroundGeneration() {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   // Use a ref to track if the generation is still active,
   // so even if the component re-renders or state is stale, the fetch still completes
@@ -64,6 +66,7 @@ export function useBackgroundGeneration() {
       if (!activeRef.current.get(taskId)) return;
       const persona: Persona = {
         id: uuidv4(),
+        userId: user?.uid || "anonymous",
         productId: product.id,
         name: data.name,
         role: data.role,

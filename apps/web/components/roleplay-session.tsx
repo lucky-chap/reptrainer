@@ -21,9 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useGeminiLive } from "@/hooks/use-gemini-live";
 import type { Product, Persona, Session } from "@/lib/db";
-import { saveSession } from "@/lib/db";
+import { saveSession, uploadSessionAudio } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
 import { evaluateSession as evaluateSessionAction } from "@/app/actions/api";
+import { useAuth } from "@/context/auth-context";
 
 interface RoleplaySessionProps {
   persona: Persona;
@@ -42,13 +43,14 @@ export function RoleplaySession({
   product,
   onBack,
 }: RoleplaySessionProps) {
+  const { user } = useAuth();
   const [callDuration, setCallDuration] = useState(0);
   const [showResults, setShowResults] = useState(false);
   const [savedSession, setSavedSession] = useState<Session | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [userName, setUserName] = useState("");
-  const [nameSubmitted, setNameSubmitted] = useState(false);
+  const [userName, setUserName] = useState(user?.displayName || "");
+  const [nameSubmitted, setNameSubmitted] = useState(!!user);
   const [sidebarTab, setSidebarTab] = useState<"chat" | "insights">("chat");
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -138,10 +140,10 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
 - You are the BUYER, not the sales rep. Do not pitch for them or fill in gaps they should address.
 
 ─── SALES COACHING & INSIGHTS (SILENT) ───
-You have access to the "log_sales_insight" tool. Use it in the following ways:
-1. **AUTONOMOUS LOGGING**: As the meeting progresses, identify 3-5 key moments where the rep shows a specific strength or a clear area for improvement (e.g., "Handled the price objection with ROI data" or "Avoided the direct question about security"). Call the tool IMMEDIATELY when these moments occur.
+1. **AUTONOMOUS LOGGING**: As the meeting progresses, identify 3-5 key moments where the rep shows a specific strength or a clear area for improvement (e.g., "Handled the price objection with ROI data" or "Avoided the direct question about security"). Call "log_sales_insight" IMMEDIATELY when these moments occur.
 2. **BUTTON TRIGGERS**: If you receive "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]", IMMEDIATELY call "log_sales_insight" with a summary of the rep's most recent performance. Do this SILENTLY; do not break character.
 3. **VOCAL CUES**: If the rep says "Remember this" or "Log that", call the tool and acknowledge them briefly in character (e.g., "Noted. Now, about your implementation timeline...").
+4. **ENDING THE MEETING**: When you decide to wrap up and leave the meeting (as described in section 5 of BEHAVIOR RULES), you MUST call the "end_roleplay" tool IMMEDIATELY after or during your final spoken sentence. This tool tells the system to transition the user to the evaluation screen.
 
 **CRITICAL**: Never mention "tools", "logging", or being an AI. Stay 100% in your persona as ${persona.name}.`;
 
@@ -245,6 +247,18 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
     setEvaluating(true);
 
     try {
+      const sessionId = uuidv4();
+      const userId = user?.uid || "anonymous";
+
+      let audioUrl = "";
+      if (audioBlob && user) {
+        try {
+          audioUrl = await uploadSessionAudio(userId, sessionId, audioBlob);
+        } catch (uploadError) {
+          console.error("Failed to upload audio:", uploadError);
+        }
+      }
+
       // Evaluate
       const evaluation = await evaluateSessionAction({
         transcript: transcriptText,
@@ -256,16 +270,17 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
 
       // Save session
       const session: Session = {
-        id: uuidv4(),
+        id: sessionId,
+        userId: userId,
         personaId: persona.id,
         userName: displayName,
         productId: product.id,
         transcript: transcriptText,
         durationSeconds: duration,
         evaluation: evaluation,
-        insights: insights, // Save the real-time insights
+        insights: insights,
         createdAt: new Date().toISOString(),
-        audioBlob,
+        audioUrl: audioUrl || undefined,
       };
 
       await saveSession(session);
@@ -273,8 +288,12 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
       setShowResults(true);
     } catch (error) {
       console.error("Evaluation error:", error);
+      const sessionId = uuidv4();
+      const userId = user?.uid || "anonymous";
+
       const session: Session = {
-        id: uuidv4(),
+        id: sessionId,
+        userId: userId,
         personaId: persona.id,
         userName: displayName,
         productId: product.id,
@@ -283,7 +302,6 @@ You have access to the "log_sales_insight" tool. Use it in the following ways:
         evaluation: null,
         insights: insights,
         createdAt: new Date().toISOString(),
-        audioBlob,
       };
       await saveSession(session);
       setSavedSession(session);

@@ -1,4 +1,8 @@
-import { VertexAI, GenerationConfig } from "@google-cloud/vertexai";
+import {
+  VertexAI,
+  GenerationConfig,
+  type ModelParams,
+} from "@google-cloud/vertexai";
 import { env } from "../config/env.js";
 import {
   GeneratePersonaRequest,
@@ -212,6 +216,15 @@ export function getLiveSetupConfig(
                   },
                 },
                 required: ["insight"],
+              },
+            },
+            {
+              name: "end_roleplay",
+              description:
+                "End the sales roleplay session when the buyer has decided to leave the meeting.",
+              parameters: {
+                type: "object",
+                properties: {},
               },
             },
           ],

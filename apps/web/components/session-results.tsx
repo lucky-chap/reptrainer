@@ -117,15 +117,15 @@ export function SessionResults({
       )
     : 0;
 
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(
+    session.audioUrl || null,
+  );
 
   useEffect(() => {
-    if (session.audioBlob) {
-      const url = URL.createObjectURL(session.audioBlob);
-      setAudioUrl(url);
-      return () => URL.revokeObjectURL(url);
+    if (session.audioUrl) {
+      setAudioUrl(session.audioUrl);
     }
-  }, [session.audioBlob]);
+  }, [session.audioUrl]);
 
   const handleDownloadTranscript = () => {
     const blob = new Blob([session.transcript], { type: "text/plain" });

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
 import { getAllProducts, getAllPersonas, deletePersona } from "@/lib/db";
+import { useAuth } from "@/context/auth-context";
 import { RoleplaySession } from "@/components/roleplay-session";
 import { GenerationBanner } from "@/components/generation-banner";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
@@ -24,6 +25,7 @@ const intensityLabels = [
 ];
 
 export default function TrainPage() {
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
@@ -39,18 +41,21 @@ export default function TrainPage() {
   const { tasks, isGenerating, dismissTask } = useBackgroundGeneration();
 
   const loadData = useCallback(async () => {
+    if (!user) return;
     const [prods, pers] = await Promise.all([
-      getAllProducts(),
-      getAllPersonas(),
+      getAllProducts(user.uid),
+      getAllPersonas(user.uid),
     ]);
     setProducts(prods);
     setPersonas(pers);
     setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (user) {
+      loadData();
+    }
+  }, [user, loadData]);
 
   // Reload on generation changes
   useEffect(() => {
