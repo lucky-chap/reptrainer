@@ -170,7 +170,7 @@ export function SessionResults({
         {/* Left Column: Summary & Scores */}
         <div className="space-y-8 lg:col-span-7">
           {/* Main Completion Card */}
-          <Card className="border-border/60 overflow-hidden shadow-sm">
+          <Card className="border-border/60 overflow-hidden pt-0 shadow-sm">
             <div className="bg-charcoal text-cream p-8 pb-12 text-center">
               <Badge
                 variant="outline"

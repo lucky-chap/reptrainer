@@ -1,0 +1,218 @@
+"use client";
+
+import { useState } from "react";
+import {
+  GraduationCap,
+  Shield,
+  Building2,
+  Trophy,
+  ChevronRight,
+  ArrowLeft,
+  Zap,
+  Target,
+  Star,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  TRAINING_TRACKS,
+  type TrainingTrack,
+  type ScenarioTemplate,
+  type TrainingTrackId,
+} from "@reptrainer/shared";
+
+const TRACK_ICONS: Record<string, React.ReactNode> = {
+  GraduationCap: <GraduationCap className="size-6" />,
+  Shield: <Shield className="size-6" />,
+  Building2: <Building2 className="size-6" />,
+  Trophy: <Trophy className="size-6" />,
+};
+
+const DIFFICULTY_LABELS = ["Easy", "Medium", "Hard"];
+const DIFFICULTY_COLORS = [
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700",
+  "bg-rose-100 text-rose-700",
+];
+
+interface TrainingTrackSelectorProps {
+  onSelectScenario: (trackId: TrainingTrackId, scenarioId: string) => void;
+  onSkip: () => void;
+}
+
+export function TrainingTrackSelector({
+  onSelectScenario,
+  onSkip,
+}: TrainingTrackSelectorProps) {
+  const [selectedTrack, setSelectedTrack] = useState<TrainingTrack | null>(
+    null,
+  );
+
+  if (selectedTrack) {
+    return (
+      <div className="animate-fade-up space-y-6">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedTrack(null)}
+            className="gap-2"
+          >
+            <ArrowLeft className="size-4" />
+            Back to Tracks
+          </Button>
+        </div>
+
+        <div className="mb-6 text-center">
+          <div className="bg-cream mb-4 inline-flex items-center gap-2 rounded-full px-4 py-2">
+            {TRACK_ICONS[selectedTrack.icon]}
+            <span className="text-charcoal text-sm font-semibold">
+              {selectedTrack.name}
+            </span>
+          </div>
+          <h2 className="heading-serif text-charcoal mb-2 text-2xl">
+            Choose a Scenario
+          </h2>
+          <p className="text-warm-gray mx-auto max-w-md text-sm">
+            Each scenario is designed to test specific skills. The AI will adapt
+            its behavior accordingly.
+          </p>
+        </div>
+
+        <div className="mx-auto grid max-w-2xl gap-4">
+          {selectedTrack.scenarios.map((scenario) => (
+            <button
+              key={scenario.id}
+              onClick={() =>
+                onSelectScenario(
+                  selectedTrack.id as TrainingTrackId,
+                  scenario.id,
+                )
+              }
+              className="group text-left"
+            >
+              <Card className="border-border/60 hover:border-charcoal/30 rounded-2xl border bg-white p-6 transition-all duration-200 hover:shadow-md">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 flex items-center gap-3">
+                      <h3 className="text-charcoal text-base font-semibold">
+                        {scenario.name}
+                      </h3>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase ${DIFFICULTY_COLORS[scenario.difficulty - 1]}`}
+                      >
+                        {DIFFICULTY_LABELS[scenario.difficulty - 1]}
+                      </span>
+                    </div>
+                    <p className="text-warm-gray mb-4 text-sm leading-relaxed">
+                      {scenario.description}
+                    </p>
+
+                    {/* Skills */}
+                    <div className="flex flex-wrap gap-2">
+                      {scenario.expectedSkills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="bg-cream/80 text-charcoal/80 border-border/30 rounded-lg border px-2.5 py-1 text-[11px] font-medium"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Evaluation Weights */}
+                    <div className="mt-4 flex items-center gap-3">
+                      <span className="text-warm-gray-light text-[10px] font-semibold tracking-wider uppercase">
+                        Focus:
+                      </span>
+                      {Object.entries(scenario.evaluationWeighting)
+                        .sort(([, a], [, b]) => b - a)
+                        .slice(0, 3)
+                        .map(([key, weight]) => (
+                          <span
+                            key={key}
+                            className="text-warm-gray text-[10px] font-medium"
+                          >
+                            {key.replace(/_/g, " ")} ({weight}%)
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+
+                  <ChevronRight className="text-warm-gray group-hover:text-charcoal mt-1 size-5 shrink-0 transition-colors" />
+                </div>
+              </Card>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-fade-up space-y-6">
+      <div className="mb-8 text-center">
+        <div className="bg-cream mb-4 inline-flex items-center gap-2 rounded-full px-4 py-2">
+          <Target className="text-charcoal size-4" />
+          <span className="text-charcoal text-xs font-semibold tracking-wide uppercase">
+            Training Mode
+          </span>
+        </div>
+        <h2 className="heading-serif text-charcoal mb-3 text-3xl">
+          Choose Your Training Track
+        </h2>
+        <p className="text-warm-gray mx-auto max-w-lg text-sm leading-relaxed">
+          Each track is designed to develop specific sales skills through
+          structured scenarios. The AI will adapt its behavior and your feedback
+          will be weighted based on the track objectives.
+        </p>
+      </div>
+
+      <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
+        {TRAINING_TRACKS.map((track) => (
+          <button
+            key={track.id}
+            onClick={() => setSelectedTrack(track)}
+            className="group text-left"
+          >
+            <Card className="border-border/60 hover:border-charcoal/30 h-full rounded-2xl border bg-white p-6 transition-all duration-300 hover:shadow-lg">
+              <div className="flex items-start gap-4">
+                <div className="bg-cream text-charcoal group-hover:bg-charcoal group-hover:text-cream flex size-12 shrink-0 items-center justify-center rounded-2xl transition-colors duration-300">
+                  {TRACK_ICONS[track.icon]}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-charcoal mb-1 text-lg font-semibold">
+                    {track.name}
+                  </h3>
+                  <p className="text-warm-gray mb-3 text-xs leading-relaxed">
+                    {track.description}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-cream/80 text-charcoal/60 border-border/20 rounded-full border px-2 py-1 text-[10px] font-semibold">
+                      {track.scenarios.length} scenarios
+                    </span>
+                    <ChevronRight className="text-warm-gray size-4 transition-transform group-hover:translate-x-1" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </button>
+        ))}
+      </div>
+
+      <div className="pt-4 text-center">
+        <Button
+          variant="ghost"
+          onClick={onSkip}
+          className="text-warm-gray hover:text-charcoal gap-2 text-sm"
+        >
+          <Zap className="size-4" />
+          Skip — Free Roleplay
+        </Button>
+        <p className="text-warm-gray-light mt-2 text-[11px]">
+          Or jump straight into an unstructured roleplay session
+        </p>
+      </div>
+    </div>
+  );
+}

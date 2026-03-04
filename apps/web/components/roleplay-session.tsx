@@ -15,21 +15,45 @@ import {
   User,
   Zap,
   Lightbulb,
+  Clock,
+  AlertTriangle,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useGeminiLive } from "@/hooks/use-gemini-live";
+import { useCallTimer } from "@/hooks/use-call-timer";
 import type { Product, Persona, Session } from "@/lib/db";
-import { saveSession, uploadSessionAudio } from "@/lib/db";
+import {
+  saveSession,
+  uploadSessionAudio,
+  createCallSession,
+  updateCallSession,
+} from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
-import { evaluateSession as evaluateSessionAction } from "@/app/actions/api";
+import { CallDurationSelector } from "@/components/call-duration-selector";
+import { FeedbackReportDisplay } from "@/components/feedback-report-display";
+import {
+  evaluateSession as evaluateSessionAction,
+  generateFeedbackReport,
+} from "@/app/actions/api";
 import { useAuth } from "@/context/auth-context";
+import {
+  CALL_DURATION_DEFAULT,
+  CALL_WARNING_THRESHOLD_SECONDS,
+  TRAINING_TRACKS,
+  type TrainingTrackId,
+  type FeedbackReport,
+  type TranscriptMessage,
+} from "@reptrainer/shared";
 
 interface RoleplaySessionProps {
   persona: Persona;
   product: Product;
   onBack: () => void;
+  trackId?: TrainingTrackId;
+  scenarioId?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -42,19 +66,39 @@ export function RoleplaySession({
   persona,
   product,
   onBack,
+  trackId,
+  scenarioId,
 }: RoleplaySessionProps) {
   const { user } = useAuth();
-  const [callDuration, setCallDuration] = useState(0);
   const [showResults, setShowResults] = useState(false);
   const [savedSession, setSavedSession] = useState<Session | null>(null);
+  const [feedbackReport, setFeedbackReport] = useState<FeedbackReport | null>(
+    null,
+  );
   const [evaluating, setEvaluating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userName, setUserName] = useState(user?.displayName || "");
   const [nameSubmitted, setNameSubmitted] = useState(!!user);
   const [sidebarTab, setSidebarTab] = useState<"chat" | "insights">("chat");
 
+  // ─── Timed Call State ─────────────────────────────────────────────────
+  const [durationSelected, setDurationSelected] = useState(false);
+  const [callDurationMinutes, setCallDurationMinutes] = useState(
+    CALL_DURATION_DEFAULT,
+  );
+  const [warningShown, setWarningShown] = useState(false);
+  const [callSessionId] = useState(() => uuidv4());
+  const [inputLocked, setInputLocked] = useState(false);
+  const [coachMode, setCoachMode] = useState(false);
+
   const transcriptEndRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval>>(null);
+
+  // ─── Training Track Context ───────────────────────────────────────────
+  const track = trackId ? TRAINING_TRACKS.find((t) => t.id === trackId) : null;
+  const scenario =
+    track && scenarioId
+      ? track.scenarios.find((s) => s.id === scenarioId)
+      : null;
 
   // Build system prompt
   const intensityLabel = [
@@ -64,6 +108,11 @@ export function RoleplaySession({
   ][persona.intensityLevel - 1];
 
   const displayName = userName.trim() || "Sales Rep";
+
+  // Inject training track context into the system prompt
+  const trackPromptOverride = scenario?.systemPromptOverride
+    ? `\n\n─── TRAINING TRACK: ${track?.name?.toUpperCase()} ───\n${scenario.systemPromptOverride}`
+    : "";
 
   const systemPrompt = `You are an enterprise-level buyer named "${persona.name}", a ${persona.role}.
 
@@ -132,7 +181,7 @@ You continuously evaluate the sales rep for:
    - After your closing, stay completely silent. Do NOT respond to anything else the rep says. The meeting is done.
 
 ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIONS TO RAISE ───\nThese are your primary concerns. Raise them naturally during the conversation:\n${product.objections.map((o, i) => `${i + 1}. ${o}`).join("\n")}` : ""}
-
+${trackPromptOverride}
 ─── CRITICAL RULES ───
 - Never break character. You are a REAL buyer, not an AI.
 - Never explain the simulation or reference it being a training exercise.
@@ -205,7 +254,37 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
     onPersonaLeft: handlePersonaLeft,
   });
 
-  // Timer
+  // ─── Call Timer ────────────────────────────────────────────────────────
+  const handleTimerWarning = useCallback(() => {
+    setWarningShown(true);
+  }, []);
+
+  const handleTimeUp = useCallback(() => {
+    setInputLocked(true);
+    // Auto-end the call when time is up
+    handleEndCallRef.current?.();
+  }, []);
+
+  const {
+    elapsed,
+    remaining,
+    isRunning: isTimerRunning,
+    warningTriggered,
+    isTimeUp,
+    startTime: timerStartTime,
+    start: startTimer,
+    formattedRemaining,
+    formattedElapsed,
+  } = useCallTimer({
+    durationMinutes: callDurationMinutes,
+    onWarning: handleTimerWarning,
+    onTimeUp: handleTimeUp,
+  });
+
+  // ─── Timer ─────────────────────────────────────────────────────────────
+  const [callDuration, setCallDuration] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval>>(null);
+
   useEffect(() => {
     if (isConnected) {
       timerRef.current = setInterval(() => {
@@ -229,15 +308,39 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
     }
   }, [isConnected, isRecording, startRecording]);
 
+  // Start the call timer when connected
+  useEffect(() => {
+    if (isConnected && durationSelected && !isTimerRunning) {
+      startTimer();
+
+      // Create call session in Firestore
+      const userId = user?.uid || "anonymous";
+      createCallSession({
+        id: callSessionId,
+        userId,
+        personaId: persona.id,
+        productId: product.id,
+        userName: displayName,
+        callDurationMinutes,
+        callStartTime: new Date().toISOString(),
+        trackId: trackId || null,
+        scenarioId: scenarioId || null,
+      }).catch((err) => console.error("Failed to create call session:", err));
+    }
+  }, [isConnected, durationSelected]);
+
+  // ─── Handle End Call ───────────────────────────────────────────────────
+  const handleEndCallRef = useRef<(() => Promise<void>) | null>(null);
+
   const handleEndCall = async () => {
     const duration = getDuration();
 
     // Stop recording FIRST — this awaits the MediaRecorder flush
-    // so we capture all audio data before cleanup wipes resources.
     const audioBlob = (await stopRecording()) || undefined;
 
     disconnect();
 
+    // Build transcript text with timestamps
     const transcriptText =
       transcript.length > 0
         ? transcript
@@ -263,16 +366,40 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
         }
       }
 
-      // Evaluate
-      const evaluation = await evaluateSessionAction({
-        transcript: transcriptText,
-        personaName: persona.name,
-        personaRole: persona.role,
-        intensityLevel: persona.intensityLevel,
-        durationSeconds: duration,
-      });
+      // Generate both legacy evaluation and enhanced feedback report in parallel
+      const [evaluation, feedback] = await Promise.allSettled([
+        evaluateSessionAction({
+          transcript: transcriptText,
+          personaName: persona.name,
+          personaRole: persona.role,
+          intensityLevel: persona.intensityLevel,
+          durationSeconds: duration,
+          trackId,
+          scenarioId,
+        }),
+        generateFeedbackReport({
+          transcript: transcriptText,
+          personaName: persona.name,
+          personaRole: persona.role,
+          intensityLevel: persona.intensityLevel,
+          durationSeconds: duration,
+          trackId,
+          scenarioId,
+        }),
+      ]);
 
-      // Save session
+      const evalResult =
+        evaluation.status === "fulfilled" ? evaluation.value : null;
+      const feedbackResult =
+        feedback.status === "fulfilled"
+          ? (feedback.value as FeedbackReport)
+          : null;
+
+      if (feedback.status === "rejected") {
+        console.error("Feedback generation failed:", feedback.reason);
+      }
+
+      // Save legacy session
       const session: Session = {
         id: sessionId,
         userId: userId,
@@ -281,14 +408,28 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
         productId: product.id,
         transcript: transcriptText,
         durationSeconds: duration,
-        evaluation: evaluation,
+        evaluation: evalResult,
         insights: insights,
         createdAt: new Date().toISOString(),
         audioUrl: audioUrl || undefined,
       };
 
       await saveSession(session);
+
+      // Update call session in Firestore
+      await updateCallSession(callSessionId, {
+        callEndTime: new Date().toISOString(),
+        callStatus: "ended",
+        feedbackReport: feedbackResult,
+        legacyEvaluation: evalResult,
+        insights: insights.map((i) => ({
+          insight: i.insight,
+          timestamp: i.timestamp,
+        })),
+      }).catch((err) => console.error("Failed to update call session:", err));
+
       setSavedSession(session);
+      setFeedbackReport(feedbackResult);
       setShowResults(true);
     } catch (error) {
       console.error("Evaluation error:", error);
@@ -315,7 +456,22 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
     }
   };
 
-  // Show results after call
+  // Keep ref updated for timer callback
+  handleEndCallRef.current = handleEndCall;
+
+  // ─── Render: Show feedback report if available ─────────────────────────
+  if (showResults && feedbackReport) {
+    return (
+      <FeedbackReportDisplay
+        report={feedbackReport}
+        personaName={persona.name}
+        durationSeconds={callDuration}
+        onBack={onBack}
+      />
+    );
+  }
+
+  // Show legacy results after call
   if (showResults && savedSession) {
     return (
       <SessionResults
@@ -330,18 +486,102 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
   // Show evaluating screen
   if (evaluating) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 animate-fade-up">
+      <div className="animate-fade-up flex flex-col items-center justify-center py-20">
         <div className="relative mb-6">
-          <div className="size-20 rounded-full bg-gradient-to-br from-violet-glow/20 to-emerald-glow/10 flex items-center justify-center">
-            <Loader2 className="size-10 text-violet-glow animate-spin" />
+          <div className="from-violet-glow/20 to-emerald-glow/10 flex size-20 items-center justify-center rounded-full bg-gradient-to-br">
+            <Loader2 className="text-violet-glow size-10 animate-spin" />
           </div>
-          <div className="absolute inset-0 rounded-full bg-violet-glow/10 animate-pulse-ring" />
+          <div className="bg-violet-glow/10 animate-pulse-ring absolute inset-0 rounded-full" />
         </div>
-        <h3 className="text-xl font-bold mb-2">Analyzing Your Performance</h3>
-        <p className="text-muted-foreground text-sm text-center max-w-sm">
-          Our AI coach is reviewing your transcript and generating personalized
-          feedback...
+        <h3 className="mb-2 text-xl font-bold">Analyzing Your Performance</h3>
+        <p className="text-muted-foreground max-w-sm text-center text-sm">
+          Our senior sales coach is reviewing your transcript and generating
+          detailed, actionable feedback...
         </p>
+      </div>
+    );
+  }
+
+  // ─── Show duration selector before starting ─────────────────────────
+  if (nameSubmitted && !durationSelected) {
+    return (
+      <div className="animate-fade-up space-y-6">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setNameSubmitted(false)}
+            className="gap-2"
+          >
+            <ArrowLeft className="size-4" />
+            Back
+          </Button>
+        </div>
+
+        <Card className="border-border/60 mx-auto max-w-lg rounded-3xl border bg-white p-10 shadow-sm">
+          <div className="mb-8 flex flex-col items-center text-center">
+            <div className="bg-cream mb-6 flex size-20 items-center justify-center rounded-2xl">
+              <Clock className="text-charcoal size-10" />
+            </div>
+            <h2 className="heading-serif text-charcoal mb-3 text-3xl">
+              Set Call Duration
+            </h2>
+            <p className="text-warm-gray max-w-sm text-sm leading-relaxed">
+              How long should this sales call last? The timer will count down
+              and the call will automatically end when time runs out.
+            </p>
+          </div>
+
+          <CallDurationSelector
+            defaultDuration={callDurationMinutes}
+            onSelect={(mins) => {
+              setCallDurationMinutes(mins);
+              setDurationSelected(true);
+            }}
+          />
+        </Card>
+
+        {/* Track info */}
+        {track && scenario && (
+          <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
+            <div className="flex items-center gap-3">
+              <BookOpen className="text-charcoal size-5" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-charcoal truncate text-sm font-semibold">
+                  {track.name}: {scenario.name}
+                </h3>
+                <p className="text-warm-gray truncate text-xs">
+                  Difficulty {scenario.difficulty}/3 · Focus:{" "}
+                  {Object.entries(scenario.evaluationWeighting)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 2)
+                    .map(([k]) => k.replace(/_/g, " "))
+                    .join(", ")}
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Persona preview */}
+        <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
+          <div className="flex items-center gap-4">
+            <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
+              {persona.name.charAt(0)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-charcoal truncate text-sm font-semibold">
+                {persona.name}
+              </h3>
+              <p className="text-warm-gray truncate text-xs">{persona.role}</p>
+            </div>
+            <div className="text-warm-gray-light bg-cream/50 border-border/20 rounded-full border px-3 py-1 text-[11px] font-medium">
+              {product?.companyName
+                ? `Evaluating ${product.companyName}`
+                : "Loading product…"}
+            </div>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -349,7 +589,7 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
   // Show name input before proceeding
   if (!nameSubmitted) {
     return (
-      <div className="space-y-6 animate-fade-up">
+      <div className="animate-fade-up space-y-6">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
             <ArrowLeft className="size-4" />
@@ -357,15 +597,15 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
           </Button>
         </div>
 
-        <Card className="p-10 bg-white border border-border/60 rounded-3xl max-w-lg mx-auto shadow-sm">
+        <Card className="border-border/60 mx-auto max-w-lg rounded-3xl border bg-white p-10 shadow-sm">
           <div className="flex flex-col items-center text-center">
-            <div className="size-20 rounded-2xl bg-cream flex items-center justify-center mb-6">
-              <User className="size-10 text-charcoal" />
+            <div className="bg-cream mb-6 flex size-20 items-center justify-center rounded-2xl">
+              <User className="text-charcoal size-10" />
             </div>
-            <h2 className="heading-serif text-3xl text-charcoal mb-3">
+            <h2 className="heading-serif text-charcoal mb-3 text-3xl">
               Before We Start
             </h2>
-            <p className="text-sm text-warm-gray mb-8 max-w-sm leading-relaxed">
+            <p className="text-warm-gray mb-8 max-w-sm text-sm leading-relaxed">
               Enter your name so {persona.name} knows who they&apos;re meeting
               with. This will be used in the transcript.
             </p>
@@ -381,16 +621,16 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
                 placeholder="Your name (e.g., Alex Johnson)"
-                className="h-14 text-center text-base rounded-2xl border-border/60 bg-cream/30 focus:bg-white focus:ring-charcoal/10 transition-all"
+                className="border-border/60 bg-cream/30 focus:ring-charcoal/10 h-14 rounded-2xl text-center text-base transition-all focus:bg-white"
                 autoFocus
                 required
               />
               <Button
                 type="submit"
-                className="w-full h-14 rounded-2xl bg-charcoal text-cream hover:bg-charcoal-light gap-3 text-base font-semibold transition-all shadow-md active:scale-[0.98]"
+                className="bg-charcoal text-cream hover:bg-charcoal-light h-14 w-full gap-3 rounded-2xl text-base font-semibold shadow-md transition-all active:scale-[0.98]"
                 disabled={!userName.trim()}
               >
-                Continue to Call
+                Continue
                 <Phone className="size-5" />
               </Button>
             </form>
@@ -398,18 +638,18 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
         </Card>
 
         {/* Persona preview */}
-        <Card className="p-5 bg-white/60 border border-border/40 rounded-2xl max-w-lg mx-auto">
+        <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
           <div className="flex items-center gap-4">
-            <div className="size-12 rounded-full bg-charcoal flex items-center justify-center text-lg font-bold text-cream shrink-0">
+            <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
               {persona.name.charAt(0)}
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-charcoal text-sm truncate">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-charcoal truncate text-sm font-semibold">
                 {persona.name}
               </h3>
-              <p className="text-xs text-warm-gray truncate">{persona.role}</p>
+              <p className="text-warm-gray truncate text-xs">{persona.role}</p>
             </div>
-            <div className="text-[11px] text-warm-gray-light font-medium bg-cream/50 px-3 py-1 rounded-full border border-border/20">
+            <div className="text-warm-gray-light bg-cream/50 border-border/20 rounded-full border px-3 py-1 text-[11px] font-medium">
               {product?.companyName
                 ? `Evaluating ${product.companyName}`
                 : "Loading product…"}
@@ -421,7 +661,7 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="animate-fade-up space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
@@ -432,14 +672,14 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
 
       {/* Error Banner */}
       {errorMessage && (
-        <Card className="p-4 border-rose-glow/30 bg-rose-glow/5">
+        <Card className="border-rose-glow/30 bg-rose-glow/5 p-4">
           <div className="flex items-start gap-3">
-            <AlertCircle className="size-5 text-rose-glow shrink-0 mt-0.5" />
+            <AlertCircle className="text-rose-glow mt-0.5 size-5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-rose-glow">
+              <p className="text-rose-glow text-sm font-medium">
                 Connection Error
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-muted-foreground mt-1 text-xs">
                 {errorMessage}
               </p>
             </div>
@@ -455,16 +695,37 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
         </Card>
       )}
 
+      {/* 45-second Warning Banner */}
+      {warningTriggered && !isTimeUp && isConnected && (
+        <Card className="animate-fade-up border-amber-500/40 bg-amber-50 p-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="size-5 shrink-0 animate-pulse text-amber-600" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-700">
+                ⏰ You have {CALL_WARNING_THRESHOLD_SECONDS} seconds left in
+                this call.
+              </p>
+              <p className="mt-0.5 text-xs text-amber-600/80">
+                Wrap up your key points and close the conversation.
+              </p>
+            </div>
+            <span className="font-mono text-lg font-bold text-amber-700">
+              {formattedRemaining}
+            </span>
+          </div>
+        </Card>
+      )}
+
       {/* Persona Left Banner */}
       {personaLeft && isConnected && (
-        <Card className="p-4 border-amber-glow/30 bg-amber-glow/5 animate-fade-up">
+        <Card className="border-amber-glow/30 bg-amber-glow/5 animate-fade-up p-4">
           <div className="flex items-center gap-3">
-            <UserX className="size-5 text-amber-glow shrink-0" />
+            <UserX className="text-amber-glow size-5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-amber-glow">
+              <p className="text-amber-glow text-sm font-medium">
                 {persona.name} has ended the meeting
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-muted-foreground mt-0.5 text-xs">
                 The buyer has decided to leave. End the call to see your
                 performance review.
               </p>
@@ -472,7 +733,7 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
             <Button
               onClick={handleEndCall}
               size="sm"
-              className="gap-1.5 bg-amber-glow hover:bg-amber-glow/90 text-black font-medium shrink-0"
+              className="bg-amber-glow hover:bg-amber-glow/90 shrink-0 gap-1.5 font-medium text-black"
             >
               <PhoneOff className="size-3.5" />
               End Call
@@ -483,40 +744,64 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
 
       {/* Call Area — Google Meet-style layout */}
       <div
-        className="bg-white border border-border/40 rounded-[2rem] overflow-hidden shadow-xl flex flex-col"
+        className="border-border/40 flex flex-col overflow-hidden rounded-[2rem] border bg-white shadow-xl"
         style={{ height: "calc(100vh - 200px)", minHeight: "550px" }}
       >
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between px-6 py-3 shrink-0">
+        <div className="flex shrink-0 items-center justify-between px-6 py-3">
           <div className="flex items-center gap-3">
-            <div className="size-8 rounded-lg bg-amber-glow flex items-center justify-center">
+            <div className="bg-amber-glow flex size-8 items-center justify-center rounded-lg">
               <Phone className="size-4 text-black" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-charcoal leading-tight">
+              <h3 className="text-charcoal text-sm leading-tight font-semibold">
                 Sales Roleplay Session
               </h3>
-              <p className="text-[11px] text-warm-gray">
+              <p className="text-warm-gray text-[11px]">
                 {persona.name} · {persona.role}
+                {track ? ` · ${track.name}` : ""}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {isConnected && (
-              <div className="flex items-center gap-2 bg-cream px-3 py-1.5 rounded-full border border-border/40">
+              <>
+                {/* Countdown timer */}
                 <div
-                  className={`size-2 rounded-full ${personaLeft ? "bg-rose-500" : "bg-emerald-500 animate-pulse"}`}
-                />
-                <span className="text-xs text-charcoal font-medium font-mono">
-                  {formatTime(callDuration)}
-                </span>
-              </div>
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 ${
+                    warningTriggered
+                      ? "animate-pulse border-amber-300 bg-amber-50"
+                      : "bg-cream border-border/40"
+                  }`}
+                >
+                  <Clock
+                    className={`size-3.5 ${warningTriggered ? "text-amber-600" : "text-warm-gray"}`}
+                  />
+                  <span
+                    className={`font-mono text-xs font-bold ${
+                      warningTriggered ? "text-amber-700" : "text-charcoal"
+                    }`}
+                  >
+                    {formattedRemaining}
+                  </span>
+                </div>
+
+                {/* Live indicator + elapsed time */}
+                <div className="bg-cream border-border/40 flex items-center gap-2 rounded-full border px-3 py-1.5">
+                  <div
+                    className={`size-2 rounded-full ${personaLeft ? "bg-rose-500" : "animate-pulse bg-emerald-500"}`}
+                  />
+                  <span className="text-charcoal font-mono text-xs font-medium">
+                    {formatTime(callDuration)}
+                  </span>
+                </div>
+              </>
             )}
             <div className="flex items-center -space-x-2">
-              <div className="size-8 rounded-full bg-cream border-2 border-white flex items-center justify-center text-[10px] font-bold text-charcoal shadow-sm">
+              <div className="bg-cream text-charcoal flex size-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
                 {displayName.charAt(0).toUpperCase()}
               </div>
-              <div className="size-8 rounded-full bg-cream border-2 border-white flex items-center justify-center text-[10px] font-bold text-charcoal shadow-sm">
+              <div className="bg-cream text-charcoal flex size-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
                 {persona.name.charAt(0)}
               </div>
             </div>
@@ -524,18 +809,18 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex gap-3 px-3 pb-3 min-h-0">
+        <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
           {/* Left: Stage + Controls */}
-          <div className="flex-1 flex flex-col gap-3 min-w-0">
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
             {/* Main Speaker Stage */}
-            <div className="flex-1 bg-cream/40 border border-border/40 rounded-2xl relative flex items-center justify-center overflow-hidden">
+            <div className="bg-cream/40 border-border/40 relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border">
               {/* "You" label top-left */}
               {isConnected && !personaLeft && (
                 <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-                  <div className="size-8 rounded-full bg-white shadow-sm flex items-center justify-center text-xs font-bold text-charcoal border border-border/40">
+                  <div className="text-charcoal border-border/40 flex size-8 items-center justify-center rounded-full border bg-white text-xs font-bold shadow-sm">
                     {displayName.charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-xs text-charcoal font-medium">
+                  <span className="text-charcoal text-xs font-medium">
                     {displayName}
                   </span>
                 </div>
@@ -543,28 +828,28 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
 
               {/* Pre-call idle state */}
               {!isConnected && !isConnecting && !personaLeft && (
-                <div className="flex flex-col items-center justify-center text-center p-6 z-10">
-                  <div className="size-24 sm:size-32 rounded-full bg-white border border-border/60 flex items-center justify-center text-5xl font-bold text-charcoal mb-4 shadow-sm">
+                <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
+                  <div className="border-border/60 text-charcoal mb-4 flex size-24 items-center justify-center rounded-full border bg-white text-5xl font-bold shadow-sm sm:size-32">
                     {persona.name.charAt(0)}
                   </div>
-                  <h3 className="text-charcoal text-lg font-semibold mb-1">
+                  <h3 className="text-charcoal mb-1 text-lg font-semibold">
                     Ready to start
                   </h3>
-                  <p className="text-warm-gray text-sm max-w-[280px]">
-                    Start the call to begin your sales roleplay with{" "}
-                    {persona.name}.
+                  <p className="text-warm-gray max-w-[280px] text-sm">
+                    Start the call to begin your {callDurationMinutes}-minute
+                    sales roleplay with {persona.name}.
                   </p>
                 </div>
               )}
 
               {/* Connecting state */}
               {isConnecting && (
-                <div className="flex flex-col items-center justify-center text-center p-6 z-10">
-                  <div className="size-24 sm:size-32 rounded-full bg-white border border-border/60 flex items-center justify-center mb-4 relative shadow-sm">
-                    <Loader2 className="size-10 text-charcoal animate-spin" />
-                    <div className="absolute inset-0 rounded-full border-2 border-charcoal/10 animate-pulse-ring" />
+                <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
+                  <div className="border-border/60 relative mb-4 flex size-24 items-center justify-center rounded-full border bg-white shadow-sm sm:size-32">
+                    <Loader2 className="text-charcoal size-10 animate-spin" />
+                    <div className="border-charcoal/10 animate-pulse-ring absolute inset-0 rounded-full border-2" />
                   </div>
-                  <h3 className="text-charcoal text-lg font-semibold mb-1">
+                  <h3 className="text-charcoal mb-1 text-lg font-semibold">
                     Connecting...
                   </h3>
                   <p className="text-warm-gray text-sm">
@@ -575,17 +860,17 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
 
               {/* Live call: persona avatar with visualizer */}
               {isConnected && !personaLeft && (
-                <div className="flex flex-col items-center justify-center z-10">
-                  <div className="size-28 sm:size-36 rounded-full bg-white border border-border/60 flex items-center justify-center text-5xl font-bold text-charcoal relative shadow-md">
+                <div className="z-10 flex flex-col items-center justify-center">
+                  <div className="border-border/60 text-charcoal relative flex size-28 items-center justify-center rounded-full border bg-white text-5xl font-bold shadow-md sm:size-36">
                     {persona.name.charAt(0)}
-                    <div className="absolute inset-[-15%] rounded-full border-2 border-charcoal/10 animate-pulse-ring" />
+                    <div className="border-charcoal/10 animate-pulse-ring absolute inset-[-15%] rounded-full border-2" />
                   </div>
                   {/* Audio visualizer */}
-                  <div className="flex items-end gap-1.5 h-8 mt-5">
+                  <div className="mt-5 flex h-8 items-end gap-1.5">
                     {Array.from({ length: 7 }).map((_, i) => (
                       <div
                         key={i}
-                        className="w-1 bg-charcoal/40 rounded-full animate-sound-wave"
+                        className="bg-charcoal/40 animate-sound-wave w-1 rounded-full"
                         style={{
                           animationDelay: `${i * 0.12}s`,
                           height: "4px",
@@ -598,14 +883,14 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
 
               {/* Persona left state */}
               {personaLeft && (
-                <div className="flex flex-col items-center justify-center text-center p-6 z-10">
-                  <div className="size-24 rounded-full bg-white border border-border/60 flex items-center justify-center mb-4 shadow-sm">
-                    <UserX className="size-10 text-charcoal/40" />
+                <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
+                  <div className="border-border/60 mb-4 flex size-24 items-center justify-center rounded-full border bg-white shadow-sm">
+                    <UserX className="text-charcoal/40 size-10" />
                   </div>
-                  <h3 className="text-charcoal text-lg font-semibold mb-1">
+                  <h3 className="text-charcoal mb-1 text-lg font-semibold">
                     {persona.name} left
                   </h3>
-                  <p className="text-warm-gray text-sm max-w-[260px]">
+                  <p className="text-warm-gray max-w-[260px] text-sm">
                     The buyer has ended the meeting. End the call to see your
                     review.
                   </p>
@@ -613,37 +898,55 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
               )}
 
               {/* Participant name badge bottom-left */}
-              <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm border border-border/40 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
-                <span className="text-sm font-medium text-charcoal">
+              <div className="border-border/40 absolute bottom-4 left-4 flex items-center gap-2 rounded-lg border bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-sm">
+                <span className="text-charcoal text-sm font-medium">
                   {persona.name}
                 </span>
                 {personaLeft ? (
                   <MicOff className="size-3.5 text-rose-600" />
                 ) : (
-                  <Mic className="size-3.5 text-charcoal/60" />
+                  <Mic className="text-charcoal/60 size-3.5" />
                 )}
               </div>
             </div>
 
             {/* Floating Call Controls */}
-            <div className="flex items-center justify-center gap-3 py-2 shrink-0">
+            <div className="flex shrink-0 items-center justify-center gap-3 py-2">
               {/* Mic toggle */}
-              <button className="size-11 rounded-full bg-white border border-border/40 hover:bg-cream flex items-center justify-center text-charcoal transition-colors shadow-sm">
+              <button
+                className="border-border/40 hover:bg-cream text-charcoal flex size-11 items-center justify-center rounded-full border bg-white shadow-sm transition-colors"
+                disabled={inputLocked}
+              >
                 {isConnected ? (
                   <Mic className="size-5" />
                 ) : (
-                  <MicOff className="size-5 text-warm-gray" />
+                  <MicOff className="text-warm-gray size-5" />
                 )}
               </button>
 
               {/* Log Insight Button */}
-              {isConnected && !personaLeft && (
+              {isConnected && !personaLeft && !inputLocked && (
                 <button
                   onClick={logManualInsight}
                   title="Log Sales Insight"
-                  className="size-11 rounded-full bg-white border border-border/40 hover:bg-cream flex items-center justify-center text-amber-500 transition-colors shadow-sm"
+                  className="border-border/40 hover:bg-cream flex size-11 items-center justify-center rounded-full border bg-white text-amber-500 shadow-sm transition-colors"
                 >
                   <Lightbulb className="size-5" />
+                </button>
+              )}
+
+              {/* Coach Mode Toggle */}
+              {isConnected && !personaLeft && (
+                <button
+                  onClick={() => setCoachMode(!coachMode)}
+                  title={coachMode ? "Exit Coach Mode" : "Enter Coach Mode"}
+                  className={`flex size-11 items-center justify-center rounded-full border shadow-sm transition-colors ${
+                    coachMode
+                      ? "border-sky-600 bg-sky-500 text-white"
+                      : "border-border/40 hover:bg-cream bg-white text-sky-500"
+                  }`}
+                >
+                  <BookOpen className="size-5" />
                 </button>
               )}
 
@@ -651,7 +954,8 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
               {!isConnected && !isConnecting && !personaLeft ? (
                 <button
                   onClick={connect}
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-all duration-200 group"
+                  disabled={inputLocked}
+                  className="bg-charcoal text-cream hover:bg-charcoal-light group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium transition-all duration-200 disabled:opacity-50"
                 >
                   <Phone className="size-4" />
                   <span className="text-sm">Start Call</span>
@@ -659,7 +963,7 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
               ) : (
                 <button
                   onClick={handleEndCall}
-                  className="size-11 rounded-full bg-rose-500 hover:bg-rose-600 flex items-center justify-center text-white transition-colors shadow-lg shadow-rose-500/20"
+                  className="flex size-11 items-center justify-center rounded-full bg-rose-500 text-white shadow-lg shadow-rose-500/20 transition-colors hover:bg-rose-600"
                 >
                   <PhoneOff className="size-5" />
                 </button>
@@ -670,13 +974,13 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
           </div>
 
           {/* Right Sidebar */}
-          <div className="hidden lg:flex w-[320px] xl:w-[360px] flex-col gap-3 shrink-0">
+          <div className="hidden w-[320px] shrink-0 flex-col gap-3 lg:flex xl:w-[360px]">
             {/* Meeting Overview Card */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm shrink-0">
-              <h3 className="font-semibold text-charcoal text-lg mb-2">
+            <div className="shrink-0 rounded-2xl bg-white p-5 shadow-sm">
+              <h3 className="text-charcoal mb-2 text-lg font-semibold">
                 Meeting overview
               </h3>
-              <p className="text-xs text-warm-gray leading-relaxed mb-4">
+              <p className="text-warm-gray mb-4 text-xs leading-relaxed">
                 You&apos;re in a live sales roleplay with{" "}
                 <strong className="text-charcoal">{persona.name}</strong> (
                 {persona.role}). This session is designed to test your pitch,
@@ -693,32 +997,83 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
                 )}
               </p>
               <div className="flex gap-2">
-                <div className="flex-1 bg-cream rounded-xl px-3 py-2 text-center">
-                  <p className="text-[10px] text-warm-gray uppercase tracking-wider mb-0.5">
+                <div className="bg-cream flex-1 rounded-xl px-3 py-2 text-center">
+                  <p className="text-warm-gray mb-0.5 text-[10px] tracking-wider uppercase">
                     Intensity
                   </p>
-                  <p className="text-sm font-semibold text-charcoal">
+                  <p className="text-charcoal text-sm font-semibold">
                     {persona.intensityLevel}/3
                   </p>
                 </div>
-                <div className="flex-1 bg-cream rounded-xl px-3 py-2 text-center">
-                  <p className="text-[10px] text-warm-gray uppercase tracking-wider mb-0.5">
-                    Duration
+                <div className="bg-cream flex-1 rounded-xl px-3 py-2 text-center">
+                  <p className="text-warm-gray mb-0.5 text-[10px] tracking-wider uppercase">
+                    Time Left
                   </p>
-                  <p className="text-sm font-semibold text-charcoal font-mono">
-                    {formatTime(callDuration)}
+                  <p
+                    className={`font-mono text-sm font-semibold ${warningTriggered ? "text-amber-600" : "text-charcoal"}`}
+                  >
+                    {isConnected
+                      ? formattedRemaining
+                      : `${callDurationMinutes}:00`}
                   </p>
                 </div>
               </div>
+
+              {/* Track badge */}
+              {track && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2">
+                  <BookOpen className="size-3.5 text-sky-600" />
+                  <span className="text-[11px] font-medium text-sky-700">
+                    {track.name}
+                    {scenario ? `: ${scenario.name}` : ""}
+                  </span>
+                </div>
+              )}
             </div>
 
+            {/* Coach Mode Panel */}
+            {coachMode && isConnected && (
+              <div className="animate-fade-up rounded-2xl border border-sky-200/60 bg-sky-50 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <BookOpen className="size-4 text-sky-600" />
+                  <h3 className="text-sm font-semibold text-sky-700">
+                    Coach Mode Active
+                  </h3>
+                </div>
+                <p className="mb-3 text-xs leading-relaxed text-sky-600/80">
+                  Quick coaching tips based on the current conversation:
+                </p>
+                <ul className="space-y-2 text-xs text-sky-700">
+                  <li className="flex items-start gap-2">
+                    <span className="mt-0.5 text-sky-500">•</span>
+                    Listen actively — acknowledge the buyer&apos;s concerns
+                    before responding.
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="mt-0.5 text-sky-500">•</span>
+                    Use the LAER framework: Listen, Acknowledge, Explore,
+                    Respond.
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="mt-0.5 text-sky-500">•</span>
+                    Quantify value with specific numbers, not vague promises.
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="mt-0.5 text-sky-500">•</span>
+                    Try a trial close: &quot;If we can solve X, would you be
+                    interested in moving forward?&quot;
+                  </li>
+                </ul>
+              </div>
+            )}
+
             {/* Chat / Transcript */}
-            <div className="px-2 py-2 border-b border-border/40 flex items-center gap-1 shrink-0 bg-cream/20">
+            <div className="border-border/40 bg-cream/20 flex shrink-0 items-center gap-1 border-b px-2 py-2">
               <button
                 onClick={() => setSidebarTab("chat")}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                   sidebarTab === "chat"
-                    ? "bg-white text-charcoal shadow-sm border border-border/40"
+                    ? "text-charcoal border-border/40 border bg-white shadow-sm"
                     : "text-warm-gray hover:text-charcoal"
                 }`}
               >
@@ -727,16 +1082,16 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
               </button>
               <button
                 onClick={() => setSidebarTab("insights")}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                   sidebarTab === "insights"
-                    ? "bg-white text-charcoal shadow-sm border border-border/40"
+                    ? "text-charcoal border-border/40 border bg-white shadow-sm"
                     : "text-warm-gray hover:text-charcoal"
                 }`}
               >
                 <Zap className="size-3.5" />
                 Insights
                 {insights.length > 0 && (
-                  <span className="flex size-4 items-center justify-center bg-amber-500 text-[9px] text-white rounded-full">
+                  <span className="flex size-4 items-center justify-center rounded-full bg-amber-500 text-[9px] text-white">
                     {insights.length}
                   </span>
                 )}
@@ -747,11 +1102,11 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
               {sidebarTab === "chat" ? (
                 <div className="space-y-4">
                   {transcript.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center py-10">
-                      <div className="size-10 rounded-full bg-cream flex items-center justify-center mb-3">
-                        <MessageSquare className="size-4 text-warm-gray" />
+                    <div className="flex h-full flex-col items-center justify-center py-10 text-center">
+                      <div className="bg-cream mb-3 flex size-10 items-center justify-center rounded-full">
+                        <MessageSquare className="text-warm-gray size-4" />
                       </div>
-                      <p className="text-xs text-warm-gray max-w-[180px]">
+                      <p className="text-warm-gray max-w-[180px] text-xs">
                         {isConnected
                           ? "Listening... conversation will appear here."
                           : "Start the call to see the live transcript."}
@@ -761,7 +1116,7 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
                     transcript.map((entry, i) => (
                       <div
                         key={i}
-                        className={`flex gap-2.5 animate-fade-up ${
+                        className={`animate-fade-up flex gap-2.5 ${
                           entry.role === "user"
                             ? "flex-row-reverse"
                             : "flex-row"
@@ -771,7 +1126,7 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
                         }}
                       >
                         <div
-                          className={`size-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                          className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
                             entry.role === "model"
                               ? "bg-charcoal text-cream"
                               : "bg-cream-dark text-charcoal"
@@ -784,12 +1139,12 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
                         <div
                           className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] ${
                             entry.role === "user"
-                              ? "bg-charcoal text-white rounded-tr-sm"
+                              ? "bg-charcoal rounded-tr-sm text-white"
                               : "bg-cream/80 text-charcoal rounded-tl-sm"
                           }`}
                         >
                           <p
-                            className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${entry.role === "user" ? "text-white/50" : "text-warm-gray"}`}
+                            className={`mb-0.5 text-[9px] font-bold tracking-wider uppercase ${entry.role === "user" ? "text-white/50" : "text-warm-gray"}`}
                           >
                             {entry.role === "user" ? displayName : persona.name}
                           </p>
@@ -802,11 +1157,11 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
               ) : (
                 <div className="space-y-3">
                   {insights.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center py-10">
-                      <div className="size-10 rounded-full bg-cream flex items-center justify-center mb-3">
-                        <Zap className="size-4 text-warm-gray" />
+                    <div className="flex h-full flex-col items-center justify-center py-10 text-center">
+                      <div className="bg-cream mb-3 flex size-10 items-center justify-center rounded-full">
+                        <Zap className="text-warm-gray size-4" />
                       </div>
-                      <p className="text-xs text-warm-gray max-w-[180px]">
+                      <p className="text-warm-gray max-w-[180px] text-xs">
                         No insights logged yet. The AI will log key moments, or
                         you can click the lightbulb to save a moment.
                       </p>
@@ -815,20 +1170,20 @@ ${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIO
                     insights.map((insight, i) => (
                       <div
                         key={i}
-                        className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 animate-fade-up"
+                        className="animate-fade-up rounded-xl border border-amber-100 bg-amber-50/50 p-3"
                         style={{
                           animationDelay: `${Math.min(i * 50, 200)}ms`,
                         }}
                       >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] font-bold text-amber-600 uppercase tracking-tight">
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="text-[10px] font-bold tracking-tight text-amber-600 uppercase">
                             Sales Insight
                           </span>
-                          <span className="text-[10px] font-mono text-warm-gray">
+                          <span className="text-warm-gray font-mono text-[10px]">
                             {formatTime(insight.timestamp)}
                           </span>
                         </div>
-                        <p className="text-xs text-charcoal leading-relaxed pr-2">
+                        <p className="text-charcoal pr-2 text-xs leading-relaxed">
                           {insight.insight}
                         </p>
                       </div>

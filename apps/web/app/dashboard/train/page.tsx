@@ -10,14 +10,17 @@ import {
   MessageSquareWarning,
   Phone,
   UserCircle,
+  Target,
 } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
 import { subscribeProducts, subscribePersonas, deletePersona } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { RoleplaySession } from "@/components/roleplay-session";
+import { TrainingTrackSelector } from "@/components/training-track-selector";
 import { GenerationBanner } from "@/components/generation-banner";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import Link from "next/link";
+import type { TrainingTrackId } from "@reptrainer/shared";
 
 import {
   Card,
@@ -34,6 +37,8 @@ const intensityLabels = [
   "Hostile Gatekeeper",
 ];
 
+type TrainStep = "configure" | "track-select" | "session";
+
 export default function TrainPage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,6 +52,14 @@ export default function TrainPage() {
   const [activePersona, setActivePersona] = useState<Persona | null>(null);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Training track state
+  const [step, setStep] = useState<TrainStep>("configure");
+  const [selectedTrackId, setSelectedTrackId] =
+    useState<TrainingTrackId | null>(null);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(
+    null,
+  );
 
   const { tasks, isGenerating, dismissTask } = useBackgroundGeneration();
 
@@ -89,20 +102,59 @@ export default function TrainPage() {
     if (persona && product) {
       setActivePersona(persona);
       setActiveProduct(product);
+      // Move to track selection step
+      setStep("track-select");
     }
   };
 
-  // If actively in a roleplay session, show the session component
-  if (activePersona && activeProduct) {
+  const handleTrackSelected = (
+    trackId: TrainingTrackId,
+    scenarioId: string,
+  ) => {
+    setSelectedTrackId(trackId);
+    setSelectedScenarioId(scenarioId);
+    setStep("session");
+  };
+
+  const handleSkipTrack = () => {
+    setSelectedTrackId(null);
+    setSelectedScenarioId(null);
+    setStep("session");
+  };
+
+  const handleBackToConfig = () => {
+    setActivePersona(null);
+    setActiveProduct(null);
+    setSelectedTrackId(null);
+    setSelectedScenarioId(null);
+    setStep("configure");
+  };
+
+  // ─── Step: Training Track Selection ───────────────────────────────────
+  if (step === "track-select" && activePersona && activeProduct) {
+    return (
+      <>
+        <div className="mx-auto max-w-4xl py-6">
+          <TrainingTrackSelector
+            onSelectScenario={handleTrackSelected}
+            onSkip={handleSkipTrack}
+          />
+        </div>
+        <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
+      </>
+    );
+  }
+
+  // ─── Step: Active Roleplay Session ────────────────────────────────────
+  if (step === "session" && activePersona && activeProduct) {
     return (
       <>
         <RoleplaySession
           persona={activePersona}
           product={activeProduct}
-          onBack={() => {
-            setActivePersona(null);
-            setActiveProduct(null);
-          }}
+          trackId={selectedTrackId ?? undefined}
+          scenarioId={selectedScenarioId ?? undefined}
+          onBack={handleBackToConfig}
         />
         <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
       </>
@@ -117,6 +169,7 @@ export default function TrainPage() {
     );
   }
 
+  // ─── Step: Configure Session ──────────────────────────────────────────
   return (
     <>
       <div className="animate-fade-up space-y-8">
@@ -215,8 +268,8 @@ export default function TrainPage() {
                     variant="brand"
                     className="h-12 min-w-[180px] px-4"
                   >
-                    <Phone className="mr-2 size-4" />
-                    Start Roleplay
+                    <Target className="mr-2 size-4" />
+                    Choose Track & Start
                   </Button>
                 </div>
               </div>

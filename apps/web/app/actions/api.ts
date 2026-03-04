@@ -49,6 +49,8 @@ export async function evaluateSession(data: {
   personaRole: string;
   intensityLevel: number;
   durationSeconds: number;
+  trackId?: string;
+  scenarioId?: string;
 }) {
   const res = await fetch(`${baseUrl}/api/session/evaluate`, {
     method: "POST",
@@ -61,6 +63,33 @@ export async function evaluateSession(data: {
   }
   return res.json();
 }
+
+/**
+ * Generate a detailed, structured feedback report for a completed call.
+ * Returns the enhanced FeedbackReport with overall_score, strengths,
+ * weaknesses, missed_opportunities, and sub-scores.
+ */
+export async function generateFeedbackReport(data: {
+  transcript: string;
+  personaName: string;
+  personaRole: string;
+  intensityLevel: number;
+  durationSeconds: number;
+  trackId?: string;
+  scenarioId?: string;
+}) {
+  const res = await fetch(`${baseUrl}/api/session/feedback`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to generate feedback report: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 export async function generateProduct(data: {
   companyName?: string;
   briefDescription?: string;

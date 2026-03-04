@@ -33,6 +33,29 @@ export interface Persona {
   createdAt: string;
 }
 
+// ─── Timed Call Types ───────────────────────────────────────────────────────
+
+export type CallDurationOption = 5 | 10 | 15;
+
+export interface TranscriptMessage {
+  role: "user" | "model" | "system";
+  text: string;
+  timestamp: number; // seconds since call start
+}
+
+// ─── Feedback Report Types ──────────────────────────────────────────────────
+
+export interface FeedbackReport {
+  overall_score: number; // 0-100
+  strengths: string[];
+  weaknesses: string[];
+  missed_opportunities: string[];
+  objection_handling_score: number; // 0-100
+  closing_effectiveness_score: number; // 0-100
+  confidence_score: number; // 0-100
+  suggested_improvements: string[];
+}
+
 export interface SessionEvaluation {
   objectionHandlingScore: number;
   confidenceScore: number;
@@ -42,6 +65,41 @@ export interface SessionEvaluation {
   improvementTips: string[];
 }
 
+// ─── Training Track Types ───────────────────────────────────────────────────
+
+export type TrainingTrackId =
+  | "beginner-sales-rep"
+  | "objection-mastery"
+  | "enterprise-selling"
+  | "closing-specialist";
+
+export interface ScenarioTemplate {
+  id: string;
+  name: string;
+  description: string;
+  prospectPersonaType: string;
+  difficulty: 1 | 2 | 3;
+  expectedSkills: string[];
+  evaluationWeighting: {
+    objection_handling: number;
+    closing_effectiveness: number;
+    confidence: number;
+    rapport_building: number;
+    discovery_skills: number;
+  };
+  systemPromptOverride: string; // extra instructions injected into the AI prompt
+}
+
+export interface TrainingTrack {
+  id: TrainingTrackId;
+  name: string;
+  description: string;
+  icon: string; // lucide icon name
+  scenarios: ScenarioTemplate[];
+}
+
+// ─── Session Types ──────────────────────────────────────────────────────────
+
 export interface Session {
   id: string;
   personaId: string;
@@ -49,6 +107,43 @@ export interface Session {
   transcript: string;
   durationSeconds: number;
   evaluation: SessionEvaluation | null;
+  createdAt: string;
+}
+
+// ─── Call Session (enhanced) ────────────────────────────────────────────────
+
+export type CallStatus = "pending" | "active" | "ended";
+
+export interface CallSession {
+  id: string;
+  userId: string;
+  personaId: string;
+  productId: string;
+  userName: string;
+
+  // Timing
+  callDurationMinutes: number; // selected duration in minutes
+  callStartTime: string | null; // ISO timestamp when call actually started
+  callEndTime: string | null; // ISO timestamp when call ended
+  callStatus: CallStatus;
+
+  // Training track
+  trackId: TrainingTrackId | null;
+  scenarioId: string | null;
+
+  // Transcript
+  transcriptMessages: TranscriptMessage[];
+
+  // Feedback
+  feedbackReport: FeedbackReport | null;
+  legacyEvaluation: SessionEvaluation | null; // backward compat
+
+  // Insights
+  insights: { insight: string; timestamp: number }[];
+
+  // Media
+  audioUrl?: string;
+
   createdAt: string;
 }
 
@@ -78,6 +173,8 @@ export interface EvaluateSessionRequest {
   personaRole: string;
   intensityLevel: number;
   durationSeconds: number;
+  trackId?: TrainingTrackId;
+  scenarioId?: string;
 }
 
 export interface EvaluateSessionResponse {
@@ -88,6 +185,18 @@ export interface EvaluateSessionResponse {
   weaknesses: string[];
   improvementTips: string[];
 }
+
+export interface FeedbackReportRequest {
+  transcript: string;
+  personaName: string;
+  personaRole: string;
+  intensityLevel: number;
+  durationSeconds: number;
+  trackId?: TrainingTrackId;
+  scenarioId?: string;
+}
+
+export interface FeedbackReportResponse extends FeedbackReport {}
 
 export interface GenerateProductRequest {
   companyName?: string;

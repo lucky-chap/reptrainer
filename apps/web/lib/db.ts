@@ -9,11 +9,19 @@ import {
   orderBy,
   deleteDoc,
   onSnapshot,
+  updateDoc,
   Timestamp,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { v4 as uuidv4 } from "uuid";
+import type {
+  CallSession,
+  CallStatus,
+  FeedbackReport,
+  TranscriptMessage,
+  TrainingTrackId,
+} from "@reptrainer/shared";
 
 // ─── Data Models ───────────────────────────────────────────────────────────
 
@@ -68,6 +76,9 @@ export interface Session {
   insights?: { insight: string; timestamp: number }[];
   audioUrl?: string; // Changed from audioBlob for Firestore/Storage
 }
+
+// Re-export the shared CallSession type for convenience
+export type { CallSession, FeedbackReport, TranscriptMessage };
 
 // ─── Product Operations ───────────────────────────────────────────────────
 
@@ -173,7 +184,7 @@ export async function deletePersona(id: string): Promise<void> {
   await deleteDoc(doc(db, "personas", id));
 }
 
-// ─── Session Operations ──────────────────────────────────────────────────
+// ─── Session Operations (Legacy) ─────────────────────────────────────────
 
 export async function saveSession(session: Session): Promise<void> {
   await setDoc(doc(db, "sessions", session.id), session);
@@ -211,6 +222,96 @@ export async function getAllSessions(userId: string): Promise<Session[]> {
 
 export async function deleteSession(id: string): Promise<void> {
   await deleteDoc(doc(db, "sessions", id));
+}
+
+// ─── Call Session Operations (New — Timed Calls) ─────────────────────────
+
+/**
+ * Create a new call session in Firestore.
+ * Records callStartTime and callDuration for authoritative timing.
+ */
+export async function createCallSession(
+  data: Omit<
+    CallSession,
+    | "callEndTime"
+    | "callStatus"
+    | "transcriptMessages"
+    | "feedbackReport"
+    | "legacyEvaluation"
+    | "insights"
+    | "createdAt"
+  > & { callStatus?: CallStatus },
+): Promise<CallSession> {
+  const session: CallSession = {
+    ...data,
+    callEndTime: null,
+    callStatus: data.callStatus || "pending",
+    transcriptMessages: [],
+    feedbackReport: null,
+    legacyEvaluation: null,
+    insights: [],
+    createdAt: new Date().toISOString(),
+  };
+  await setDoc(doc(db, "callSessions", session.id), session);
+  return session;
+}
+
+/**
+ * Update a call session (e.g., start the timer, update transcript, end the call).
+ */
+export async function updateCallSession(
+  id: string,
+  updates: Partial<CallSession>,
+): Promise<void> {
+  await updateDoc(doc(db, "callSessions", id), updates);
+}
+
+/**
+ * Get a single call session by ID.
+ */
+export async function getCallSession(
+  id: string,
+): Promise<CallSession | undefined> {
+  const docRef = doc(db, "callSessions", id);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? (docSnap.data() as CallSession) : undefined;
+}
+
+/**
+ * Get all call sessions for a user.
+ */
+export async function getAllCallSessions(
+  userId: string,
+): Promise<CallSession[]> {
+  const q = query(
+    collection(db, "callSessions"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => doc.data() as CallSession);
+}
+
+/**
+ * Subscribe to call sessions for a user (real-time).
+ */
+export function subscribeCallSessions(
+  userId: string,
+  onData: (sessions: CallSession[]) => void,
+  onError: (err: Error) => void,
+) {
+  const q = query(
+    collection(db, "callSessions"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => d.data() as CallSession));
+    },
+    onError,
+  );
 }
 
 // ─── Storage Operations ──────────────────────────────────────────────────
