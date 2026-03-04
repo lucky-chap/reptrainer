@@ -19,6 +19,15 @@ import { GenerationBanner } from "@/components/generation-banner";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import Link from "next/link";
 
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
 const intensityLabels = [
   "Friendly Skeptic",
   "Tough Negotiator",
@@ -60,7 +69,9 @@ export default function TrainPage() {
 
     const unsubPersonas = subscribePersonas(
       user.uid,
-      (data) => setPersonas(data),
+      (data) => {
+        setPersonas(data);
+      },
       handleError,
     );
 
@@ -79,10 +90,6 @@ export default function TrainPage() {
       setActivePersona(persona);
       setActiveProduct(product);
     }
-  };
-
-  const handleDeletePersona = async (id: string) => {
-    await deletePersona(id);
   };
 
   // If actively in a roleplay session, show the session component
@@ -105,102 +112,117 @@ export default function TrainPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="size-8 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" />
+        <div className="border-charcoal/20 border-t-charcoal size-8 animate-spin rounded-full border-2" />
       </div>
     );
   }
 
   return (
     <>
-      <div className="space-y-8 animate-fade-up">
+      <div className="animate-fade-up space-y-8">
         {/* Page header */}
         <div>
-          <span className="text-xs font-medium uppercase tracking-widest text-warm-gray mb-2 block">
+          <span className="text-warm-gray mb-2 block text-xs font-medium tracking-widest uppercase">
             Training
           </span>
-          <h1 className="heading-serif text-3xl md:text-4xl lg:text-5xl text-charcoal mb-2">
+          <h1 className="heading-serif text-charcoal mb-2 text-3xl md:text-4xl lg:text-5xl">
             Start a <em>Roleplay.</em>
           </h1>
-          <p className="text-warm-gray text-base max-w-xl">
+          <p className="text-warm-gray max-w-xl text-base">
             Generate an AI buyer persona and jump into a live voice
             conversation. Practice objection handling, closing, and more.
           </p>
         </div>
 
         {/* Configure Section */}
-        <div className="bg-white rounded-2xl border border-border/60 p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
-              <Phone className="size-5 text-charcoal" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-charcoal">
-                Configure Session
-              </h2>
-              <p className="text-xs text-warm-gray">
-                Select who you want to pitch to, and what you are pitching.
-              </p>
-            </div>
-          </div>
-
-          {products.length === 0 || personas.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-warm-gray mb-3">
-                You need at least one persona and one product to start a
-                session.
-              </p>
-              <div className="flex items-center justify-center gap-4">
-                <Link
-                  href="/dashboard/products"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors"
-                >
-                  Manage Products
-                </Link>
-                <Link
-                  href="/dashboard/personas"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-border/60 text-charcoal text-sm font-medium hover:bg-cream transition-colors"
-                >
-                  Manage Personas
-                </Link>
+        <Card className="border-border/60 overflow-hidden rounded-2xl bg-white shadow-sm">
+          <CardHeader className="p-8 pb-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-cream-dark flex size-12 items-center justify-center rounded-2xl">
+                <Phone className="text-charcoal size-6" />
+              </div>
+              <div>
+                <CardTitle className="text-charcoal text-lg font-semibold">
+                  Configure Session
+                </CardTitle>
+                <CardDescription className="text-warm-gray text-sm">
+                  Select who you want to pitch to, and what you are pitching.
+                </CardDescription>
               </div>
             </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <select
-                value={selectedPersonaId || ""}
-                onChange={(e) => setSelectedPersonaId(e.target.value || null)}
-                className="flex-1 h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
-              >
-                <option value="">Select a persona…</option>
-                {personas.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — {p.role}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={selectedProductId || ""}
-                onChange={(e) => setSelectedProductId(e.target.value || null)}
-                className="flex-1 h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
-              >
-                <option value="">Select a product to pitch…</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.companyName} — {p.industry}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={handleStartRoleplay}
-                disabled={!selectedProductId || !selectedPersonaId}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light disabled:opacity-40 disabled:cursor-not-allowed transition-all min-w-[180px]"
-              >
-                <Phone className="size-4" />
-                Start Roleplay
-              </button>
-            </div>
-          )}
-        </div>
+          </CardHeader>
+
+          <CardContent className="p-8 pt-4">
+            {products.length === 0 || personas.length === 0 ? (
+              <div className="py-8 text-center">
+                <p className="text-warm-gray mb-6 text-sm">
+                  You need at least one persona and one product to start a
+                  session.
+                </p>
+                <div className="flex items-center justify-center gap-4">
+                  <Button asChild variant="brand" className="px-6">
+                    <Link href="/dashboard/products">Manage Products</Link>
+                  </Button>
+                  <Button asChild variant="brandOutline" className="px-6">
+                    <Link href="/dashboard/personas">Manage Personas</Link>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 sm:flex-row">
+                <div className="flex-1 space-y-2">
+                  <label className="text-charcoal text-xs font-medium tracking-wider uppercase opacity-60">
+                    Buyer Persona
+                  </label>
+                  <select
+                    value={selectedPersonaId || ""}
+                    onChange={(e) =>
+                      setSelectedPersonaId(e.target.value || null)
+                    }
+                    className="border-border/60 bg-cream text-charcoal focus:ring-charcoal/20 h-12 w-full rounded-xl border px-4 text-sm transition-all focus:ring-2 focus:outline-none"
+                  >
+                    <option value="">Select a persona…</option>
+                    {personas.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — {p.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <label className="text-charcoal text-xs font-medium tracking-wider uppercase opacity-60">
+                    Product to Pitch
+                  </label>
+                  <select
+                    value={selectedProductId || ""}
+                    onChange={(e) =>
+                      setSelectedProductId(e.target.value || null)
+                    }
+                    className="border-border/60 bg-cream text-charcoal focus:ring-charcoal/20 h-12 w-full rounded-xl border px-4 text-sm transition-all focus:ring-2 focus:outline-none"
+                  >
+                    <option value="">Select a product to pitch…</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.companyName} — {p.industry}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    onClick={handleStartRoleplay}
+                    disabled={!selectedProductId || !selectedPersonaId}
+                    variant="brand"
+                    className="h-12 min-w-[180px] px-4"
+                  >
+                    <Phone className="mr-2 size-4" />
+                    Start Roleplay
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <GenerationBanner tasks={tasks} onDismiss={dismissTask} />

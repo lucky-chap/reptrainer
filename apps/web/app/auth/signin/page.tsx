@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Zap, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default function SignInPage() {
   const { user, loading, loginWithGoogle } = useAuth();
@@ -30,7 +31,7 @@ export default function SignInPage() {
   return (
     <div className="min-h-screen bg-cream flex flex-col">
       {/* Header / Brand */}
-      <div className="p-8">
+      <Link href={"/"} className="p-8">
         <div
           className="flex items-center gap-2.5 group cursor-pointer"
           onClick={() => router.push("/")}
@@ -42,7 +43,7 @@ export default function SignInPage() {
             Reptrainer
           </span>
         </div>
-      </div>
+      </Link>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 -mt-16">

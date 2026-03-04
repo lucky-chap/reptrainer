@@ -68,39 +68,39 @@ export default function DashboardLayout({
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-cream flex flex-col items-center justify-center animate-fade-in">
-        <div className="size-8 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" />
+      <div className="bg-cream animate-fade-in flex min-h-screen flex-col items-center justify-center">
+        <div className="border-charcoal/20 border-t-charcoal size-8 animate-spin rounded-full border-2" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="bg-cream min-h-screen">
       {/* Top Nav */}
-      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-cream/80 border-b border-border/40">
-        <div className="px-6 md:px-8 h-16 flex items-center justify-between">
+      <header className="bg-cream/80 border-border/40 fixed top-0 right-0 left-0 z-50 border-b backdrop-blur-md">
+        <div className="flex h-16 items-center justify-between px-6 md:px-8">
           {/* Left: Logo + Back */}
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="flex items-center gap-2 text-warm-gray hover:text-charcoal transition-colors group"
+              className="text-warm-gray hover:text-charcoal group flex items-center gap-2 transition-colors"
             >
-              <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
-              <span className="text-sm hidden sm:inline">Home</span>
+              <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
+              <span className="hidden text-sm sm:inline">Home</span>
             </Link>
-            <div className="h-6 w-px bg-border/60" />
+            <div className="bg-border/60 h-6 w-px" />
             <Link href="/dashboard" className="flex items-center gap-2.5">
-              <div className="size-8 rounded-lg bg-charcoal flex items-center justify-center">
-                <Zap className="size-4 text-cream" />
+              <div className="bg-charcoal flex size-8 items-center justify-center rounded-lg">
+                <Zap className="text-cream size-4" />
               </div>
-              <span className="text-base font-semibold tracking-tight text-charcoal">
+              <span className="text-charcoal text-base font-semibold tracking-tight">
                 Reptrainer
               </span>
             </Link>
           </div>
 
           {/* Center: Nav */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => {
               const isActive =
                 item.href === "/dashboard"
@@ -111,7 +111,7 @@ export default function DashboardLayout({
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
+                    "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
                     isActive
                       ? "bg-charcoal text-cream"
                       : "text-warm-gray hover:text-charcoal hover:bg-charcoal/5",
@@ -131,51 +131,51 @@ export default function DashboardLayout({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="relative h-9 rounded-full flex items-center gap-2.5 pl-1.5 pr-3 hover:bg-charcoal/5 transition-all"
+                    className="hover:bg-charcoal/5 relative flex h-9 items-center gap-2.5 rounded-full pr-3 pl-1.5 transition-all"
                   >
                     <div className="relative">
                       {user.photoURL ? (
                         <img
                           src={user.photoURL}
                           alt={user.displayName || ""}
-                          className="size-7 rounded-full object-cover ring-2 ring-cream-dark"
+                          className="ring-cream-dark size-7 rounded-full object-cover ring-2"
                         />
                       ) : (
-                        <div className="size-7 rounded-full bg-charcoal flex items-center justify-center text-[11px] font-semibold text-cream">
+                        <div className="bg-charcoal text-cream flex size-7 items-center justify-center rounded-full text-[11px] font-semibold">
                           {user.displayName?.charAt(0) || "U"}
                         </div>
                       )}
-                      <div className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-cream" />
+                      <div className="ring-cream absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-emerald-400 ring-2" />
                     </div>
-                    <span className="text-sm font-medium text-charcoal hidden sm:inline">
+                    <span className="text-charcoal hidden text-sm font-medium sm:inline">
                       {user.displayName?.split(" ")[0]}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
-                  className="w-64 rounded-xl border border-border/60 bg-white p-0 shadow-lg shadow-charcoal/5"
+                  className="border-border/60 shadow-charcoal/5 w-64 rounded-xl border bg-white p-0 shadow-lg"
                   align="end"
                   sideOffset={8}
                   forceMount
                 >
-                  <div className="px-4 py-3.5 border-b border-border/40">
+                  <div className="border-border/40 border-b px-4 py-3.5">
                     <div className="flex items-center gap-3">
                       {user.photoURL ? (
                         <img
                           src={user.photoURL}
                           alt=""
-                          className="size-9 rounded-full object-cover ring-2 ring-cream-dark"
+                          className="ring-cream-dark size-9 rounded-full object-cover ring-2"
                         />
                       ) : (
-                        <div className="size-9 rounded-full bg-charcoal flex items-center justify-center text-sm font-semibold text-cream">
+                        <div className="bg-charcoal text-cream flex size-9 items-center justify-center rounded-full text-sm font-semibold">
                           {user.displayName?.charAt(0) || "U"}
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-charcoal truncate">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-charcoal truncate text-sm font-semibold">
                           {user.displayName}
                         </p>
-                        <p className="text-xs text-warm-gray truncate">
+                        <p className="text-warm-gray truncate text-xs">
                           {user.email}
                         </p>
                       </div>
@@ -184,7 +184,7 @@ export default function DashboardLayout({
                   <div className="p-1.5">
                     <DropdownMenuItem
                       onClick={() => logout()}
-                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-warm-gray hover:text-charcoal hover:bg-cream cursor-pointer transition-colors"
+                      className="text-warm-gray hover:text-charcoal hover:bg-cream flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors"
                     >
                       <LogOut className="size-4" />
                       Sign out
@@ -195,7 +195,7 @@ export default function DashboardLayout({
             ) : (
               <Button
                 onClick={() => loginWithGoogle()}
-                className="rounded-full bg-charcoal text-cream hover:bg-charcoal-light transition-all text-sm h-9 px-5"
+                className="bg-charcoal text-cream hover:bg-charcoal-light h-9 rounded-full px-5 text-sm transition-all"
               >
                 Sign In
               </Button>
@@ -205,14 +205,14 @@ export default function DashboardLayout({
       </header>
 
       {/* Main Content */}
-      <main className="pt-16 min-h-screen">
-        <div className="px-6 md:px-10 lg:px-16 xl:px-24 py-8 md:py-12 max-w-7xl mx-auto">
+      <main className="min-h-screen pt-16">
+        <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-12 lg:px-16 xl:px-24">
           {children}
         </div>
       </main>
 
       {/* Mobile Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-md bg-cream/90 border-t border-border/40 px-2 py-2">
+      <nav className="bg-cream/90 border-border/40 fixed right-0 bottom-0 left-0 z-50 border-t px-2 py-2 backdrop-blur-md md:hidden">
         <div className="flex items-center justify-around">
           {navItems.map((item) => {
             const isActive =
@@ -224,7 +224,7 @@ export default function DashboardLayout({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                  "flex flex-col items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200",
                   isActive ? "text-charcoal" : "text-warm-gray",
                 )}
               >

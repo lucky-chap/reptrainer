@@ -14,6 +14,7 @@ import {
   Plus,
   Building2,
   X,
+  Target,
 } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
 import {
@@ -25,8 +26,28 @@ import {
 import { useAuth } from "@/context/auth-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import { GenerationBanner } from "@/components/generation-banner";
+import { PersonaCard } from "@/components/persona-card";
 import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const intensityLabels = [
   "Friendly Skeptic",
@@ -99,11 +120,11 @@ export default function PersonasPage() {
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !manualProductId) return;
+    if (!manualProductId) return;
 
     const persona: Persona = {
       id: uuidv4(),
-      userId: user.uid,
+      userId: user?.uid || "anonymous",
       productId: manualProductId,
       name: manualName,
       role: manualRole,
@@ -113,18 +134,8 @@ export default function PersonasPage() {
       gender: "female",
       traits: {
         aggressiveness: manualIntensity * 3,
-        interruptionFrequency:
-          manualIntensity === 3
-            ? "frequent"
-            : manualIntensity === 2
-              ? "occasional"
-              : "rare",
-        objectionStyle:
-          manualIntensity === 3
-            ? "aggressive"
-            : manualIntensity === 2
-              ? "firm"
-              : "soft",
+        interruptionFrequency: "low",
+        objectionStyle: "analytical",
       },
       createdAt: new Date().toISOString(),
     };
@@ -142,362 +153,318 @@ export default function PersonasPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="size-8 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" />
+        <Loader2 className="text-charcoal size-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <>
-      <div className="space-y-8 animate-fade-up">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-xs font-medium uppercase tracking-widest text-warm-gray mb-2 block">
-              AI Personas
-            </span>
-            <h1 className="heading-serif text-3xl md:text-4xl lg:text-5xl text-charcoal mb-2">
-              Buyer <em>Personas.</em>
-            </h1>
-            <p className="text-warm-gray text-base max-w-xl">
-              Generate AI-powered buyer personas for realistic sales roleplay.
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              setShowCreator(!showCreator);
-              if (showForm) setShowForm(false);
-            }}
-            className={cn(
-              "inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200",
-              showCreator
-                ? "bg-cream-dark text-charcoal"
-                : "bg-charcoal text-cream hover:bg-charcoal-light",
-            )}
-          >
-            {showCreator ? (
-              <>
-                <X className="size-4" />
-                Cancel
-              </>
-            ) : (
-              <>
-                <Plus className="size-4" />
-                Create Persona
-              </>
-            )}
-          </button>
+    <div className="animate-fade-up space-y-8 pb-12">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span className="text-warm-gray mb-2 block text-[10px] font-bold tracking-[0.15em] uppercase">
+            AI Personas
+          </span>
+          <h1 className="heading-serif text-charcoal text-3xl md:text-5xl">
+            Buyer <em>Personas.</em>
+          </h1>
+          <p className="text-warm-gray/70 mt-2 text-sm font-medium md:text-base">
+            Generate AI-powered buyer personas for realistic sales roleplay.
+          </p>
         </div>
+        <Button
+          onClick={() => {
+            setShowCreator(!showCreator);
+            if (showForm) setShowForm(false);
+          }}
+          variant={showCreator ? "brandOutline" : "brand"}
+          className="px-6"
+        >
+          {showCreator ? (
+            <>
+              <X className="mr-2 size-4" />
+              Cancel
+            </>
+          ) : (
+            <>
+              <Plus className="mr-2 size-4" />
+              Create Persona
+            </>
+          )}
+        </Button>
+      </div>
 
-        {/* Generation Options */}
-        {showCreator && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-down">
-            {/* Left: AI Generator */}
-            <div className="bg-white rounded-2xl border border-border/60 p-8 flex flex-col h-full">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
-                  <Sparkles className="size-5 text-charcoal" />
+      {/* Generation Options */}
+      {showCreator && (
+        <div className="animate-fade-down grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* Left: AI Generator */}
+          <Card className="border-border/60 group flex h-full flex-col overflow-hidden shadow-none">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-cream-dark group-hover:bg-charcoal group-hover:text-cream flex size-10 items-center justify-center rounded-xl transition-colors duration-300">
+                  <Sparkles className="size-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-semibold text-charcoal">
+                  <CardTitle className="text-base font-bold">
                     Generate with AI
-                  </h2>
-                  <p className="text-xs text-warm-gray">
-                    Select a product to generate a unique buyer persona
-                  </p>
+                  </CardTitle>
+                  <CardDescription className="text-xs font-medium">
+                    Analysis driven profile generation
+                  </CardDescription>
                 </div>
               </div>
-
+            </CardHeader>
+            <CardContent className="flex-1">
               {products.length === 0 ? (
-                <div className="text-center py-6 mt-auto">
-                  <p className="text-sm text-warm-gray mb-3">
+                <div className="py-6 text-center">
+                  <p className="text-warm-gray mb-6 text-sm font-medium">
                     Add a product first to generate personas.
                   </p>
-                  <Link
-                    href="/dashboard/products"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-charcoal text-cream text-sm font-medium"
-                  >
-                    Add a product
-                  </Link>
+                  <Button asChild variant="brandOutline">
+                    <Link href="/dashboard/products">Add a product</Link>
+                  </Button>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3 mt-auto">
-                  <select
+                <div className="w-full space-y-4">
+                  <p className="text-warm-gray/80 text-sm leading-relaxed font-medium">
+                    Select a product and our AI will generate a realistic target
+                    buyer profile based on its features and industry.
+                  </p>
+                  <Select
                     value={selectedProductId || ""}
-                    onChange={(e) =>
-                      setSelectedProductId(e.target.value || null)
-                    }
-                    className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+                    onValueChange={(val) => setSelectedProductId(val)}
                   >
-                    <option value="">Select a product…</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.companyName} — {p.industry}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleGenerate}
-                    disabled={!selectedProductId || isGenerating}
-                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Generating…
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="size-4" />
-                        Generate Persona
-                      </>
-                    )}
-                  </button>
+                    <SelectTrigger className="h-12 w-full rounded-xl">
+                      <SelectValue placeholder="Select a product…" />
+                    </SelectTrigger>
+                    <SelectContent position="popper" className="rounded-xl">
+                      {products.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.companyName} — {p.industry}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
-            </div>
+            </CardContent>
+            <CardFooter>
+              <Button
+                onClick={handleGenerate}
+                disabled={!selectedProductId || isGenerating}
+                className="w-full rounded-xl"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 size-4" />
+                    AI Generate
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
 
-            {/* Right: Custom Generator */}
-            <div className="bg-white rounded-2xl border border-border/60 p-8 flex flex-col h-full">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
-                  <Plus className="size-5 text-charcoal" />
+          {/* Right: Custom Generator */}
+          <Card className="border-border/60 group flex h-full flex-col shadow-none">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-cream-dark group-hover:bg-charcoal group-hover:text-cream flex size-10 items-center justify-center rounded-xl transition-colors duration-300">
+                  <Plus className="size-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-semibold text-charcoal">
-                    Custom Generate
-                  </h2>
-                  <p className="text-xs text-warm-gray">
-                    Manually define buyer characteristics
-                  </p>
+                  <CardTitle className="text-base font-bold">
+                    Custom Persona
+                  </CardTitle>
+                  <CardDescription className="text-xs font-medium">
+                    Manually define buyer traits
+                  </CardDescription>
                 </div>
               </div>
+            </CardHeader>
+            <CardContent className="flex-1">
+              <p className="text-warm-gray/80 mb-6 text-sm leading-relaxed font-medium">
+                Want a specific challenge? Create a persona from scratch by
+                defining their role, attitude, and objection style.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <Button
+                onClick={() => setShowForm(!showForm)}
+                variant={showForm ? "brandOutline" : "brandOutline"}
+                className="w-full rounded-xl"
+              >
+                {showForm ? (
+                  <>
+                    <X className="mr-2 size-4" />
+                    Cancel Manual Entry
+                  </>
+                ) : (
+                  <>
+                    <Plus className="mr-2 size-4" />
+                    Create Manually
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
 
-              <div className="mt-auto">
-                <button
-                  onClick={() => setShowForm(!showForm)}
-                  className={cn(
-                    "w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                    showForm
-                      ? "bg-cream-dark text-charcoal hover:bg-cream-dark/80"
-                      : "bg-white border border-border/60 text-charcoal hover:bg-cream",
-                  )}
-                >
-                  {showForm ? (
-                    <>
-                      <X className="size-4" />
-                      Cancel Manual Entry
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="size-4" />
-                      Create Manually
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Manual Form */}
-        {showForm && (
-          <div className="bg-white rounded-2xl border border-border/60 p-8 animate-fade-up">
-            <form onSubmit={handleManualSubmit} className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Manual Form */}
+      {showForm && (
+        <Card className="border-border/60 animate-fade-up shadow-none">
+          <CardContent className="p-8">
+            <form onSubmit={handleManualSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-charcoal">
-                    Persona Name
-                  </label>
-                  <input
-                    type="text"
+                  <Label
+                    htmlFor="manualName"
+                    className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                  >
+                    Full Name
+                  </Label>
+                  <Input
+                    id="manualName"
                     value={manualName}
                     onChange={(e) => setManualName(e.target.value)}
                     placeholder="e.g., Sarah Johnson"
                     required
-                    className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+                    className="h-12 rounded-xl"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-charcoal">
-                    Professional Role
-                  </label>
-                  <input
-                    type="text"
+                  <Label
+                    htmlFor="manualRole"
+                    className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                  >
+                    Job Role
+                  </Label>
+                  <Input
+                    id="manualRole"
                     value={manualRole}
                     onChange={(e) => setManualRole(e.target.value)}
-                    placeholder="e.g., Head of Procurement"
+                    placeholder="e.g., VP of Sales"
                     required
-                    className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+                    className="h-12 rounded-xl"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-charcoal">
-                  Related Product
-                </label>
-                <select
-                  value={manualProductId}
-                  onChange={(e) => setManualProductId(e.target.value)}
-                  required
-                  className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
+                <Label
+                  htmlFor="manualProductId"
+                  className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
                 >
-                  <option value="">Select a product…</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.companyName}
-                    </option>
-                  ))}
-                </select>
+                  Associated Product
+                </Label>
+                <Select
+                  value={manualProductId}
+                  onValueChange={(val) => setManualProductId(val)}
+                >
+                  <SelectTrigger
+                    id="manualProductId"
+                    className="h-12 w-full rounded-xl"
+                  >
+                    <SelectValue placeholder="Link to a product…" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="rounded-xl">
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.companyName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-charcoal">
-                  Objection Strategy / Personality
-                </label>
-                <textarea
+                <Label
+                  htmlFor="manualStrategy"
+                  className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                >
+                  Objection Strategy
+                </Label>
+                <Textarea
+                  id="manualStrategy"
                   value={manualStrategy}
                   onChange={(e) => setManualStrategy(e.target.value)}
-                  placeholder="How does this persona react to sales pitches? What are their main concerns?"
-                  rows={3}
+                  placeholder="How does this persona handle objections? (e.g., Focuses on ROI, very skeptical of new tech...)"
+                  rows={4}
                   required
-                  className="w-full rounded-xl border border-border/60 bg-cream px-4 py-3 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all resize-none"
+                  className="min-h-[120px] rounded-xl"
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-charcoal flex items-center justify-between">
+              <div className="space-y-3">
+                <Label className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase">
                   Intensity Level
-                  <span className="text-xs text-warm-gray font-normal">
-                    {intensityLabels[manualIntensity - 1]}
-                  </span>
-                </label>
-                <div className="flex gap-2">
+                </Label>
+                <div className="flex gap-3">
                   {[1, 2, 3].map((level) => (
-                    <button
+                    <Button
                       key={level}
                       type="button"
+                      variant={
+                        manualIntensity === level ? "default" : "outline"
+                      }
                       onClick={() => setManualIntensity(level)}
-                      className={cn(
-                        "flex-1 h-12 rounded-xl border text-sm font-medium transition-all",
-                        manualIntensity === level
-                          ? "bg-charcoal text-cream border-charcoal"
-                          : "bg-cream border-border/60 text-charcoal hover:bg-cream-dark",
-                      )}
+                      className="h-12 flex-1 rounded-xl"
                     >
                       {level}
-                    </button>
+                    </Button>
                   ))}
                 </div>
+                <p className="text-warm-gray/60 mt-2 text-center text-[10px] font-bold tracking-widest uppercase">
+                  {intensityLabels[manualIntensity - 1]}
+                </p>
               </div>
 
-              <button
+              <Button
                 type="submit"
-                className="w-full h-12 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors"
+                variant="brand"
                 disabled={!manualProductId}
+                className="h-12 w-full rounded-xl text-sm font-bold tracking-widest uppercase"
               >
                 Save Persona
-              </button>
+              </Button>
             </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Persona List */}
+      {personas.length === 0 && !showForm ? (
+        <Card className="border-border/60 flex flex-col items-center justify-center py-16 text-center shadow-none">
+          <div className="bg-cream-dark mb-6 flex size-16 items-center justify-center rounded-2xl">
+            <UserCircle className="text-warm-gray size-8" />
           </div>
-        )}
-
-        {/* Persona List */}
-        {personas.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-border/60 p-12 flex flex-col items-center justify-center text-center">
-            <div className="size-16 rounded-2xl bg-cream-dark flex items-center justify-center mb-4">
-              <UserCircle className="size-8 text-warm-gray" />
-            </div>
-            <h3 className="text-lg font-semibold text-charcoal mb-1">
-              No personas yet
-            </h3>
-            <p className="text-sm text-warm-gray max-w-sm">
-              Generate your first buyer persona to start roleplay sessions.
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {personas.map((persona, i) => {
-              const product = products.find((p) => p.id === persona.productId);
-              return (
-                <div
-                  key={persona.id}
-                  className="bg-white rounded-2xl border border-border/60 p-6 hover:shadow-lg hover:shadow-charcoal/5 transition-all duration-300 group animate-fade-up"
-                  style={{ animationDelay: `${i * 80}ms` }}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="size-11 rounded-full bg-charcoal flex items-center justify-center text-lg font-bold text-cream">
-                        {persona.name.charAt(0)}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-charcoal">
-                          {persona.name}
-                        </h3>
-                        <p className="text-xs text-warm-gray">{persona.role}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDelete(persona.id)}
-                      className="text-warm-gray-light hover:text-rose-glow opacity-0 group-hover:opacity-100 transition-all p-1"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2">
-                      <Gauge className="size-3.5 text-warm-gray" />
-                      <span className="text-xs font-medium text-charcoal px-2 py-0.5 rounded-full bg-cream-dark">
-                        {intensityLabels[persona.intensityLevel - 1]}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Siren className="size-3.5 text-warm-gray" />
-                      <span className="text-xs text-warm-gray">
-                        Interruptions:{" "}
-                        <span className="text-charcoal capitalize">
-                          {persona.traits.interruptionFrequency}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MessageSquareWarning className="size-3.5 text-warm-gray" />
-                      <span className="text-xs text-warm-gray">
-                        Style:{" "}
-                        <span className="text-charcoal capitalize">
-                          {persona.traits.objectionStyle}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-
-                  {product && (
-                    <p className="text-[11px] text-warm-gray mb-3">
-                      Product: {product.companyName}
-                    </p>
-                  )}
-
-                  <p className="text-xs text-warm-gray line-clamp-2 mb-4">
-                    {persona.objectionStrategy}
-                  </p>
-
-                  <Link
-                    href="/dashboard/train"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border/60 text-sm font-medium text-charcoal hover:bg-charcoal hover:text-cream transition-all duration-200"
-                  >
-                    Start Roleplay
-                    <ChevronRight className="size-4" />
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
+          <CardTitle className="text-charcoal mb-2 text-xl font-bold">
+            No personas yet
+          </CardTitle>
+          <CardDescription className="max-w-sm text-sm font-medium">
+            Generate your first buyer persona to start roleplay sessions.
+          </CardDescription>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {personas.map((persona, i) => (
+            <PersonaCard
+              key={persona.id}
+              persona={persona}
+              product={products.find((p) => p.id === persona.productId)}
+              index={i}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
       <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
-    </>
+    </div>
   );
 }

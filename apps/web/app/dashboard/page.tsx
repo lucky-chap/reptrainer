@@ -22,6 +22,16 @@ import {
   subscribeSessions,
 } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -142,24 +152,24 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="size-8 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" />
+        <div className="border-charcoal/20 border-t-charcoal size-8 animate-spin rounded-full border-2" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-        <div className="size-12 rounded-full bg-red-50 flex items-center justify-center mb-4">
+      <div className="animate-fade-in flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-red-50">
           <Activity className="size-6 text-red-500" />
         </div>
-        <h3 className="text-lg font-semibold text-charcoal mb-2">
+        <h3 className="text-charcoal mb-2 text-lg font-semibold">
           Something went wrong
         </h3>
-        <p className="text-warm-gray max-w-md mb-6">{error}</p>
+        <p className="text-warm-gray mb-6 max-w-md">{error}</p>
         <button
           onClick={() => window.location.reload()}
-          className="px-6 py-2.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors"
+          className="bg-charcoal text-cream hover:bg-charcoal-light rounded-full px-6 py-2.5 text-sm font-medium transition-colors"
         >
           Try again
         </button>
@@ -168,32 +178,31 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-up">
+    <div className="animate-fade-up space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <span className="text-xs font-medium uppercase tracking-widest text-warm-gray mb-2 block">
+          <span className="text-warm-gray mb-2 block text-xs font-medium tracking-widest uppercase">
             Dashboard
           </span>
-          <h1 className="heading-serif text-3xl md:text-4xl lg:text-5xl text-charcoal">
+          <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
             Welcome <em>{user?.displayName?.split(" ")[0] || "back"}.</em>
           </h1>
           <p className="text-warm-gray mt-2 text-base">
             Here&apos;s how your sales training is progressing.
           </p>
         </div>
-        <Link
-          href="/dashboard/train"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors group self-start md:self-auto"
-        >
-          <Swords className="size-4" />
-          Start training
-          <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
+        <Button asChild variant="brand" className="px-6">
+          <Link href="/dashboard/train" className="gap-2">
+            <Swords className="size-4" />
+            Start training
+            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </Button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           icon={Activity}
           label="Total Sessions"
@@ -225,184 +234,165 @@ export default function DashboardPage() {
       </div>
 
       {/* Main content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Performance Chart */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-border/60 p-8">
-          <div className="flex items-center justify-between mb-6">
+        <Card className="border-border/60 shadow-none lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
-              <h3 className="text-base font-semibold text-charcoal">
+              <CardTitle className="text-base font-bold">
                 Performance Trend
-              </h3>
-              <p className="text-sm text-warm-gray">
+              </CardTitle>
+              <CardDescription className="text-xs">
                 Your last {weekScores.length} sessions
-              </p>
+              </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <BarChart3 className="size-4 text-warm-gray" />
-            </div>
-          </div>
-
-          {weekScores.length > 0 ? (
-            <div className="flex items-end gap-3 h-40">
-              {weekScores.map((score, i) => (
-                <div
-                  key={i}
-                  className="flex-1 flex flex-col items-center gap-2"
-                >
-                  <span className="text-xs font-medium text-charcoal">
-                    {score > 0 ? score : "—"}
-                  </span>
+            <BarChart3 className="text-warm-gray size-4" />
+          </CardHeader>
+          <CardContent>
+            {weekScores.length > 0 ? (
+              <div className="flex h-40 items-end gap-3 pt-4">
+                {weekScores.map((score, i) => (
                   <div
-                    className="w-full rounded-t-lg transition-all duration-700"
-                    style={{
-                      height: `${score > 0 ? (score / 10) * 100 : 10}%`,
-                      backgroundColor:
-                        score >= 7
-                          ? "var(--color-charcoal)"
-                          : score >= 4
-                            ? "var(--color-warm-gray-light)"
-                            : "var(--color-cream-dark)",
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="h-40 flex items-center justify-center">
-              <p className="text-sm text-warm-gray">
-                Complete sessions to see your performance trend
-              </p>
-            </div>
-          )}
-        </div>
+                    key={i}
+                    className="flex flex-1 flex-col items-center gap-2"
+                  >
+                    <span className="text-charcoal text-[10px] font-bold">
+                      {score > 0 ? score : "—"}
+                    </span>
+                    <div
+                      className="w-full rounded-t-lg transition-all duration-700"
+                      style={{
+                        height: `${score > 0 ? (score / 10) * 100 : 10}%`,
+                        backgroundColor:
+                          score >= 7
+                            ? "var(--color-charcoal)"
+                            : score >= 4
+                              ? "var(--color-warm-gray-light)"
+                              : "var(--color-cream-dark)",
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-40 items-center justify-center">
+                <p className="text-warm-gray text-sm">
+                  Complete sessions to see your performance trend
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Skill breakdown */}
-        <div className="bg-white rounded-2xl border border-border/60 p-8">
-          <h3 className="text-base font-semibold text-charcoal mb-1">
-            Skill Breakdown
-          </h3>
-          <p className="text-sm text-warm-gray mb-6">Average scores</p>
-
-          <div className="space-y-5">
+        <Card className="border-border/60 shadow-none">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base font-bold">
+              Skill Breakdown
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Average scores
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <SkillBar
               icon={Target}
               label="Objection Handling"
               score={avgObjection}
-              color="bg-charcoal"
             />
-            <SkillBar
-              icon={Zap}
-              label="Confidence"
-              score={avgConfidence}
-              color="bg-warm-gray"
-            />
-            <SkillBar
-              icon={TrendingUp}
-              label="Clarity"
-              score={avgClarity}
-              color="bg-warm-gray-light"
-            />
-          </div>
+            <SkillBar icon={Zap} label="Confidence" score={avgConfidence} />
+            <SkillBar icon={TrendingUp} label="Clarity" score={avgClarity} />
 
-          {evaluatedSessions.length === 0 && (
-            <p className="text-xs text-warm-gray mt-6 text-center">
-              Complete evaluated sessions to see your skill breakdown
-            </p>
-          )}
-        </div>
+            {evaluatedSessions.length === 0 && (
+              <p className="text-warm-gray pt-2 text-center text-[10px] font-medium tracking-wider uppercase">
+                Complete evaluated sessions to see stats
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Recent activity and quick actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Recent Sessions */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-border/60 p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-base font-semibold text-charcoal">
+        <Card className="border-border/60 shadow-none lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <CardTitle className="text-base font-bold">
               Recent Sessions
-            </h3>
-            <Link
-              href="/dashboard/history"
-              className="text-sm text-warm-gray hover:text-charcoal transition-colors flex items-center gap-1"
-            >
-              View all
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </div>
+            </CardTitle>
+            <Button variant="brandOutline" size="sm" asChild className="px-3">
+              <Link href="/dashboard/history" className="gap-1">
+                View all
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {recentSessions.length > 0 ? (
+              <div className="space-y-1">
+                {recentSessions.slice(0, 5).map((session) => {
+                  const persona = personas.find(
+                    (p) => p.id === session.personaId,
+                  );
+                  const score = session.evaluation
+                    ? Math.round(
+                        (session.evaluation.objectionHandlingScore +
+                          session.evaluation.confidenceScore +
+                          session.evaluation.clarityScore) /
+                          3,
+                      )
+                    : null;
 
-          {recentSessions.length > 0 ? (
-            <div className="space-y-3">
-              {recentSessions.slice(0, 5).map((session) => {
-                const persona = personas.find(
-                  (p) => p.id === session.personaId,
-                );
-                const score = session.evaluation
-                  ? Math.round(
-                      (session.evaluation.objectionHandlingScore +
-                        session.evaluation.confidenceScore +
-                        session.evaluation.clarityScore) /
-                        3,
-                    )
-                  : null;
-
-                return (
-                  <div
-                    key={session.id}
-                    className="flex items-center justify-between py-3 border-b border-border/40 last:border-0"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center font-bold text-sm text-charcoal">
-                        {persona?.name.charAt(0) || "?"}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-charcoal">
-                          {persona?.name || "Unknown"}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-warm-gray">
-                          <span className="flex items-center gap-1">
-                            <Clock className="size-3" />
-                            {Math.floor(session.durationSeconds / 60)}m{" "}
-                            {session.durationSeconds % 60}s
-                          </span>
-                          <span>
-                            {new Date(session.createdAt).toLocaleDateString()}
-                          </span>
+                  return (
+                    <div
+                      key={session.id}
+                      className="border-border/40 flex items-center justify-between border-b py-4 last:border-0"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="bg-charcoal text-cream flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold">
+                          {persona?.name.charAt(0) || "?"}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-charcoal truncate text-sm font-bold">
+                            {persona?.name || "Unknown"}
+                          </p>
+                          <div className="text-warm-gray/60 mt-0.5 flex items-center gap-3 text-[10px] font-bold tracking-wider uppercase">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="size-3" />
+                              {Math.floor(session.durationSeconds / 60)}m{" "}
+                              {session.durationSeconds % 60}s
+                            </span>
+                            <span>
+                              {new Date(session.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      {score !== null && (
+                        <div className="shrink-0 text-right">
+                          <span className="text-charcoal text-lg font-bold">
+                            {score}
+                          </span>
+                          <span className="text-warm-gray/60 text-[10px] font-bold">
+                            /10
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {score !== null && (
-                      <span
-                        className={`text-lg font-bold ${
-                          score >= 7
-                            ? "text-charcoal"
-                            : score >= 4
-                              ? "text-warm-gray"
-                              : "text-warm-gray-light"
-                        }`}
-                      >
-                        {score}
-                        <span className="text-xs text-warm-gray font-normal">
-                          /10
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="py-12 text-center">
-              <p className="text-sm text-warm-gray mb-4">
-                No sessions yet. Start your first training session.
-              </p>
-              <Link
-                href="/dashboard/train"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors"
-              >
-                Begin training
-              </Link>
-            </div>
-          )}
-        </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-12 text-center">
+                <p className="text-warm-gray mb-6 text-sm">
+                  No sessions yet. Start your first training session.
+                </p>
+                <Button asChild variant="brand">
+                  <Link href="/dashboard/train">Begin training</Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Quick Actions */}
         <div className="space-y-4">
@@ -444,18 +434,24 @@ function StatCard({
   subtext: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-border/60 p-6 hover:shadow-lg hover:shadow-charcoal/5 transition-all duration-300">
-      <div className="flex items-center gap-2 mb-3">
-        <Icon className="size-4 text-warm-gray" />
-        <span className="text-xs font-medium uppercase tracking-wider text-warm-gray">
-          {label}
-        </span>
-      </div>
-      <p className="heading-serif text-2xl md:text-3xl text-charcoal mb-1">
-        {value}
-      </p>
-      <p className="text-xs text-warm-gray">{subtext}</p>
-    </div>
+    <Card className="border-border/60 group shadow-none transition-all duration-300 hover:shadow-lg">
+      <CardContent className="p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="bg-cream/50 group-hover:bg-charcoal/5 rounded-lg p-2 transition-colors">
+            <Icon className="text-warm-gray size-4" />
+          </div>
+          <span className="text-warm-gray/60 text-[10px] font-bold tracking-widest uppercase">
+            {label}
+          </span>
+        </div>
+        <p className="heading-serif text-charcoal mb-1 text-2xl font-bold md:text-3xl">
+          {value}
+        </p>
+        <p className="text-warm-gray/60 text-[11px] leading-relaxed font-medium">
+          {subtext}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -463,30 +459,23 @@ function SkillBar({
   icon: Icon,
   label,
   score,
-  color,
 }: {
   icon: React.ElementType;
   label: string;
   score: number;
-  color: string;
 }) {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <span className="flex items-center gap-2 text-sm font-medium text-charcoal">
-          <Icon className="size-4 text-warm-gray" />
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-charcoal flex items-center gap-2.5 text-xs font-bold tracking-wider uppercase">
+          <Icon className="text-warm-gray size-3.5" />
           {label}
         </span>
-        <span className="text-sm text-warm-gray">
+        <span className="text-charcoal text-xs font-bold">
           {score > 0 ? `${score}/10` : "—"}
         </span>
       </div>
-      <div className="h-2 bg-cream-dark rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full ${color} transition-all duration-1000`}
-          style={{ width: `${score > 0 ? (score / 10) * 100 : 0}%` }}
-        />
-      </div>
+      <Progress value={score * 10} className="h-1.5" />
     </div>
   );
 }
@@ -503,22 +492,25 @@ function QuickAction({
   description: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="block bg-white rounded-2xl border border-border/60 p-6 hover:shadow-lg hover:shadow-charcoal/5 transition-all duration-300 group"
-    >
-      <div className="flex items-start gap-4">
-        <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center group-hover:bg-charcoal transition-colors duration-300">
-          <Icon className="size-5 text-charcoal group-hover:text-cream transition-colors duration-300" />
-        </div>
-        <div className="flex-1">
-          <h4 className="text-sm font-semibold text-charcoal mb-0.5 group-hover:text-charcoal-light transition-colors">
-            {title}
-          </h4>
-          <p className="text-xs text-warm-gray">{description}</p>
-        </div>
-        <ArrowRight className="size-4 text-warm-gray group-hover:text-charcoal group-hover:translate-x-0.5 transition-all mt-0.5" />
-      </div>
+    <Link href={href} className="group block">
+      <Card className="border-border/60 shadow-none transition-all duration-300 hover:shadow-lg">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="bg-cream group-hover:bg-charcoal group-hover:text-cream rounded-xl p-3 transition-colors duration-300">
+              <Icon className="size-5" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-charcoal mb-1 text-sm font-bold tracking-wider uppercase">
+                {title}
+              </h4>
+              <p className="text-warm-gray text-xs leading-relaxed">
+                {description}
+              </p>
+            </div>
+            <ArrowRight className="text-warm-gray/40 group-hover:text-charcoal mt-1 size-4 transition-all group-hover:translate-x-1" />
+          </div>
+        </CardContent>
+      </Card>
     </Link>
   );
 }

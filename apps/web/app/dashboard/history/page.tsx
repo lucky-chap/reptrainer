@@ -19,6 +19,16 @@ import {
 } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
 import { useAuth } from "@/context/auth-context";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function HistoryPage() {
   const { user } = useAuth();
@@ -94,19 +104,19 @@ export default function HistoryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="size-8 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" />
+        <div className="border-charcoal/20 border-t-charcoal size-8 animate-spin rounded-full border-2" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-fade-up">
+    <div className="animate-fade-up space-y-8">
       {/* Header */}
       <div>
-        <span className="text-xs font-medium uppercase tracking-widest text-warm-gray mb-2 block">
+        <span className="text-warm-gray mb-2 block text-xs font-medium tracking-widest uppercase">
           Past Sessions
         </span>
-        <h1 className="heading-serif text-3xl md:text-4xl lg:text-5xl text-charcoal mb-2">
+        <h1 className="heading-serif text-charcoal mb-2 text-3xl md:text-4xl lg:text-5xl">
           Session <em>History.</em>
         </h1>
         <p className="text-warm-gray text-base">
@@ -115,19 +125,19 @@ export default function HistoryPage() {
       </div>
 
       {sessions.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-border/60 p-12 flex flex-col items-center justify-center text-center">
-          <div className="size-16 rounded-2xl bg-cream-dark flex items-center justify-center mb-4">
-            <History className="size-8 text-warm-gray" />
+        <Card className="border-border/60 flex flex-col items-center justify-center rounded-2xl bg-white p-12 text-center">
+          <div className="bg-cream-dark mb-4 flex size-16 items-center justify-center rounded-2xl">
+            <History className="text-warm-gray size-8" />
           </div>
-          <h3 className="text-lg font-semibold text-charcoal mb-1">
+          <CardTitle className="text-charcoal mb-1 text-lg font-semibold">
             No sessions yet
-          </h3>
-          <p className="text-sm text-warm-gray max-w-sm">
+          </CardTitle>
+          <CardDescription className="text-warm-gray max-w-sm text-sm">
             Complete your first roleplay session to see results here.
-          </p>
-        </div>
+          </CardDescription>
+        </Card>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-4">
           {sessions.map((session, i) => {
             const persona = personas[session.personaId];
             const product = products[session.productId];
@@ -145,29 +155,30 @@ export default function HistoryPage() {
             return (
               <div
                 key={session.id}
-                className="bg-white rounded-2xl border border-border/60 p-5 hover:shadow-lg hover:shadow-charcoal/5 transition-all duration-300 cursor-pointer group animate-fade-up"
-                style={{ animationDelay: `${i * 60}ms` }}
                 onClick={() => setSelectedSession(session)}
+                className="border-border/60 hover:shadow-charcoal/5 group animate-fade-up cursor-pointer rounded-2xl border bg-white p-6 transition-all duration-300 hover:shadow-lg"
+                style={{ animationDelay: `${i * 60}ms` }}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-5">
                     {/* Score Badge */}
                     <div
-                      className={`size-12 rounded-xl flex items-center justify-center text-lg font-bold ${
+                      className={cn(
+                        "flex size-14 items-center justify-center rounded-2xl text-xl font-bold shadow-sm transition-transform duration-300 group-hover:scale-105",
                         overallScore !== null
                           ? overallScore >= 7
                             ? "bg-charcoal text-cream"
                             : overallScore >= 4
-                              ? "bg-cream-dark text-charcoal"
-                              : "bg-cream-dark text-warm-gray"
-                          : "bg-cream-dark text-warm-gray"
-                      }`}
+                              ? "bg-cream-dark text-charcoal border-border/40 border"
+                              : "bg-cream text-warm-gray border-border/40 border"
+                          : "bg-cream text-warm-gray border-border/20 border",
+                      )}
                     >
                       {overallScore !== null ? overallScore : "—"}
                     </div>
 
                     <div>
-                      <h3 className="font-semibold text-sm text-charcoal group-hover:text-charcoal-light transition-colors">
+                      <h3 className="text-charcoal group-hover:text-charcoal-light text-base font-semibold transition-colors">
                         {persona?.name || "Unknown Persona"}{" "}
                         {persona && (
                           <span className="text-warm-gray font-normal">
@@ -175,10 +186,14 @@ export default function HistoryPage() {
                           </span>
                         )}
                       </h3>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs text-warm-gray">
-                        {product && <span>{product.companyName}</span>}
-                        <span className="flex items-center gap-1">
-                          <Clock className="size-3" />
+                      <div className="text-warm-gray mt-1 flex items-center gap-4 text-xs">
+                        {product && (
+                          <span className="bg-cream-dark text-charcoal rounded-full px-2.5 py-0.5 font-medium">
+                            {product.companyName}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="size-3.5" />
                           {Math.floor(session.durationSeconds / 60)}m{" "}
                           {session.durationSeconds % 60}s
                         </span>
@@ -189,35 +204,50 @@ export default function HistoryPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-5">
                     {evaluation && (
-                      <div className="hidden sm:flex items-center gap-3 text-xs">
-                        <span className="flex items-center gap-1 text-charcoal">
-                          <Target className="size-3" />
-                          {evaluation.objectionHandlingScore}
-                        </span>
-                        <span className="flex items-center gap-1 text-warm-gray">
-                          <Shield className="size-3" />
-                          {evaluation.confidenceScore}
-                        </span>
-                        <span className="flex items-center gap-1 text-warm-gray-light">
-                          <Eye className="size-3" />
-                          {evaluation.clarityScore}
-                        </span>
+                      <div className="hidden items-center gap-4 border-r pr-6 sm:flex">
+                        <div className="text-center">
+                          <p className="text-warm-gray text-[10px] font-bold tracking-tighter uppercase">
+                            Obj
+                          </p>
+                          <p className="text-charcoal text-sm font-bold">
+                            {evaluation.objectionHandlingScore}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-warm-gray text-[10px] font-bold tracking-tighter uppercase">
+                            Conf
+                          </p>
+                          <p className="text-charcoal text-sm font-bold">
+                            {evaluation.confidenceScore}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-warm-gray text-[10px] font-bold tracking-tighter uppercase">
+                            Clar
+                          </p>
+                          <p className="text-charcoal text-sm font-bold">
+                            {evaluation.clarityScore}
+                          </p>
+                        </div>
                       </div>
                     )}
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(session.id);
-                      }}
-                      className="text-warm-gray-light hover:text-rose-glow opacity-0 group-hover:opacity-100 transition-all p-1"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-
-                    <ChevronRight className="size-4 text-warm-gray group-hover:text-charcoal transition-colors" />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(session.id);
+                        }}
+                        className="text-warm-gray-light hover:text-rose-glow p-2 opacity-0 transition-all group-hover:opacity-100"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                      <div className="bg-cream-dark flex size-8 items-center justify-center rounded-full transition-transform group-hover:translate-x-1">
+                        <ChevronRight className="text-charcoal size-4" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -25,14 +25,14 @@ export function PerformanceSection() {
     <section ref={sectionRef} className="landing-section py-20 md:py-32">
       {/* Header */}
       <div className="reveal mb-16 md:mb-20">
-        <span className="text-xs font-medium uppercase tracking-widest text-warm-gray mb-4 block">
+        <span className="text-warm-gray mb-4 block text-xs font-medium tracking-widest uppercase">
           Performance & Clarity
         </span>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
-          <h2 className="heading-serif text-3xl md:text-5xl lg:text-6xl text-charcoal">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16">
+          <h2 className="heading-serif text-charcoal text-3xl md:text-5xl lg:text-6xl">
             Intuitive <em>Performance.</em>
           </h2>
-          <p className="text-base md:text-lg text-warm-gray leading-relaxed flex items-end">
+          <p className="text-warm-gray flex items-end text-base leading-relaxed md:text-lg">
             Whether you&apos;re growing fast or optimizing what&apos;s already
             built, Reptrainer keeps everything in sync. No clutter, no
             confusion—just intelligent clarity.
@@ -41,31 +41,31 @@ export function PerformanceSection() {
       </div>
 
       {/* Feature cards - large format */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Card 1 - Live Roleplay */}
-        <div className="reveal reveal-delay-1 bg-white rounded-2xl border border-border/60 p-8 md:p-10 flex flex-col">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="size-10 rounded-xl bg-blue-glow/10 flex items-center justify-center">
-              <PhoneCall className="size-5 text-blue-glow" />
+        <div className="reveal reveal-delay-1 border-border/60 flex flex-col rounded-2xl border bg-white p-8 md:p-10">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="bg-blue-glow/10 flex size-10 items-center justify-center rounded-xl">
+              <PhoneCall className="text-blue-glow size-5" />
             </div>
-            <span className="text-xs font-medium uppercase tracking-widest text-warm-gray">
+            <span className="text-warm-gray text-xs font-medium tracking-widest uppercase">
               Live Roleplay
             </span>
           </div>
 
           {/* Voice waves visualization */}
-          <div className="bg-cream rounded-xl p-6 mb-6 flex-1">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="size-3 rounded-full bg-emerald-glow animate-pulse" />
-              <span className="text-xs font-medium text-charcoal">
+          <div className="bg-cream mb-6 flex-1 rounded-xl p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="bg-emerald-glow size-3 animate-pulse rounded-full" />
+              <span className="text-charcoal text-xs font-medium">
                 Session Active — 4:32
               </span>
             </div>
-            <div className="flex items-center justify-center gap-1 h-16">
+            <div className="flex h-16 items-center justify-center gap-1">
               {[...Array(24)].map((_, i) => (
                 <div
                   key={i}
-                  className="w-1 rounded-full bg-charcoal/20"
+                  className="bg-charcoal/20 w-1 rounded-full"
                   style={{
                     height: `${20 + Math.sin(i * 0.7) * 60}%`,
                     animationDelay: `${i * 0.05}s`,
@@ -75,35 +75,35 @@ export function PerformanceSection() {
             </div>
           </div>
 
-          <h3 className="text-lg font-semibold text-charcoal mb-2">
+          <h3 className="text-charcoal mb-2 text-lg font-semibold">
             Voice-first experience
           </h3>
-          <p className="text-sm text-warm-gray leading-relaxed">
+          <p className="text-warm-gray text-sm leading-relaxed">
             Speak naturally with AI buyers using real-time voice. No scripts, no
             delays — just authentic conversation practice.
           </p>
           <Link
             href="/dashboard/train"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-charcoal mt-6 group"
+            className="text-charcoal group mt-6 inline-flex items-center gap-1.5 text-sm font-medium"
           >
             Start a session
-            <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
+            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
 
         {/* Card 2 - AI Feedback */}
-        <div className="reveal reveal-delay-2 bg-white rounded-2xl border border-border/60 p-8 md:p-10 flex flex-col">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="size-10 rounded-xl bg-violet-glow/10 flex items-center justify-center">
-              <MessageSquare className="size-5 text-violet-glow" />
+        <div className="reveal reveal-delay-2 border-border/60 flex flex-col rounded-2xl border bg-white p-8 md:p-10">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="bg-violet-glow/10 flex size-10 items-center justify-center rounded-xl">
+              <MessageSquare className="text-violet-glow size-5" />
             </div>
-            <span className="text-xs font-medium uppercase tracking-widest text-warm-gray">
+            <span className="text-warm-gray text-xs font-medium tracking-widest uppercase">
               AI Feedback
             </span>
           </div>
 
           {/* Feedback preview */}
-          <div className="bg-cream rounded-xl p-6 mb-6 flex-1 space-y-4">
+          <div className="bg-cream mb-6 flex-1 space-y-4 rounded-xl p-6">
             {[
               {
                 label: "Rapport Building",
@@ -123,13 +123,13 @@ export function PerformanceSection() {
               },
             ].map((metric) => (
               <div key={metric.label}>
-                <div className="flex justify-between text-xs mb-1.5">
+                <div className="mb-1.5 flex justify-between text-xs">
                   <span className="text-charcoal font-medium">
                     {metric.label}
                   </span>
                   <span className="text-warm-gray">{metric.score}%</span>
                 </div>
-                <div className="h-1.5 bg-charcoal/10 rounded-full overflow-hidden">
+                <div className="bg-charcoal/10 h-1.5 overflow-hidden rounded-full">
                   <div
                     className={`h-full rounded-full ${metric.color} transition-all duration-1000`}
                     style={{ width: `${metric.score}%` }}
@@ -139,38 +139,38 @@ export function PerformanceSection() {
             ))}
           </div>
 
-          <h3 className="text-lg font-semibold text-charcoal mb-2">
+          <h3 className="text-charcoal mb-2 text-lg font-semibold">
             Granular coaching insights
           </h3>
-          <p className="text-sm text-warm-gray leading-relaxed">
+          <p className="text-warm-gray text-sm leading-relaxed">
             Every session produces detailed scores on your sales competencies.
             See exactly where you excel and where to improve.
           </p>
           <Link
             href="/dashboard/train"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-charcoal mt-6 group"
+            className="text-charcoal group mt-6 inline-flex items-center gap-1.5 text-sm font-medium"
           >
-            View sample report
-            <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
+            View my report
+            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
       </div>
 
       {/* Full-width card */}
-      <div className="reveal reveal-delay-3 bg-charcoal rounded-2xl p-8 md:p-12 lg:p-16 flex flex-col md:flex-row items-start md:items-center gap-8">
+      <div className="reveal reveal-delay-3 bg-charcoal flex flex-col items-start gap-8 rounded-2xl p-8 md:flex-row md:items-center md:p-12 lg:p-16">
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="size-10 rounded-xl bg-cream/10 flex items-center justify-center">
-              <Lightbulb className="size-5 text-amber-glow" />
+          <div className="mb-6 flex items-center gap-3">
+            <div className="bg-cream/10 flex size-10 items-center justify-center rounded-xl">
+              <Lightbulb className="text-amber-glow size-5" />
             </div>
-            <span className="text-xs font-medium uppercase tracking-widest text-cream/40">
+            <span className="text-cream/40 text-xs font-medium tracking-widest uppercase">
               Adaptive Scenarios
             </span>
           </div>
-          <h3 className="text-xl md:text-2xl font-semibold text-cream mb-3">
+          <h3 className="text-cream mb-3 text-xl font-semibold md:text-2xl">
             &ldquo;Switching to Reptrainer was easy.&rdquo;
           </h3>
-          <p className="text-sm text-cream/50 leading-relaxed max-w-lg">
+          <p className="text-cream/50 max-w-lg text-sm leading-relaxed">
             The AI tailors each scenario to your skill level and product. As you
             improve, conversations get tougher — so you&apos;re always
             challenged. No two sessions are ever the same.
@@ -178,10 +178,10 @@ export function PerformanceSection() {
         </div>
         <Link
           href="/dashboard/train"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-cream text-charcoal text-sm font-medium hover:bg-cream-dark transition-colors shrink-0 group"
+          className="bg-cream text-charcoal hover:bg-cream-dark group inline-flex shrink-0 items-center gap-2 rounded-full px-6 py-3 text-sm font-medium transition-colors"
         >
           Continue reading
-          <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
+          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
     </section>

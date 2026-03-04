@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Target,
@@ -13,8 +14,19 @@ import {
   Download,
   Headphones,
 } from "lucide-react";
-import { useState, useEffect } from "react";
 import type { Session, Persona, Product } from "@/lib/db";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 interface SessionResultsProps {
   session: Session;
@@ -23,78 +35,61 @@ interface SessionResultsProps {
   onBack: () => void;
 }
 
-function ScoreRing({
+function ScoreIndicator({
   score,
   label,
   icon: Icon,
-  color,
+  variant = "default",
 }: {
   score: number;
   label: string;
   icon: React.ElementType;
-  color: string;
+  variant?: "default" | "secondary" | "outline";
 }) {
-  const circumference = 2 * Math.PI * 45;
-  const offset = circumference - (circumference * score) / 10;
-
-  const colorMap: Record<string, { stroke: string; text: string; bg: string }> =
-    {
-      charcoal: {
-        stroke: "#1A1A1A",
-        text: "text-charcoal",
-        bg: "bg-charcoal/10",
-      },
-      warm: {
-        stroke: "#8A8578",
-        text: "text-warm-gray",
-        bg: "bg-warm-gray/10",
-      },
-      light: {
-        stroke: "#B5AFA5",
-        text: "text-warm-gray-light",
-        bg: "bg-warm-gray-light/20",
-      },
-    };
-
-  const c = colorMap[color] || colorMap.charcoal;
-
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="relative size-28">
-        <svg className="size-28 -rotate-90" viewBox="0 0 100 100">
+    <div className="flex flex-col items-center gap-4 text-center">
+      <div className="relative flex items-center justify-center">
+        {/* Simple Progress Circle */}
+        <svg className="size-24 -rotate-90" viewBox="0 0 100 100">
           <circle
             cx="50"
             cy="50"
-            r="45"
+            r="42"
             fill="none"
-            stroke="var(--color-cream-dark)"
-            strokeWidth="6"
+            stroke="currentColor"
+            strokeWidth="8"
+            className="text-muted/20"
           />
           <circle
             cx="50"
             cy="50"
-            r="45"
+            r="42"
             fill="none"
-            stroke={c.stroke}
-            strokeWidth="6"
+            stroke="currentColor"
+            strokeWidth="8"
             strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            className="transition-all duration-1000 ease-out"
+            strokeDasharray={264}
+            strokeDashoffset={264 - (264 * score) / 10}
+            className={cn(
+              "transition-all duration-1000 ease-out",
+              score >= 7
+                ? "text-charcoal"
+                : score >= 4
+                  ? "text-warm-gray"
+                  : "text-warm-gray-light",
+            )}
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-2xl font-bold ${c.text}`}>{score}</span>
-          <span className="text-xs text-warm-gray">/10</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pt-1">
+          <span className="text-charcoal text-2xl font-bold">{score}</span>
+          <span className="text-warm-gray text-[10px] font-medium tracking-tighter uppercase">
+            out of 10
+          </span>
         </div>
       </div>
-      <div className="flex items-center gap-1.5">
-        <div
-          className={`size-6 rounded-md ${c.bg} flex items-center justify-center`}
-        >
-          <Icon className={`size-3.5 ${c.text}`} />
-        </div>
-        <span className="text-sm font-medium text-charcoal">{label}</span>
+      <div className="flex items-center gap-2">
+        <Icon className="text-warm-gray size-4" />
+        <span className="text-charcoal text-sm font-semibold">{label}</span>
       </div>
     </div>
   );
@@ -150,287 +145,306 @@ export function SessionResults({
   };
 
   return (
-    <div className="space-y-6 animate-fade-up">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <button
+    <div className="animate-fade-up mx-auto max-w-5xl space-y-8">
+      {/* Header Actions */}
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-sm text-warm-gray hover:text-charcoal transition-colors"
+          className="text-warm-gray hover:text-charcoal -ml-2 w-fit"
         >
-          <ArrowLeft className="size-4" />
-          Back
-        </button>
-        <button
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to History
+        </Button>
+        <Button
           onClick={onBack}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cream-dark text-charcoal text-sm font-medium hover:bg-charcoal hover:text-cream transition-colors"
+          className="bg-charcoal text-cream hover:bg-charcoal/90 rounded-full px-6"
         >
-          <RotateCcw className="size-4" />
-          New Session
-        </button>
+          <RotateCcw className="mr-2 h-4 w-4" />
+          New Roleplay Session
+        </Button>
       </div>
 
-      {/* Session Meta */}
-      <div className="bg-white rounded-2xl border border-border/60 p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="size-12 rounded-full bg-charcoal flex items-center justify-center text-xl font-bold text-cream">
-              {persona.name.charAt(0)}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-charcoal heading-serif">
-                Session <em>Complete.</em>
-              </h2>
-              <p className="text-sm text-warm-gray">
-                Call with {persona.name} ({persona.role})
-                {product && ` • ${product.companyName}`}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        {/* Left Column: Summary & Scores */}
+        <div className="space-y-8 lg:col-span-7">
+          {/* Main Completion Card */}
+          <Card className="border-border/60 overflow-hidden shadow-sm">
+            <div className="bg-charcoal text-cream p-8 pb-12 text-center">
+              <Badge
+                variant="outline"
+                className="mb-6 border-white/20 bg-white/5 px-4 py-1 text-white/60"
+              >
+                SESSION COMPLETED
+              </Badge>
+              <div className="mb-4 flex flex-col items-center">
+                <span className="mb-2 text-[0.65rem] font-bold tracking-[0.2em] text-white/40 uppercase">
+                  Overall Performance
+                </span>
+                <div className="heading-serif flex items-baseline justify-center">
+                  <span className="text-7xl font-bold">{overallScore}</span>
+                  <span className="ml-1 text-2xl opacity-40">/10</span>
+                </div>
+              </div>
+              <p className="text-cream/70 mx-auto max-w-sm text-sm leading-relaxed">
+                {overallScore >= 8
+                  ? "Excellent performance! You handled this call like a seasoned professional."
+                  : overallScore >= 6
+                    ? "Good job! You demonstrated strong core skills with some areas for refinement."
+                    : "A solid first attempt. Focus on the specific feedback below to level up your game."}
               </p>
             </div>
+
+            <CardContent className="-mt-6 rounded-t-3xl bg-white p-8">
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+                <ScoreIndicator
+                  score={evaluation?.objectionHandlingScore || 0}
+                  label="Objection Handling"
+                  icon={Target}
+                />
+                <ScoreIndicator
+                  score={evaluation?.confidenceScore || 0}
+                  label="Confidence"
+                  icon={Shield}
+                />
+                <ScoreIndicator
+                  score={evaluation?.clarityScore || 0}
+                  label="Clarity"
+                  icon={Eye}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Feedback Section */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Card className="border-border/60 bg-cream/30 shadow-none">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10">
+                    <ThumbsUp className="size-4 text-emerald-600" />
+                  </div>
+                  <CardTitle className="text-charcoal text-sm font-bold">
+                    Strengths
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-3">
+                  {evaluation?.strengths.map((s, i) => (
+                    <li
+                      key={i}
+                      className="text-warm-gray flex items-start gap-2.5 text-sm leading-relaxed"
+                    >
+                      <div className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/60 bg-warm-gray-light/5 shadow-none">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-rose-500/10">
+                    <ThumbsDown className="size-4 text-rose-600" />
+                  </div>
+                  <CardTitle className="text-charcoal text-sm font-bold">
+                    To Improve
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-3">
+                  {evaluation?.weaknesses.map((w, i) => (
+                    <li
+                      key={i}
+                      className="text-warm-gray flex items-start gap-2.5 text-sm leading-relaxed"
+                    >
+                      <div className="mt-1.5 size-1.5 shrink-0 rounded-full bg-rose-500" />
+                      {w}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
           </div>
-          <div className="flex items-center gap-2 text-sm text-warm-gray">
-            <Clock className="size-4" />
-            <span className="font-mono">
-              {Math.floor(session.durationSeconds / 60)}m{" "}
-              {session.durationSeconds % 60}s
-            </span>
-          </div>
-        </div>
-        {audioUrl && (
-          <div className="mt-6 pt-5 border-t border-border/40">
-            <div className="flex items-center justify-between mb-3">
+
+          {/* Pro Tips */}
+          <Card className="border-border/60 overflow-hidden shadow-none">
+            <CardHeader className="bg-amber-500/5 pb-4">
               <div className="flex items-center gap-2">
-                <div className="size-7 rounded-lg bg-charcoal/5 flex items-center justify-center">
-                  <Headphones className="size-3.5 text-charcoal" />
+                <div className="flex size-8 items-center justify-center rounded-lg bg-amber-500/10">
+                  <Lightbulb className="size-4 text-amber-600" />
                 </div>
-                <h4 className="text-xs font-semibold text-charcoal uppercase tracking-wider">
-                  Session Recording
-                </h4>
+                <CardTitle className="text-charcoal text-sm font-bold">
+                  Coaching & Pro-Tips
+                </CardTitle>
               </div>
-              <button
-                onClick={handleDownloadAudio}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-cream-dark/10 text-warm-gray hover:text-charcoal hover:bg-cream transition-colors border border-border/40 hover:border-border/80"
-              >
-                <Download className="size-3.5" />
-                Download
-              </button>
-            </div>
-            <audio controls src={audioUrl} className="w-full h-10 rounded-lg" />
-          </div>
-        )}
-      </div>
-
-      {evaluation ? (
-        <>
-          {/* Overall Score */}
-          <div className="bg-white rounded-2xl border border-border/60 p-10 text-center">
-            <p className="text-xs text-warm-gray mb-2 uppercase tracking-widest font-medium">
-              Overall Score
-            </p>
-            <div className="heading-serif text-6xl mb-1">
-              <span className="text-charcoal">{overallScore}</span>
-              <span className="text-2xl text-warm-gray">/10</span>
-            </div>
-            <p className="text-sm text-warm-gray">
-              {overallScore >= 8
-                ? "Excellent performance! You handled this call like a pro."
-                : overallScore >= 6
-                  ? "Good job! There's room for improvement on key areas."
-                  : overallScore >= 4
-                    ? "Decent effort. Focus on the tips below to level up."
-                    : "This was a tough call. Use the feedback to improve."}
-            </p>
-          </div>
-
-          {/* Score Rings */}
-          <div className="bg-white rounded-2xl border border-border/60 p-10">
-            <div className="flex flex-wrap items-center justify-around gap-8">
-              <ScoreRing
-                score={evaluation.objectionHandlingScore}
-                label="Objection Handling"
-                icon={Target}
-                color="charcoal"
-              />
-              <ScoreRing
-                score={evaluation.confidenceScore}
-                label="Confidence"
-                icon={Shield}
-                color="warm"
-              />
-              <ScoreRing
-                score={evaluation.clarityScore}
-                label="Clarity"
-                icon={Eye}
-                color="light"
-              />
-            </div>
-          </div>
-
-          {/* Real-time Sales Insights */}
-          {session.insights && session.insights.length > 0 && (
-            <div className="bg-white rounded-2xl border border-border/60 p-6">
-              <h3 className="font-semibold text-charcoal mb-4 flex items-center gap-2">
-                <span className="size-2 rounded-full bg-cream-dark" />
-                Real-time Sales Insights
-              </h3>
-              <div className="space-y-3">
-                {session.insights.map((insight, i) => (
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {evaluation?.improvementTips.map((t, i) => (
                   <div
                     key={i}
-                    className="flex gap-4 items-start p-3 rounded-xl bg-warm-gray-light/5 border border-warm-gray-light/10"
+                    className="rounded-xl border border-amber-500/10 bg-amber-500/5 p-4"
                   >
-                    <div className="text-xs font-mono text-warm-gray pt-1 shrink-0">
-                      {Math.floor(insight.timestamp / 60)}:
-                      {(insight.timestamp % 60).toString().padStart(2, "0")}
-                    </div>
-                    <div className="text-sm text-charcoal leading-relaxed">
-                      {insight.insight}
-                    </div>
+                    <p className="text-warm-gray text-sm leading-relaxed italic">
+                      &quot;{t}&quot;
+                    </p>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Feedback */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            {/* Strengths */}
-            <div className="bg-white rounded-2xl border border-border/60 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="size-8 rounded-lg bg-charcoal/10 flex items-center justify-center">
-                  <ThumbsUp className="size-4 text-charcoal" />
-                </div>
-                <h3 className="font-semibold text-sm text-charcoal">
-                  Strengths
-                </h3>
-              </div>
-              <ul className="space-y-2.5">
-                {evaluation.strengths.map((s: string, i: number) => (
-                  <li
-                    key={i}
-                    className="text-sm text-warm-gray flex items-start gap-2"
-                  >
-                    <span className="size-1.5 rounded-full bg-charcoal mt-1.5 shrink-0" />
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Weaknesses */}
-            <div className="bg-white rounded-2xl border border-border/60 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="size-8 rounded-lg bg-warm-gray/10 flex items-center justify-center">
-                  <ThumbsDown className="size-4 text-warm-gray" />
-                </div>
-                <h3 className="font-semibold text-sm text-charcoal">
-                  Areas to Improve
-                </h3>
-              </div>
-              <ul className="space-y-2.5">
-                {evaluation.weaknesses.map((w: string, i: number) => (
-                  <li
-                    key={i}
-                    className="text-sm text-warm-gray flex items-start gap-2"
-                  >
-                    <span className="size-1.5 rounded-full bg-warm-gray mt-1.5 shrink-0" />
-                    {w}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Tips */}
-            <div className="bg-white rounded-2xl border border-border/60 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="size-8 rounded-lg bg-cream-dark flex items-center justify-center">
-                  <Lightbulb className="size-4 text-warm-gray" />
-                </div>
-                <h3 className="font-semibold text-sm text-charcoal">
-                  Pro Tips
-                </h3>
-              </div>
-              <ul className="space-y-2.5">
-                {evaluation.improvementTips.map((t: string, i: number) => (
-                  <li
-                    key={i}
-                    className="text-sm text-warm-gray flex items-start gap-2"
-                  >
-                    <span className="size-1.5 rounded-full bg-warm-gray-light mt-1.5 shrink-0" />
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="bg-white rounded-2xl border border-border/60 p-10 text-center">
-          <p className="text-warm-gray">
-            Evaluation could not be generated for this session.
-          </p>
+            </CardContent>
+          </Card>
         </div>
-      )}
 
-      {/* Transcript */}
-      <div className="bg-white rounded-2xl border border-border/60 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-charcoal flex items-center gap-2">
-            <span className="size-2 rounded-full bg-charcoal" />
-            Full Transcript
-          </h3>
-          <button
-            onClick={handleDownloadTranscript}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-cream dark/10 text-warm-gray hover:text-charcoal hover:bg-cream transition-colors border border-border/40 hover:border-border/80"
-          >
-            <Download className="size-3.5" />
-            Download
-          </button>
-        </div>
-        <div className="max-h-[500px] overflow-y-auto space-y-6 pr-2 custom-scrollbar">
-          {session.transcript.split("\n\n").map((line, i) => {
-            const colonIndex = line.indexOf(": ");
-            const speaker =
-              colonIndex !== -1 ? line.substring(0, colonIndex) : "";
-            const text =
-              colonIndex !== -1 ? line.substring(colonIndex + 2) : line;
-            const isUser =
-              speaker === session.userName || speaker === "Sales Rep";
-
-            return (
-              <div
-                key={i}
-                className={`flex gap-4 ${isUser ? "flex-row-reverse text-right" : "flex-row text-left"}`}
-              >
-                {/* Avatar */}
-                <div
-                  className={`size-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 shadow-sm border ${
-                    isUser
-                      ? "bg-charcoal text-cream border-charcoal/20"
-                      : "bg-white text-charcoal border-border/60"
-                  }`}
-                >
-                  {speaker.charAt(0).toUpperCase()}
+        {/* Right Column: Session Details & Transcript */}
+        <div className="space-y-6 lg:col-span-5">
+          {/* Metadata Card */}
+          <Card className="border-border/60 shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-bold">
+                Session Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-cream flex items-center gap-4 rounded-2xl p-4">
+                <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-xl text-xl font-bold">
+                  {persona.name.charAt(0)}
                 </div>
+                <div>
+                  <h4 className="text-charcoal font-bold">{persona.name}</h4>
+                  <p className="text-warm-gray text-xs">{persona.role}</p>
+                </div>
+              </div>
 
-                {/* Message Bubble */}
-                <div
-                  className={`max-w-[80%] space-y-1 ${isUser ? "items-end" : "items-start"}`}
-                >
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-warm-gray px-1">
-                    {speaker}
-                  </p>
-                  <div
-                    className={`rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-sm border ${
-                      isUser
-                        ? "bg-charcoal text-cream border-charcoal/80 rounded-tr-none"
-                        : "bg-white text-charcoal border-border/60 rounded-tl-none"
-                    }`}
-                  >
-                    {text}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-warm-gray text-[10px] font-bold tracking-widest uppercase">
+                    Duration
+                  </span>
+                  <div className="text-charcoal flex items-center gap-2 font-semibold">
+                    <Clock className="size-4 opacity-50" />
+                    {Math.floor(session.durationSeconds / 60)}m{" "}
+                    {session.durationSeconds % 60}s
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-warm-gray text-[10px] font-bold tracking-widest uppercase">
+                    Product
+                  </span>
+                  <div className="text-charcoal truncate font-semibold">
+                    {product?.companyName || "N/A"}
                   </div>
                 </div>
               </div>
-            );
-          })}
+
+              {audioUrl && (
+                <div className="border-border/40 border-t pt-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h5 className="text-warm-gray flex items-center gap-2 text-xs font-bold tracking-widest uppercase">
+                      <Headphones className="size-3.5" />
+                      Recording
+                    </h5>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDownloadAudio}
+                      className="h-7 px-2 text-xs"
+                    >
+                      <Download className="mr-1.5 h-3 w-3" /> Download
+                    </Button>
+                  </div>
+                  <audio
+                    controls
+                    src={audioUrl}
+                    className="accent-charcoal h-10 w-full"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Transcript Area */}
+          <Card className="border-border/60 flex h-[500px] flex-col shadow-sm">
+            <CardHeader className="flex shrink-0 flex-row items-center justify-between pb-4">
+              <div>
+                <CardTitle className="text-base font-bold">
+                  Full Transcript
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Recorded during session
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadTranscript}
+                className="h-8 text-xs"
+              >
+                <Download className="mr-1.5 h-3 w-3" /> Export
+              </Button>
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 px-2 pt-0 pb-2">
+              <ScrollArea className="h-full px-4 pt-4">
+                <div className="space-y-6">
+                  {session.transcript.split("\n\n").map((line, i) => {
+                    const colonIndex = line.indexOf(": ");
+                    const speaker =
+                      colonIndex !== -1 ? line.substring(0, colonIndex) : "";
+                    const text =
+                      colonIndex !== -1 ? line.substring(colonIndex + 2) : line;
+                    const isUser =
+                      speaker === session.userName || speaker === "Sales Rep";
+
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          "flex gap-3",
+                          isUser ? "flex-row-reverse" : "flex-row",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg border text-[10px] font-bold",
+                            isUser
+                              ? "bg-charcoal text-cream border-charcoal/20"
+                              : "text-charcoal border-border/60 bg-white",
+                          )}
+                        >
+                          {speaker.charAt(0).toUpperCase()}
+                        </div>
+                        <div
+                          className={cn(
+                            "max-w-[85%]",
+                            isUser ? "text-right" : "text-left",
+                          )}
+                        >
+                          <p className="text-warm-gray mb-1 px-1 text-[9px] font-bold tracking-widest uppercase">
+                            {speaker}
+                          </p>
+                          <div
+                            className={cn(
+                              "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                              isUser
+                                ? "bg-charcoal text-cream rounded-tr-none"
+                                : "bg-cream/40 text-charcoal border-border/40 rounded-tl-none border",
+                            )}
+                          >
+                            {text}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

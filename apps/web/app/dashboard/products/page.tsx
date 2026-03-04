@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { v4 as uuidv4 } from "uuid";
 import {
   Package,
@@ -11,14 +12,37 @@ import {
   FileText,
   Target,
   AlertTriangle,
+  Sparkles,
+  Loader2,
+  ArrowRight,
 } from "lucide-react";
 import type { Product } from "@/lib/db";
 import { saveProduct, subscribeProducts, deleteProduct } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import { GenerationBanner } from "@/components/generation-banner";
-import { Sparkles, Loader2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ProductCard } from "@/components/product-card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function ProductsPage() {
   const { user } = useAuth();
@@ -26,6 +50,7 @@ export default function ProductsPage() {
   const [showCreator, setShowCreator] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
@@ -33,7 +58,6 @@ export default function ProductsPage() {
   const [industry, setIndustry] = useState("");
   const [objectionInput, setObjectionInput] = useState("");
   const [objections, setObjections] = useState<string[]>([]);
-  const [aiPrompt, setAiPrompt] = useState("");
 
   const { tasks, isGenerating, generateProduct, dismissTask } =
     useBackgroundGeneration();
@@ -92,10 +116,7 @@ export default function ProductsPage() {
   };
 
   const handleAiGenerate = async () => {
-    await generateProduct({
-      briefDescription: aiPrompt || undefined,
-    });
-    setAiPrompt("");
+    await generateProduct({});
     setShowCreator(false);
   };
 
@@ -106,335 +127,431 @@ export default function ProductsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="size-8 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" />
+        <Loader2 className="text-charcoal size-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-fade-up">
+    <div className="animate-fade-up space-y-8 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-medium uppercase tracking-widest text-warm-gray mb-2 block">
+          <span className="text-warm-gray mb-2 block text-[10px] font-bold tracking-[0.15em] uppercase">
             Configuration
           </span>
-          <h1 className="heading-serif text-3xl md:text-4xl lg:text-5xl text-charcoal">
+          <h1 className="heading-serif text-charcoal text-3xl md:text-5xl">
             Your <em>Products.</em>
           </h1>
-          <p className="text-warm-gray mt-2 text-base">
+          <p className="text-warm-gray/70 mt-2 text-sm font-medium md:text-base">
             Set up the products your reps will sell during roleplay sessions.
           </p>
         </div>
-        <button
+        <Button
           onClick={() => {
             setShowCreator(!showCreator);
             if (showForm) setShowForm(false);
           }}
-          className={cn(
-            "inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200",
-            showCreator
-              ? "bg-cream-dark text-charcoal"
-              : "bg-charcoal text-cream hover:bg-charcoal-light",
-          )}
+          variant={showCreator ? "brandOutline" : "brand"}
+          className="px-6"
         >
           {showCreator ? (
             <>
-              <X className="size-4" />
+              <X className="mr-2 size-4" />
               Cancel
             </>
           ) : (
             <>
-              <Plus className="size-4" />
+              <Plus className="mr-2 size-4" />
               Create Product
             </>
           )}
-        </button>
+        </Button>
       </div>
 
       {/* Generation Options */}
       {showCreator && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-down">
+        <div className="animate-fade-down grid grid-cols-1 gap-6 md:grid-cols-2">
           {/* Left: AI Generator */}
-          <div className="bg-white rounded-2xl border border-border/60 p-8 flex flex-col h-full">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
-                <Sparkles className="size-5 text-charcoal" />
+          <Card className="border-border/60 group overflow-hidden shadow-none">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-cream-dark group-hover:bg-charcoal group-hover:text-cream flex size-10 items-center justify-center rounded-xl transition-colors duration-300">
+                  <Sparkles className="size-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold">
+                    Generate with AI
+                  </CardTitle>
+                  <CardDescription className="text-xs font-medium">
+                    Fully automated product profiling
+                  </CardDescription>
+                </div>
               </div>
-              <div>
-                <h2 className="text-base font-semibold text-charcoal">
-                  Generate with AI
-                </h2>
-                <p className="text-xs text-warm-gray">
-                  Fully automated product profiling
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3 mt-auto">
-              <input
-                type="text"
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder="Describe the product or company name…"
-                className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal placeholder:text-warm-gray-light focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
-              />
-              <button
+            </CardHeader>
+            <CardContent>
+              <p className="text-warm-gray/80 mb-6 text-sm leading-relaxed font-medium">
+                Let our AI create a realistic product profile for you instantly.
+                It will analyze common sales patterns to build a robust
+                template.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <Button
                 onClick={handleAiGenerate}
                 disabled={isGenerating}
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                variant="brand"
+                className="w-full rounded-xl"
               >
                 {isGenerating ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" />
+                    <Loader2 className="mr-2 size-4 animate-spin" />
                     Generating…
                   </>
                 ) : (
                   <>
-                    <Sparkles className="size-4" />
+                    <Sparkles className="mr-2 size-4" />
                     AI Generate
                   </>
                 )}
-              </button>
-            </div>
-          </div>
+              </Button>
+            </CardFooter>
+          </Card>
 
           {/* Right: Custom Generator */}
-          <div className="bg-white rounded-2xl border border-border/60 p-8 flex flex-col h-full">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center">
-                <Plus className="size-5 text-charcoal" />
+          <Card className="border-border/60 group shadow-none">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-cream-dark group-hover:bg-charcoal group-hover:text-cream flex size-10 items-center justify-center rounded-xl transition-colors duration-300">
+                  <Plus className="size-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold">
+                    Custom Generate
+                  </CardTitle>
+                  <CardDescription className="text-xs font-medium">
+                    Manually enter product details
+                  </CardDescription>
+                </div>
               </div>
-              <div>
-                <h2 className="text-base font-semibold text-charcoal">
-                  Custom Generate
-                </h2>
-                <p className="text-xs text-warm-gray">
-                  Manually enter product details
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-auto">
-              <button
+            </CardHeader>
+            <CardContent>
+              <p className="text-warm-gray/80 mb-6 text-sm leading-relaxed font-medium">
+                Define your own product details, industry, target audience, and
+                specific objections you want your team to handle.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <Button
                 onClick={() => setShowForm(!showForm)}
-                className={cn(
-                  "w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                  showForm
-                    ? "bg-cream-dark text-charcoal hover:bg-cream-dark/80"
-                    : "bg-white border border-border/60 text-charcoal hover:bg-cream",
-                )}
+                variant={showForm ? "brandOutline" : "brandOutline"}
+                className="w-full rounded-xl"
               >
                 {showForm ? (
                   <>
-                    <X className="size-4" />
+                    <X className="mr-2 size-4" />
                     Cancel Manual Entry
                   </>
                 ) : (
                   <>
-                    <Plus className="size-4" />
+                    <Plus className="mr-2 size-4" />
                     Create Manually
                   </>
                 )}
-              </button>
-            </div>
-          </div>
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       )}
 
       {/* Form */}
       {showForm && (
-        <div className="bg-white rounded-2xl border border-border/60 p-8 animate-fade-up">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-charcoal flex items-center gap-2">
-                  <Building2 className="size-4 text-warm-gray" />
-                  Company Name
-                </label>
-                <input
-                  type="text"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="e.g., Acme Corp"
-                  required
-                  className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal placeholder:text-warm-gray-light focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-charcoal flex items-center gap-2">
-                  <Target className="size-4 text-warm-gray" />
-                  Industry
-                </label>
-                <input
-                  type="text"
-                  value={industry}
-                  onChange={(e) => setIndustry(e.target.value)}
-                  placeholder="e.g., Enterprise SaaS"
-                  required
-                  className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal placeholder:text-warm-gray-light focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-charcoal flex items-center gap-2">
-                <FileText className="size-4 text-warm-gray" />
-                Product Description
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe what your product does, its key features, and value proposition..."
-                rows={3}
-                required
-                className="w-full rounded-xl border border-border/60 bg-cream px-4 py-3 text-sm text-charcoal placeholder:text-warm-gray-light focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all resize-none"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-charcoal flex items-center gap-2">
-                <Target className="size-4 text-warm-gray" />
-                Target Customer
-              </label>
-              <input
-                type="text"
-                value={targetCustomer}
-                onChange={(e) => setTargetCustomer(e.target.value)}
-                placeholder="e.g., VP of Engineering at mid-market SaaS companies"
-                required
-                className="w-full h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal placeholder:text-warm-gray-light focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-charcoal flex items-center gap-2">
-                <AlertTriangle className="size-4 text-warm-gray" />
-                Common Objections
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={objectionInput}
-                  onChange={(e) => setObjectionInput(e.target.value)}
-                  placeholder="Add an objection..."
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddObjection();
-                    }
-                  }}
-                  className="flex-1 h-12 rounded-xl border border-border/60 bg-cream px-4 text-sm text-charcoal placeholder:text-warm-gray-light focus:outline-none focus:ring-2 focus:ring-charcoal/20 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddObjection}
-                  className="size-12 rounded-xl bg-cream-dark flex items-center justify-center hover:bg-charcoal hover:text-cream transition-colors"
-                >
-                  <Plus className="size-4" />
-                </button>
-              </div>
-              {objections.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {objections.map((obj, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-cream-dark text-charcoal"
-                    >
-                      {obj}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveObjection(i)}
-                        className="hover:text-rose-glow transition-colors"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </span>
-                  ))}
+        <Card className="border-border/60 animate-fade-up shadow-none">
+          <CardContent className="p-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="companyName"
+                    className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                  >
+                    <Building2 className="size-3.5" />
+                    Company Name
+                  </Label>
+                  <Input
+                    id="companyName"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="e.g., Acme Corp"
+                    required
+                    className="h-12 rounded-xl"
+                  />
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="industry"
+                    className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                  >
+                    <Target className="size-3.5" />
+                    Industry
+                  </Label>
+                  <Input
+                    id="industry"
+                    value={industry}
+                    onChange={(e) => setIndustry(e.target.value)}
+                    placeholder="e.g., Enterprise SaaS"
+                    required
+                    className="h-12 rounded-xl"
+                  />
+                </div>
+              </div>
 
-            <button
-              type="submit"
-              className="w-full h-12 rounded-xl bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-colors"
-            >
-              Save Product
-            </button>
-          </form>
-        </div>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="description"
+                  className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                >
+                  <FileText className="size-3.5" />
+                  Product Description
+                </Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe what your product does, its key features, and value proposition..."
+                  rows={4}
+                  required
+                  className="min-h-[120px] rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="targetCustomer"
+                  className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                >
+                  <Target className="size-3.5" />
+                  Target Customer
+                </Label>
+                <Input
+                  id="targetCustomer"
+                  value={targetCustomer}
+                  onChange={(e) => setTargetCustomer(e.target.value)}
+                  placeholder="e.g., VP of Engineering at mid-market SaaS companies"
+                  required
+                  className="h-12 rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase">
+                  <AlertTriangle className="size-3.5" />
+                  Common Objections
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={objectionInput}
+                    onChange={(e) => setObjectionInput(e.target.value)}
+                    placeholder="Add an objection..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddObjection();
+                      }
+                    }}
+                    className="h-12 flex-1 rounded-xl"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddObjection}
+                    variant="secondary"
+                    className="h-12 w-12 rounded-xl p-0"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                {objections.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {objections.map((obj, i) => (
+                      <span
+                        key={i}
+                        className="bg-cream-dark text-charcoal inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase"
+                      >
+                        {obj}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveObjection(i)}
+                          className="hover:text-rose-glow transition-colors"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Button
+                type="submit"
+                variant="brand"
+                className="h-12 w-full rounded-xl text-sm font-bold tracking-widest uppercase"
+              >
+                Save Product
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {/* Product list */}
       {products.length === 0 && !showForm ? (
-        <div className="bg-white rounded-2xl border border-border/60 p-12 flex flex-col items-center justify-center text-center">
-          <div className="size-16 rounded-2xl bg-cream-dark flex items-center justify-center mb-4">
-            <Package className="size-8 text-warm-gray" />
+        <Card className="border-border/60 flex flex-col items-center justify-center py-16 text-center shadow-none">
+          <div className="bg-cream-dark mb-6 flex size-16 items-center justify-center rounded-2xl">
+            <Package className="text-warm-gray size-8" />
           </div>
-          <h3 className="text-lg font-semibold text-charcoal mb-1">
+          <CardTitle className="text-charcoal mb-2 text-xl font-bold">
             No products yet
-          </h3>
-          <p className="text-sm text-warm-gray max-w-sm">
+          </CardTitle>
+          <CardDescription className="max-w-sm text-sm font-medium">
             Add your first product to start generating buyer personas and
             running roleplay sessions.
-          </p>
-        </div>
+          </CardDescription>
+        </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {products.map((product, i) => (
-            <div
+            <ProductCard
               key={product.id}
-              className="bg-white rounded-2xl border border-border/60 p-6 hover:shadow-lg hover:shadow-charcoal/5 transition-all duration-300 group animate-fade-up"
-              style={{ animationDelay: `${i * 100}ms` }}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="size-10 rounded-xl bg-cream-dark flex items-center justify-center shrink-0 group-hover:bg-charcoal transition-colors duration-300">
-                      <Building2 className="size-5 text-charcoal group-hover:text-cream transition-colors duration-300" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-base text-charcoal">
-                        {product.companyName}
-                      </h3>
-                      <p className="text-xs text-warm-gray">
-                        {product.industry}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-warm-gray line-clamp-2 ml-[52px]">
-                    {product.description}
-                  </p>
-                  {product.objections.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3 ml-[52px]">
-                      {product.objections.slice(0, 3).map((obj, j) => (
-                        <span
-                          key={j}
-                          className="px-2.5 py-0.5 rounded-full text-[11px] bg-cream-dark text-warm-gray"
-                        >
-                          {obj}
-                        </span>
-                      ))}
-                      {product.objections.length > 3 && (
-                        <span className="px-2 py-0.5 text-[11px] text-warm-gray">
-                          +{product.objections.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleDelete(product.id)}
-                  className="text-warm-gray-light hover:text-rose-glow opacity-0 group-hover:opacity-100 transition-all p-2"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            </div>
+              product={product}
+              index={i}
+              onClick={() => setSelectedProduct(product)}
+            />
           ))}
         </div>
       )}
       <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
+
+      {/* Product Detail Dialog */}
+      <Dialog
+        open={!!selectedProduct}
+        onOpenChange={() => setSelectedProduct(null)}
+      >
+        <DialogContent className="w-full max-w-4xl overflow-hidden rounded-[2.5rem] border-none bg-white p-0 shadow-2xl">
+          {selectedProduct && (
+            <>
+              <DialogHeader className="border-border/40 bg-cream/5 flex flex-row items-center justify-between border-b p-10 pb-8">
+                <div className="flex items-center gap-6">
+                  <div className="bg-cream-dark flex size-16 shrink-0 rotate-3 items-center justify-center rounded-2xl shadow-inner transition-transform duration-500 hover:rotate-0">
+                    <Building2 className="text-charcoal size-8" />
+                  </div>
+                  <div className="text-left">
+                    <DialogTitle className="text-charcoal heading-serif text-3xl font-bold">
+                      {selectedProduct.companyName}
+                    </DialogTitle>
+                    <DialogDescription className="text-warm-gray/60 mt-1.5 text-xs font-bold tracking-[0.2em] uppercase">
+                      {selectedProduct.industry}
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="custom-scrollbar max-h-[65vh] overflow-y-auto px-10 py-12">
+                <div className="grid grid-cols-1 gap-12 lg:grid-cols-5">
+                  <div className="space-y-12 lg:col-span-3">
+                    <section>
+                      <h3 className="text-warm-gray/50 mb-4 text-[11px] font-bold tracking-[0.2em] uppercase">
+                        Product Description
+                      </h3>
+                      <p className="text-charcoal text-lg leading-relaxed font-medium">
+                        {selectedProduct.description}
+                      </p>
+                    </section>
+
+                    <section>
+                      <h3 className="text-warm-gray/50 mb-4 text-[11px] font-bold tracking-[0.2em] uppercase">
+                        Target Customer Segment
+                      </h3>
+                      <div className="bg-cream/20 border-border/20 hover:bg-cream/40 flex items-start gap-5 rounded-2xl border p-6 transition-all duration-300">
+                        <div className="bg-charcoal text-cream flex size-10 shrink-0 items-center justify-center rounded-xl shadow-lg">
+                          <Target className="size-5" />
+                        </div>
+                        <div>
+                          <p className="text-charcoal pt-0.5 text-base leading-snug font-bold">
+                            {selectedProduct.targetCustomer}
+                          </p>
+                          <p className="text-warm-gray/50 mt-1.5 text-[9px] font-bold tracking-widest uppercase">
+                            Primary Decision Maker Influence
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="space-y-12 lg:col-span-2">
+                    <section>
+                      <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-warm-gray/50 text-[11px] font-bold tracking-[0.2em] uppercase">
+                          Objection Library
+                        </h3>
+                        <span className="bg-cream-dark text-charcoal rounded-full px-2.5 py-0.5 text-[9px] font-bold">
+                          {selectedProduct.objections.length} TOTAL
+                        </span>
+                      </div>
+                      <div className="space-y-3">
+                        {selectedProduct.objections.map((obj, i) => (
+                          <div
+                            key={i}
+                            className="bg-cream/10 border-border/10 hover:border-border/30 group/item flex items-start gap-4 rounded-xl border p-4 transition-all duration-200 hover:bg-white hover:shadow-sm"
+                          >
+                            <div className="bg-charcoal/30 group-hover/item:bg-charcoal mt-1.5 size-1.5 shrink-0 rounded-full transition-colors" />
+                            <p className="text-charcoal text-sm leading-relaxed font-semibold">
+                              {obj}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="border-border/40 bg-cream/5 flex items-center justify-between border-t px-10 py-6">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    handleDelete(selectedProduct.id);
+                    setSelectedProduct(null);
+                  }}
+                  className="text-warm-gray/50 rounded-full px-6 transition-all hover:bg-rose-50 hover:text-rose-600"
+                >
+                  <Trash2 className="mr-2 size-4" />
+                  Remove Record
+                </Button>
+                <div className="flex gap-4">
+                  <Button
+                    onClick={() => setSelectedProduct(null)}
+                    variant="brandOutline"
+                    className="px-8"
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    asChild
+                    variant="brand"
+                    className="shadow-charcoal/20 px-8 shadow-xl"
+                  >
+                    <Link
+                      href={`/dashboard/train?productId=${selectedProduct.id}`}
+                    >
+                      Start Training
+                    </Link>
+                  </Button>
+                </div>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
