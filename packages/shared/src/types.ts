@@ -104,6 +104,9 @@ export interface Session {
   id: string;
   personaId: string;
   productId: string;
+  personaName?: string;
+  personaRole?: string;
+  personaAvatarUrl?: string;
   transcript: string;
   durationSeconds: number;
   evaluation: SessionEvaluation | null;
@@ -120,6 +123,9 @@ export interface CallSession {
   personaId: string;
   productId: string;
   userName: string;
+  personaName?: string;
+  personaRole?: string;
+  personaAvatarUrl?: string;
 
   // Timing
   callDurationMinutes: number; // selected duration in minutes

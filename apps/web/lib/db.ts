@@ -17,6 +17,7 @@ import {
   uploadBytes,
   getDownloadURL,
   uploadString,
+  deleteObject,
 } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { v4 as uuidv4 } from "uuid";
@@ -75,6 +76,9 @@ export interface Session {
   personaId: string;
   userName?: string;
   productId: string;
+  personaName?: string;
+  personaRole?: string;
+  personaAvatarUrl?: string;
   transcript: string;
   durationSeconds: number;
   evaluation: SessionEvaluation | null;
@@ -187,6 +191,19 @@ export async function getAllPersonas(userId: string): Promise<Persona[]> {
 }
 
 export async function deletePersona(id: string): Promise<void> {
+  const persona = await getPersona(id);
+  if (persona?.avatarUrl && persona.avatarUrl.includes("/avatars/")) {
+    try {
+      // Extract path from URL or use predictable path
+      const fileRef = ref(
+        storage,
+        `avatars/${persona.userId}/${persona.id}.png`,
+      );
+      await deleteObject(fileRef);
+    } catch (error) {
+      console.error("Error deleting persona avatar from storage:", error);
+    }
+  }
   await deleteDoc(doc(db, "personas", id));
 }
 

@@ -246,7 +246,7 @@ export async function generatePersonaAvatar(
   const location = env.GOOGLE_CLOUD_LOCATION;
   const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/imagen-4.0-generate-001:predict`;
 
-  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. 8k resolution, highly detailed features.`;
+  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -256,7 +256,11 @@ export async function generatePersonaAvatar(
     },
     body: JSON.stringify({
       instances: [{ prompt }],
-      parameters: { sampleCount: 1 },
+      parameters: {
+        sampleCount: 1,
+        mimeType: "image/jpeg",
+        compressionQuality: 80,
+      },
     }),
   });
 
@@ -290,7 +294,7 @@ export async function generatePersonaAvatar(
     throw new Error("No image data returned from Imagen API");
   }
 
-  return `data:image/png;base64,${base64Image}`;
+  return `data:image/jpeg;base64,${base64Image}`;
 }
 
 async function getAccessToken() {

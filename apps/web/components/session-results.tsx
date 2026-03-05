@@ -31,7 +31,7 @@ import { ObjectionHeatmap } from "./objection-heatmap";
 
 interface SessionResultsProps {
   session: Session;
-  persona: Persona;
+  persona?: Persona | null;
   product: Product | null;
   onBack: () => void;
 }
@@ -323,11 +323,17 @@ export function SessionResults({
             <CardContent className="space-y-6">
               <div className="bg-cream flex items-center gap-4 rounded-2xl p-4">
                 <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-xl text-xl font-bold">
-                  {persona.name.charAt(0)}
+                  {persona?.name.charAt(0) ||
+                    session.personaName?.charAt(0) ||
+                    "?"}
                 </div>
                 <div>
-                  <h4 className="text-charcoal font-bold">{persona.name}</h4>
-                  <p className="text-warm-gray text-xs">{persona.role}</p>
+                  <h4 className="text-charcoal font-bold">
+                    {persona?.name || session.personaName || "Unknown"}
+                  </h4>
+                  <p className="text-warm-gray text-xs">
+                    {persona?.role || session.personaRole || "AI Persona"}
+                  </p>
                 </div>
               </div>
 

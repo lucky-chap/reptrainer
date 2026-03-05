@@ -89,16 +89,14 @@ export default function HistoryPage() {
   if (selectedSession) {
     const persona = personas[selectedSession.personaId];
     const product = products[selectedSession.productId];
-    if (persona) {
-      return (
-        <SessionResults
-          session={selectedSession}
-          persona={persona}
-          product={product || null}
-          onBack={() => setSelectedSession(null)}
-        />
-      );
-    }
+    return (
+      <SessionResults
+        session={selectedSession}
+        persona={persona || null}
+        product={product || null}
+        onBack={() => setSelectedSession(null)}
+      />
+    );
   }
 
   if (loading) {
@@ -179,10 +177,12 @@ export default function HistoryPage() {
 
                     <div>
                       <h3 className="text-charcoal group-hover:text-charcoal-light text-base font-semibold transition-colors">
-                        {persona?.name || "Unknown Persona"}{" "}
-                        {persona && (
+                        {persona?.name ||
+                          session.personaName ||
+                          "Unknown Persona"}{" "}
+                        {(persona?.role || session.personaRole) && (
                           <span className="text-warm-gray font-normal">
-                            • {persona.role}
+                            • {persona?.role || session.personaRole}
                           </span>
                         )}
                       </h3>

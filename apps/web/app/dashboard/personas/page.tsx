@@ -47,6 +47,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const intensityLabels = [
   "Friendly Skeptic",
@@ -64,6 +74,7 @@ export default function PersonasPage() {
   const [loading, setLoading] = useState(true);
   const [showCreator, setShowCreator] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [personaToDelete, setPersonaToDelete] = useState<string | null>(null);
 
   // Manual Form State
   const [manualName, setManualName] = useState("");
@@ -113,8 +124,15 @@ export default function PersonasPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    await deletePersona(id);
+  const handleDelete = (id: string) => {
+    setPersonaToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (personaToDelete) {
+      await deletePersona(personaToDelete);
+      setPersonaToDelete(null);
+    }
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -463,6 +481,47 @@ export default function PersonasPage() {
           ))}
         </div>
       )}
+
+      {/* Deletion Confirmation */}
+      <AlertDialog
+        open={!!personaToDelete}
+        onOpenChange={(open) => !open && setPersonaToDelete(null)}
+      >
+        <AlertDialogContent className="rounded-2xl border-none p-8 sm:max-w-[400px]">
+          <AlertDialogHeader className="space-y-4">
+            <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-rose-50">
+              <Trash2 className="size-8 text-rose-600" />
+            </div>
+            <div className="space-y-2 text-center">
+              <AlertDialogTitle className="heading-serif text-charcoal text-2xl">
+                Delete <em>Persona?</em>
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-warm-gray/70 text-sm leading-relaxed font-medium">
+                This will permanently remove the persona and any associated
+                conversations. This action cannot be undone.
+              </AlertDialogDescription>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <AlertDialogCancel asChild>
+              <Button
+                variant="brandOutline"
+                className="h-12 w-full rounded-xl sm:flex-1"
+              >
+                No, Keep it
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                onClick={confirmDelete}
+                className="h-12 w-full rounded-xl bg-rose-600 text-white shadow-lg shadow-rose-200 hover:bg-rose-700 sm:flex-1"
+              >
+                Yes, Delete
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

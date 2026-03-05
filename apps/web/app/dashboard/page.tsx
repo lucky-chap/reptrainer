@@ -421,11 +421,13 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center gap-4">
                         <div className="bg-charcoal text-cream flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold">
-                          {persona?.name.charAt(0) || "?"}
+                          {persona?.name.charAt(0) ||
+                            session.personaName?.charAt(0) ||
+                            "?"}
                         </div>
                         <div className="min-w-0">
                           <p className="text-charcoal truncate text-sm font-bold">
-                            {persona?.name || "Unknown"}
+                            {persona?.name || session.personaName || "Unknown"}
                           </p>
                           <div className="text-warm-gray/60 mt-0.5 flex items-center gap-3 text-[10px] font-bold tracking-wider uppercase">
                             <span className="flex items-center gap-1.5">

@@ -62,28 +62,26 @@ export function SessionHistory() {
   if (selectedSession) {
     const persona = personas[selectedSession.personaId];
     const product = products[selectedSession.productId];
-    if (persona) {
-      return (
-        <SessionResults
-          session={selectedSession}
-          persona={persona}
-          product={product || null}
-          onBack={() => setSelectedSession(null)}
-        />
-      );
-    }
+    return (
+      <SessionResults
+        session={selectedSession}
+        persona={persona || null}
+        product={product || null}
+        onBack={() => setSelectedSession(null)}
+      />
+    );
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="size-8 border-2 border-emerald-glow/30 border-t-emerald-glow rounded-full animate-spin" />
+        <div className="border-emerald-glow/30 border-t-emerald-glow size-8 animate-spin rounded-full border-2" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="animate-fade-up space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Session History</h2>
@@ -93,12 +91,12 @@ export function SessionHistory() {
       </div>
 
       {sessions.length === 0 ? (
-        <Card className="p-12 flex flex-col items-center justify-center text-center glass">
-          <div className="size-16 rounded-2xl bg-blue-glow/10 flex items-center justify-center mb-4">
-            <History className="size-8 text-blue-glow/60" />
+        <Card className="glass flex flex-col items-center justify-center p-12 text-center">
+          <div className="bg-blue-glow/10 mb-4 flex size-16 items-center justify-center rounded-2xl">
+            <History className="text-blue-glow/60 size-8" />
           </div>
-          <h3 className="text-lg font-semibold mb-1">No sessions yet</h3>
-          <p className="text-muted-foreground text-sm max-w-sm">
+          <h3 className="mb-1 text-lg font-semibold">No sessions yet</h3>
+          <p className="text-muted-foreground max-w-sm text-sm">
             Complete your first roleplay session to see results here.
           </p>
         </Card>
@@ -121,7 +119,7 @@ export function SessionHistory() {
             return (
               <Card
                 key={session.id}
-                className="p-4 glass hover:border-blue-glow/20 transition-all duration-300 cursor-pointer group animate-fade-up"
+                className="glass hover:border-blue-glow/20 group animate-fade-up cursor-pointer p-4 transition-all duration-300"
                 style={{ animationDelay: `${i * 60}ms` }}
                 onClick={() => setSelectedSession(session)}
               >
@@ -129,13 +127,13 @@ export function SessionHistory() {
                   <div className="flex items-center gap-4">
                     {/* Score Badge */}
                     <div
-                      className={`size-12 rounded-xl flex items-center justify-center text-lg font-bold ${
+                      className={`flex size-12 items-center justify-center rounded-xl text-lg font-bold ${
                         overallScore !== null
                           ? overallScore >= 7
-                            ? "bg-emerald-glow/10 text-emerald-glow border border-emerald-glow/20"
+                            ? "bg-emerald-glow/10 text-emerald-glow border-emerald-glow/20 border"
                             : overallScore >= 4
-                              ? "bg-amber-glow/10 text-amber-glow border border-amber-glow/20"
-                              : "bg-rose-glow/10 text-rose-glow border border-rose-glow/20"
+                              ? "bg-amber-glow/10 text-amber-glow border-amber-glow/20 border"
+                              : "bg-rose-glow/10 text-rose-glow border-rose-glow/20 border"
                           : "bg-secondary text-muted-foreground"
                       }`}
                     >
@@ -143,15 +141,17 @@ export function SessionHistory() {
                     </div>
 
                     <div>
-                      <h3 className="font-semibold text-sm group-hover:text-blue-glow transition-colors">
-                        {persona?.name || "Unknown Persona"}{" "}
-                        {persona && (
+                      <h3 className="group-hover:text-blue-glow text-sm font-semibold transition-colors">
+                        {persona?.name ||
+                          session.personaName ||
+                          "Unknown Persona"}{" "}
+                        {(persona?.role || session.personaRole) && (
                           <span className="text-muted-foreground font-normal">
-                            • {persona.role}
+                            • {persona?.role || session.personaRole}
                           </span>
                         )}
                       </h3>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                      <div className="text-muted-foreground mt-0.5 flex items-center gap-3 text-xs">
                         {product && <span>{product.companyName}</span>}
                         <span className="flex items-center gap-1">
                           <Clock className="size-3" />
@@ -167,16 +167,16 @@ export function SessionHistory() {
 
                   <div className="flex items-center gap-3">
                     {evaluation && (
-                      <div className="hidden sm:flex items-center gap-3 text-xs">
-                        <span className="flex items-center gap-1 text-emerald-glow">
+                      <div className="hidden items-center gap-3 text-xs sm:flex">
+                        <span className="text-emerald-glow flex items-center gap-1">
                           <Target className="size-3" />
                           {evaluation.objectionHandlingScore}
                         </span>
-                        <span className="flex items-center gap-1 text-blue-glow">
+                        <span className="text-blue-glow flex items-center gap-1">
                           <Shield className="size-3" />
                           {evaluation.confidenceScore}
                         </span>
-                        <span className="flex items-center gap-1 text-amber-glow">
+                        <span className="text-amber-glow flex items-center gap-1">
                           <Eye className="size-3" />
                           {evaluation.clarityScore}
                         </span>
@@ -186,7 +186,7 @@ export function SessionHistory() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                      className="text-muted-foreground hover:text-destructive opacity-0 transition-all group-hover:opacity-100"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDelete(session.id);
@@ -195,7 +195,7 @@ export function SessionHistory() {
                       <Trash2 className="size-4" />
                     </Button>
 
-                    <ChevronRight className="size-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    <ChevronRight className="text-muted-foreground group-hover:text-foreground size-4 transition-colors" />
                   </div>
                 </div>
               </Card>
