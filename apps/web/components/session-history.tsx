@@ -9,18 +9,25 @@ import {
   Eye,
   ChevronRight,
   Trash2,
+  Sparkles,
+  Loader2,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { Session, Persona, Product } from "@/lib/db";
 import {
   getAllSessions,
   getAllPersonas,
   getAllProducts,
   deleteSession,
+  saveSession,
+  updateCallSession,
 } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
 import { useAuth } from "@/context/auth-context";
+import { generateCoachDebrief } from "@/app/actions/api";
 
 export function SessionHistory() {
   const { user } = useAuth();
@@ -59,6 +66,40 @@ export function SessionHistory() {
     loadData();
   };
 
+  const [generatingDebriefId, setGeneratingDebriefId] = useState<string | null>(
+    null,
+  );
+
+  const handleGenerateDebrief = async (
+    e: React.MouseEvent,
+    session: Session,
+  ) => {
+    e.stopPropagation();
+    if (generatingDebriefId) return;
+
+    setGeneratingDebriefId(session.id);
+    try {
+      const persona = personas[session.personaId];
+      const debrief = await generateCoachDebrief({
+        transcript: session.transcript,
+        personaName: persona?.name || session.personaName || "Unknown",
+        personaRole: persona?.role || session.personaRole || "AI Persona",
+        durationSeconds: session.durationSeconds,
+      });
+
+      await Promise.all([
+        saveSession({ ...session, debrief }),
+        updateCallSession(session.id, { debrief }).catch(() => {}),
+      ]);
+
+      await loadData();
+    } catch (error) {
+      console.error("Failed to generate debrief from history:", error);
+    } finally {
+      setGeneratingDebriefId(null);
+    }
+  };
+
   if (selectedSession) {
     const persona = personas[selectedSession.personaId];
     const product = products[selectedSession.productId];
@@ -67,7 +108,10 @@ export function SessionHistory() {
         session={selectedSession}
         persona={persona || null}
         product={product || null}
-        onBack={() => setSelectedSession(null)}
+        onBack={() => {
+          setSelectedSession(null);
+          loadData();
+        }}
       />
     );
   }
@@ -181,6 +225,32 @@ export function SessionHistory() {
                           {evaluation.clarityScore}
                         </span>
                       </div>
+                    )}
+
+                    {!session.debrief && session.durationSeconds >= 180 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-amber-glow/5 border-amber-glow/30 hover:bg-amber-glow/10 text-amber-glow flex h-7 items-center gap-1.5 px-2.5 text-[10px] font-bold"
+                        onClick={(e) => handleGenerateDebrief(e, session)}
+                        disabled={generatingDebriefId === session.id}
+                      >
+                        {generatingDebriefId === session.id ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="size-3" />
+                        )}
+                        {generatingDebriefId === session.id
+                          ? "Generating..."
+                          : "Generate Debrief"}
+                      </Button>
+                    )}
+
+                    {session.debrief && (
+                      <Badge className="bg-emerald-glow/10 text-emerald-glow border-emerald-glow/20 flex gap-1 border py-0.5 text-[9px] font-bold uppercase">
+                        <Zap className="fill-emerald-glow size-2.5" />
+                        Debrief Ready
+                      </Badge>
                     )}
 
                     <Button

@@ -9,14 +9,21 @@ import {
   Eye,
   ChevronRight,
   Trash2,
+  Sparkles,
+  Loader2,
+  Zap,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import type { Session, Persona, Product } from "@/lib/db";
 import {
   deleteSession,
   subscribeSessions,
   subscribePersonas,
   subscribeProducts,
+  saveSession,
+  updateCallSession,
 } from "@/lib/db";
+import { generateCoachDebrief } from "@/app/actions/api";
 import { SessionResults } from "@/components/session-results";
 import { useAuth } from "@/context/auth-context";
 import {
@@ -35,8 +42,10 @@ export default function HistoryPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [personas, setPersonas] = useState<Record<string, Persona>>({});
   const [products, setProducts] = useState<Record<string, Product>>({});
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generatingDebriefId, setGeneratingDebriefId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -86,18 +95,35 @@ export default function HistoryPage() {
     await deleteSession(id);
   };
 
-  if (selectedSession) {
-    const persona = personas[selectedSession.personaId];
-    const product = products[selectedSession.productId];
-    return (
-      <SessionResults
-        session={selectedSession}
-        persona={persona || null}
-        product={product || null}
-        onBack={() => setSelectedSession(null)}
-      />
-    );
-  }
+  const handleGenerateDebrief = async (
+    e: React.MouseEvent,
+    session: Session,
+  ) => {
+    e.stopPropagation();
+    if (generatingDebriefId) return;
+
+    setGeneratingDebriefId(session.id);
+    try {
+      const persona = personas[session.personaId];
+      const debrief = await generateCoachDebrief({
+        transcript: session.transcript,
+        personaName: persona?.name || session.personaName || "Unknown",
+        personaRole: persona?.role || session.personaRole || "AI Persona",
+        durationSeconds: session.durationSeconds,
+      });
+
+      await Promise.all([
+        saveSession({ ...session, debrief }),
+        updateCallSession(session.id, { debrief }).catch(() => {}),
+      ]);
+    } catch (error) {
+      console.error("Failed to generate debrief from history:", error);
+    } finally {
+      setGeneratingDebriefId(null);
+    }
+  };
+
+  const router = useRouter();
 
   if (loading) {
     return (
@@ -153,100 +179,96 @@ export default function HistoryPage() {
             return (
               <div
                 key={session.id}
-                onClick={() => setSelectedSession(session)}
+                onClick={() => router.push(`/dashboard/history/${session.id}`)}
                 className="border-border/60 hover:shadow-charcoal/5 group animate-fade-up cursor-pointer rounded-2xl border bg-white p-6 transition-all duration-300 hover:shadow-lg"
                 style={{ animationDelay: `${i * 60}ms` }}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-5">
-                    {/* Score Badge */}
-                    <div
-                      className={cn(
-                        "flex size-14 items-center justify-center rounded-2xl text-xl font-bold shadow-sm transition-transform duration-300 group-hover:scale-105",
-                        overallScore !== null
-                          ? overallScore >= 7
-                            ? "bg-charcoal text-cream"
-                            : overallScore >= 4
-                              ? "bg-cream-dark text-charcoal border-border/40 border"
-                              : "bg-cream text-warm-gray border-border/40 border"
-                          : "bg-cream text-warm-gray border-border/20 border",
-                      )}
-                    >
-                      {overallScore !== null ? overallScore : "—"}
-                    </div>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-charcoal text-cream flex size-10 items-center justify-center rounded-xl text-sm font-bold">
+                          {persona?.name.charAt(0) ||
+                            session.personaName?.charAt(0) ||
+                            "?"}
+                        </div>
+                        <div>
+                          <p className="text-charcoal text-base font-bold">
+                            {persona?.name || session.personaName || "Unknown"}
+                          </p>
+                          <div className="text-warm-gray/60 mt-0.5 flex items-center gap-3 text-[10px] font-bold tracking-wider uppercase">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="size-3" />
+                              {Math.floor(session.durationSeconds / 60)}m{" "}
+                              {session.durationSeconds % 60}s
+                            </span>
+                            <span>
+                              {new Date(session.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                    <div>
-                      <h3 className="text-charcoal group-hover:text-charcoal-light text-base font-semibold transition-colors">
-                        {persona?.name ||
-                          session.personaName ||
-                          "Unknown Persona"}{" "}
-                        {(persona?.role || session.personaRole) && (
-                          <span className="text-warm-gray font-normal">
-                            • {persona?.role || session.personaRole}
+                      <div className="flex items-center gap-3">
+                        <div className="shrink-0 text-right">
+                          <span className="text-charcoal text-xl font-bold">
+                            {Math.round(
+                              ((session.evaluation?.objectionHandlingScore ||
+                                0) +
+                                (session.evaluation?.confidenceScore || 0) +
+                                (session.evaluation?.clarityScore || 0)) /
+                                3,
+                            ) || 0}
                           </span>
-                        )}
-                      </h3>
-                      <div className="text-warm-gray mt-1 flex items-center gap-4 text-xs">
-                        {product && (
-                          <span className="bg-cream-dark text-charcoal rounded-full px-2.5 py-0.5 font-medium">
-                            {product.companyName}
+                          <span className="text-warm-gray/60 text-[10px] font-bold">
+                            /10
                           </span>
-                        )}
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="size-3.5" />
-                          {Math.floor(session.durationSeconds / 60)}m{" "}
-                          {session.durationSeconds % 60}s
-                        </span>
-                        <span>
-                          {new Date(session.createdAt).toLocaleDateString()}
-                        </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-5">
                     {evaluation && (
-                      <div className="hidden items-center gap-4 border-r pr-6 sm:flex">
-                        <div className="text-center">
-                          <p className="text-warm-gray text-[10px] font-bold tracking-tighter uppercase">
-                            Obj
-                          </p>
+                      <div className="bg-cream/30 flex items-center gap-6 rounded-xl p-3">
+                        <div className="space-y-1">
+                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
+                            Objection
+                          </span>
                           <p className="text-charcoal text-sm font-bold">
                             {evaluation.objectionHandlingScore}
                           </p>
                         </div>
-                        <div className="text-center">
-                          <p className="text-warm-gray text-[10px] font-bold tracking-tighter uppercase">
-                            Conf
-                          </p>
+                        <div className="space-y-1">
+                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
+                            Confidence
+                          </span>
                           <p className="text-charcoal text-sm font-bold">
                             {evaluation.confidenceScore}
                           </p>
                         </div>
-                        <div className="text-center">
-                          <p className="text-warm-gray text-[10px] font-bold tracking-tighter uppercase">
-                            Clar
-                          </p>
+                        <div className="space-y-1">
+                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
+                            Clarity
+                          </span>
                           <p className="text-charcoal text-sm font-bold">
                             {evaluation.clarityScore}
                           </p>
                         </div>
                       </div>
                     )}
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(session.id);
-                        }}
-                        className="text-warm-gray-light hover:text-rose-glow p-2 opacity-0 transition-all group-hover:opacity-100"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                      <div className="bg-cream-dark flex size-8 items-center justify-center rounded-full transition-transform group-hover:translate-x-1">
-                        <ChevronRight className="text-charcoal size-4" />
-                      </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(session.id);
+                      }}
+                      className="text-warm-gray-light hover:text-rose-glow p-2 opacity-0 transition-all group-hover:opacity-100"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                    <div className="bg-cream-dark flex size-8 items-center justify-center rounded-full transition-transform group-hover:translate-x-1">
+                      <ChevronRight className="text-charcoal size-4" />
                     </div>
                   </div>
                 </div>

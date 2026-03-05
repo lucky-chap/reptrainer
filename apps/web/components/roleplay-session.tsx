@@ -400,6 +400,8 @@ ${trackPromptOverride}
   const handleEndCallRef = useRef<(() => Promise<void>) | null>(null);
 
   const handleEndCall = async () => {
+    let userId: string = "";
+    let sessionId: string = "";
     const duration = getDuration();
 
     // Stop recording FIRST — this awaits the MediaRecorder flush
@@ -423,8 +425,8 @@ ${trackPromptOverride}
     setLoadingProgress(10);
 
     try {
-      const sessionId = uuidv4();
-      const userId = user?.uid || "anonymous";
+      userId = user?.uid || "anonymous";
+      sessionId = callSessionId; // Use the same ID for legacy session
 
       let audioUrl = "";
       if (audioBlob && user) {
@@ -551,11 +553,10 @@ ${trackPromptOverride}
       setLoadingProgress(100);
       setSavedSession(session);
       setFeedbackReport(feedbackResult);
-      setShowResults(true);
     } catch (error) {
       console.error("Evaluation error:", error);
-      const sessionId = uuidv4();
-      const userId = user?.uid || "anonymous";
+      userId = user?.uid || "anonymous";
+      sessionId = callSessionId; // Use the same ID for legacy session
 
       const session: Session = {
         id: sessionId,
