@@ -306,3 +306,56 @@ async function getAccessToken() {
   const token = await client.getAccessToken();
   return token.token;
 }
+
+/**
+ * Generate a personalized coach debrief (4 slides) using Vertex AI.
+ */
+export async function generateCoachDebrief(
+  transcript: string,
+  personaName: string,
+  personaRole: string,
+): Promise<any[]> {
+  const model = vertexAI.getGenerativeModel({
+    model: EVALUATION_MODEL,
+    generationConfig: {
+      responseMimeType: "application/json",
+    } as GenerationConfig,
+  });
+
+  const prompt = `You are a world-class sales coach. Create a "Coach Debrief" for the sales rep based on their performance in the following transcript.
+  
+  Persona Context:
+  - Buyer Name: ${personaName}
+  - Buyer Role: ${personaRole}
+
+  Transcript:
+  ${transcript}
+
+  Generate EXACTLY 4 slides for a debrief presentation. Each slide must follow this strict JSON structure:
+  {
+    "title": "Concise headline for the slide",
+    "narration": "A spoken script for the coach (vocalized text). Keep it under 20 seconds when spoken (approx 40-50 words max).",
+    "visual": "A physical description of a diagram to show. Be specific (e.g., 'A bar chart showing rep quality across 10 reps', 'A stick figure leaning back with a red highlight on the neck area').",
+    "type": "overview" | "problem" | "correction" | "drill"
+  }
+
+  Slide Requirements:
+  1. Slide 1 (Type: overview): A high-level summary of the session. What was the vibe? Did it go well overall?
+  2. Slide 2 (Type: problem): Identify the SINGLE most significant mistake or friction point. Be specific about what the rep said or didn't say.
+  3. Slide 3 (Type: correction): Explain HOW to fix that specific problem. Provide a "Before vs After" comparison of what to say.
+  4. Slide 4 (Type: drill): Propose one specific, actionable drill for the rep to practice before their next real call.
+
+  Return ONLY a valid JSON array of 4 objects.`;
+
+  const response = await model.generateContent(prompt);
+  const text = response.response.candidates?.[0].content.parts?.[0].text ?? "";
+  const jsonStr = extractJson(text);
+
+  if (!jsonStr) {
+    throw new Error(
+      "Failed to generate debrief. Invalid JSON response from AI.",
+    );
+  }
+
+  return JSON.parse(jsonStr);
+}

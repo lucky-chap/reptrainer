@@ -1,5 +1,7 @@
 "use server";
 
+import { CoachDebriefResponse } from "@reptrainer/shared";
+
 const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const secretKey = process.env.API_SECRET_KEY || "reptrainer-secret-123";
 
@@ -120,4 +122,29 @@ export async function generatePersonaAvatar(data: {
     throw new Error(`Failed to generate persona avatar: ${res.statusText}`);
   }
   return res.json();
+}
+
+/**
+ * Generate a personalized coach debrief (4 slides) with voiceover.
+ */
+export async function generateCoachDebrief(data: {
+  transcript: string;
+  personaName: string;
+  personaRole: string;
+  durationSeconds: number;
+}): Promise<CoachDebriefResponse> {
+  const res = await fetch(`${baseUrl}/api/session/debrief`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    if (res.status === 400) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to generate coach debrief");
+    }
+    throw new Error(`Failed to generate coach debrief: ${res.statusText}`);
+  }
+  return res.json() as Promise<CoachDebriefResponse>;
 }

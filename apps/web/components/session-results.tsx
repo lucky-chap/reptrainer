@@ -13,8 +13,14 @@ import {
   RotateCcw,
   Download,
   Headphones,
+  Zap,
+  Loader2,
+  Sparkles,
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
+import { saveSession, updateCallSession } from "@/lib/db";
+import { CoachDebrief } from "./coach-debrief";
+import { generateCoachDebrief } from "@/app/actions/api";
 import {
   Card,
   CardHeader,
@@ -28,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { ObjectionHeatmap } from "./objection-heatmap";
+import Image from "next/image";
 
 interface SessionResultsProps {
   session: Session;
@@ -102,6 +109,42 @@ export function SessionResults({
   product,
   onBack,
 }: SessionResultsProps) {
+  const [debriefData, setDebriefData] = useState<any>(session.debrief || null);
+  const [generatingDebrief, setGeneratingDebrief] = useState(false);
+  const [showDebrief, setShowDebrief] = useState(false);
+
+  const handleGenerateDebrief = async () => {
+    if (generatingDebrief) return;
+    setGeneratingDebrief(true);
+    try {
+      console.log("[SessionResults] Generating on-demand coach debrief...");
+      const debrief = await generateCoachDebrief({
+        transcript: session.transcript,
+        personaName: persona?.name || session.personaName || "Unknown",
+        personaRole: persona?.role || session.personaRole || "AI Persona",
+        durationSeconds: session.durationSeconds,
+      });
+
+      // Update local state
+      setDebriefData(debrief);
+
+      // Persist to Firestore
+      console.log(
+        "[SessionResults] Persisting on-demand debrief to Firestore...",
+      );
+      await Promise.all([
+        saveSession({ ...session, debrief }),
+        updateCallSession(session.id, { debrief }).catch(() => {}),
+      ]);
+
+      setShowDebrief(true);
+    } catch (error) {
+      console.error("Failed to generate on-demand debrief:", error);
+    } finally {
+      setGeneratingDebrief(false);
+    }
+  };
+
   const evaluation = session.evaluation;
 
   const overallScore = evaluation
@@ -153,6 +196,16 @@ export function SessionResults({
       audioRef.current.play();
     }
   };
+
+  if (showDebrief && debriefData) {
+    return (
+      <CoachDebrief
+        slides={debriefData.slides}
+        audioBase64={debriefData.audioBase64}
+        onClose={() => setShowDebrief(false)}
+      />
+    );
+  }
 
   return (
     <div className="animate-fade-up mx-auto max-w-5xl space-y-8">
@@ -322,12 +375,17 @@ export function SessionResults({
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="bg-cream flex items-center gap-4 rounded-2xl p-4">
-                <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-xl font-bold">
+                <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full text-xl font-bold">
                   {persona?.avatarUrl || session.personaAvatarUrl ? (
-                    <img
-                      src={persona?.avatarUrl || session.personaAvatarUrl}
+                    <Image
+                      src={
+                        (persona?.avatarUrl as string) ||
+                        (session.personaAvatarUrl as string)
+                      }
                       alt={persona?.name || session.personaName || "Persona"}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full rounded-full object-cover"
+                      width={48}
+                      height={48}
                     />
                   ) : (
                     persona?.name.charAt(0) ||
@@ -382,13 +440,6 @@ export function SessionResults({
                       <Download className="mr-1.5 h-3 w-3" /> Download
                     </Button>
                   </div>
-                  <div className="mb-8 rounded-2xl bg-white/50 p-1">
-                    <ObjectionHeatmap
-                      insights={session.insights || []}
-                      durationSeconds={session.durationSeconds}
-                      onSeek={handleSeek}
-                    />
-                  </div>
 
                   <audio
                     ref={audioRef}
@@ -396,8 +447,58 @@ export function SessionResults({
                     src={audioUrl}
                     className="accent-charcoal h-10 w-full"
                   />
+                  <div className="mt-8 rounded-2xl bg-white/50 p-1">
+                    <ObjectionHeatmap
+                      insights={session.insights || []}
+                      durationSeconds={session.durationSeconds}
+                      onSeek={handleSeek}
+                    />
+                  </div>
                 </div>
               )}
+
+              {/* Coach Debrief Section */}
+              <div className="border-border/40 border-t pt-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <h5 className="text-warm-gray flex items-center gap-2 text-xs font-bold tracking-widest uppercase">
+                    <Sparkles className="size-3.5 text-amber-500" />
+                    Coach Debrief
+                  </h5>
+                </div>
+
+                {debriefData ? (
+                  <Button
+                    onClick={() => setShowDebrief(true)}
+                    className="bg-charcoal text-cream hover:bg-charcoal/90 w-full rounded-xl py-6"
+                  >
+                    <Zap className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
+                    View Coach Debrief
+                  </Button>
+                ) : session.durationSeconds >= 180 ? (
+                  <Button
+                    onClick={handleGenerateDebrief}
+                    disabled={generatingDebrief}
+                    variant="outline"
+                    className="border-charcoal/20 hover:bg-charcoal/5 w-full rounded-xl py-6"
+                  >
+                    {generatingDebrief ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating AI Analysis...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4 text-amber-500" />
+                        Generate Coach Debrief
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <p className="text-warm-gray bg-warm-gray-light/5 rounded-xl border border-dashed p-4 text-center text-xs italic">
+                    Debriefing is only available for sessions over 3 minutes.
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
 

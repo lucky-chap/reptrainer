@@ -110,6 +110,7 @@ export interface Session {
   transcript: string;
   durationSeconds: number;
   evaluation: SessionEvaluation | null;
+  debrief?: CoachDebriefResponse | null;
   createdAt: string;
 }
 
@@ -149,6 +150,10 @@ export interface CallSession {
 
   // Media
   audioUrl?: string;
+
+  debrief?: CoachDebriefResponse | null;
+
+  durationSeconds?: number;
 
   createdAt: string;
 }
@@ -224,4 +229,20 @@ export interface ApiError {
 
 export interface TokenResponse {
   apiKey: string;
+}
+
+// ─── Coach Debrief Types ───────────────────────────────────────────────────
+
+export type DebriefSlideType = "overview" | "problem" | "correction" | "drill";
+
+export interface DebriefSlide {
+  title: string;
+  narration: string; // Max 20 seconds
+  visual: string; // Description for CSS/SVG diagram
+  type: DebriefSlideType;
+}
+
+export interface CoachDebriefResponse {
+  slides: DebriefSlide[];
+  audioBase64: string[]; // Corresponding base64 audio for each slide
 }

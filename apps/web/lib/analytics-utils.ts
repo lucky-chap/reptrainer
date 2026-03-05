@@ -112,9 +112,10 @@ export function calculateDynamics(
     });
   } else {
     // Fallback for legacy transcript string (approximate)
-    const transcript = session.transcript || "";
+    const transcript =
+      ("transcript" in session ? session.transcript : "") || "";
     const lines = transcript.split("\n\n");
-    lines.forEach((line) => {
+    lines.forEach((line: string) => {
       if (line.toLowerCase().startsWith("user:") || line.includes(" (You):")) {
         userChars += line.length;
         wordCount += line.split(/\s+/).length;
@@ -127,7 +128,11 @@ export function calculateDynamics(
   const total = userChars + aiChars;
   const talkRatio = total > 0 ? Math.round((userChars / total) * 100) : 50;
 
-  const durationMinutes = (session.durationSeconds || 0) / 60;
+  const durationSeconds =
+    "durationSeconds" in session
+      ? session.durationSeconds
+      : (session as any).durationSeconds;
+  const durationMinutes = (durationSeconds || 0) / 60;
   const pace =
     durationMinutes > 0 ? Math.round(wordCount / durationMinutes) : 0;
 

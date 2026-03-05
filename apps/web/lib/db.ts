@@ -27,6 +27,7 @@ import type {
   FeedbackReport,
   TranscriptMessage,
   TrainingTrackId,
+  CoachDebriefResponse,
 } from "@reptrainer/shared";
 
 // ─── Data Models ───────────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ export interface Session {
   createdAt: string;
   insights?: { insight: string; timestamp: number }[];
   audioUrl?: string; // Changed from audioBlob for Firestore/Storage
+  debrief?: CoachDebriefResponse | null;
 }
 
 // Re-export the shared CallSession type for convenience

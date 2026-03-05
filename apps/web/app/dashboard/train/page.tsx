@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Sparkles,
   ChevronRight,
@@ -38,8 +39,9 @@ const intensityLabels = [
 
 type TrainStep = "configure" | "track-select" | "session";
 
-export default function TrainPage() {
+function TrainPageContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
@@ -83,6 +85,19 @@ export default function TrainPage() {
       user.uid,
       (data) => {
         setPersonas(data);
+
+        // Pre-select persona if personaId is in query params
+        const queryPersonaId = searchParams.get("personaId");
+        if (queryPersonaId && !selectedPersonaId) {
+          const persona = data.find((p) => p.id === queryPersonaId);
+          if (persona) {
+            setSelectedPersonaId(queryPersonaId);
+            // Also pre-select the associated product
+            if (persona.productId) {
+              setSelectedProductId(persona.productId);
+            }
+          }
+        }
       },
       handleError,
     );
@@ -92,7 +107,7 @@ export default function TrainPage() {
       unsubProducts();
       unsubPersonas();
     };
-  }, [user]);
+  }, [user, searchParams, selectedPersonaId, selectedProductId]);
 
   const handleStartRoleplay = () => {
     if (!selectedPersonaId || !selectedProductId) return;
@@ -220,6 +235,39 @@ export default function TrainPage() {
               </div>
             ) : (
               <div className="flex flex-col gap-4 sm:flex-row">
+                {/* Product Select (Higher precedence now) */}
+                <div className="flex-1 space-y-2">
+                  <label className="text-charcoal text-xs font-medium tracking-wider uppercase opacity-60">
+                    Product to Pitch
+                  </label>
+                  <select
+                    value={selectedProductId || ""}
+                    disabled={!!searchParams.get("personaId")}
+                    onChange={(e) => {
+                      const newProductId = e.target.value || null;
+                      setSelectedProductId(newProductId);
+                      // Clear persona if it's not for this product
+                      if (selectedPersonaId) {
+                        const persona = personas.find(
+                          (p) => p.id === selectedPersonaId,
+                        );
+                        if (persona && persona.productId !== newProductId) {
+                          setSelectedPersonaId(null);
+                        }
+                      }
+                    }}
+                    className="border-border/60 bg-cream text-charcoal focus:ring-charcoal/20 disabled:bg-warm-gray/5 h-12 w-full rounded-xl border px-4 text-sm transition-all focus:ring-2 focus:outline-none disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select a product to pitch…</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.companyName} — {p.industry}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Persona Select (Filtered by product) */}
                 <div className="flex-1 space-y-2">
                   <label className="text-charcoal text-xs font-medium tracking-wider uppercase opacity-60">
                     Buyer Persona
@@ -229,33 +277,23 @@ export default function TrainPage() {
                     onChange={(e) =>
                       setSelectedPersonaId(e.target.value || null)
                     }
-                    className="border-border/60 bg-cream text-charcoal focus:ring-charcoal/20 h-12 w-full rounded-xl border px-4 text-sm transition-all focus:ring-2 focus:outline-none"
+                    disabled={!selectedProductId}
+                    className="border-border/60 bg-cream text-charcoal focus:ring-charcoal/20 disabled:bg-warm-gray/5 h-12 w-full rounded-xl border px-4 text-sm transition-all focus:ring-2 focus:outline-none disabled:cursor-not-allowed"
                   >
-                    <option value="">Select a persona…</option>
-                    {personas.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — {p.role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1 space-y-2">
-                  <label className="text-charcoal text-xs font-medium tracking-wider uppercase opacity-60">
-                    Product to Pitch
-                  </label>
-                  <select
-                    value={selectedProductId || ""}
-                    onChange={(e) =>
-                      setSelectedProductId(e.target.value || null)
-                    }
-                    className="border-border/60 bg-cream text-charcoal focus:ring-charcoal/20 h-12 w-full rounded-xl border px-4 text-sm transition-all focus:ring-2 focus:outline-none"
-                  >
-                    <option value="">Select a product to pitch…</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.companyName} — {p.industry}
-                      </option>
-                    ))}
+                    {!selectedProductId ? (
+                      <option value="">Select a product first…</option>
+                    ) : (
+                      <>
+                        <option value="">Select a persona…</option>
+                        {personas
+                          .filter((p) => p.productId === selectedProductId)
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} — {p.role}
+                            </option>
+                          ))}
+                      </>
+                    )}
                   </select>
                 </div>
                 <div className="flex items-end">
@@ -289,5 +327,19 @@ export default function TrainPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+export default function TrainPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20">
+          <div className="border-charcoal/20 border-t-charcoal size-8 animate-spin rounded-full border-2" />
+        </div>
+      }
+    >
+      <TrainPageContent />
+    </Suspense>
   );
 }

@@ -37,8 +37,10 @@ import { FeedbackReportDisplay } from "@/components/feedback-report-display";
 import {
   evaluateSession as evaluateSessionAction,
   generateFeedbackReport,
+  generateCoachDebrief,
 } from "@/app/actions/api";
 import { useAuth } from "@/context/auth-context";
+import { CoachDebrief } from "@/components/coach-debrief";
 import {
   CALL_DURATION_DEFAULT,
   CALL_WARNING_THRESHOLD_SECONDS,
@@ -94,6 +96,11 @@ export function RoleplaySession({
   const [callSessionId] = useState(() => uuidv4());
   const [inputLocked, setInputLocked] = useState(false);
   const [coachMode, setCoachMode] = useState(false);
+  const [showDebrief, setShowDebrief] = useState(false);
+  const [debriefData, setDebriefData] = useState<{
+    slides: any[];
+    audioBase64: string[];
+  } | null>(null);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
@@ -358,6 +365,9 @@ ${trackPromptOverride}
 
       // Create call session in Firestore
       const userId = user?.uid || "anonymous";
+      console.log(
+        `[RoleplaySession] Creating call session ${callSessionId} for user ${userId}`,
+      );
       createCallSession({
         id: callSessionId,
         userId,
@@ -371,7 +381,18 @@ ${trackPromptOverride}
         callStartTime: new Date().toISOString(),
         trackId: trackId || null,
         scenarioId: scenarioId || null,
-      }).catch((err) => console.error("Failed to create call session:", err));
+      })
+        .then(() =>
+          console.log(
+            `[RoleplaySession] Successfully created call session ${callSessionId}`,
+          ),
+        )
+        .catch((err) =>
+          console.error(
+            `[RoleplaySession] Failed to create call session ${callSessionId}:`,
+            err,
+          ),
+        );
     }
   }, [isConnected, durationSelected]);
 
@@ -477,6 +498,9 @@ ${trackPromptOverride}
       setLoadingStage("finalizing");
 
       // Update call session in Firestore
+      console.log(
+        `[RoleplaySession] Updating call session ${callSessionId} at end of call`,
+      );
       await updateCallSession(callSessionId, {
         callEndTime: new Date().toISOString(),
         callStatus: "ended",
@@ -486,7 +510,43 @@ ${trackPromptOverride}
           insight: i.insight,
           timestamp: i.timestamp,
         })),
-      }).catch((err) => console.error("Failed to update call session:", err));
+      })
+        .then(() =>
+          console.log(
+            `[RoleplaySession] Successfully updated call session ${callSessionId}`,
+          ),
+        )
+        .catch((err) =>
+          console.error(
+            `[RoleplaySession] Failed to update call session ${callSessionId}:`,
+            err,
+          ),
+        );
+
+      // ─── Generate Coach Debrief if duration >= 3 mins ───────────────────
+      if (duration >= 180) {
+        try {
+          console.log("[RoleplaySession] Fetching Coach Debrief...");
+          const debrief = await generateCoachDebrief({
+            transcript: transcriptText,
+            personaName: persona.name,
+            personaRole: persona.role,
+            durationSeconds: duration,
+          });
+
+          // Persist debrief to Firestore
+          console.log("[RoleplaySession] Persisting debrief to Firestore...");
+          await Promise.all([
+            updateCallSession(callSessionId, { debrief }),
+            saveSession({ ...session, debrief }),
+          ]).catch((err) => console.error("Failed to persist debrief:", err));
+
+          setDebriefData(debrief);
+          setShowDebrief(true);
+        } catch (debriefError) {
+          console.error("Coach Debrief generation failed:", debriefError);
+        }
+      }
 
       setLoadingProgress(100);
       setSavedSession(session);
@@ -519,6 +579,17 @@ ${trackPromptOverride}
       setEvaluating(false);
     }
   };
+
+  // ─── Render: Coach Debrief Overlay ─────────────────────────────────────
+  if (showDebrief && debriefData) {
+    return (
+      <CoachDebrief
+        slides={debriefData.slides}
+        audioBase64={debriefData.audioBase64}
+        onClose={() => setShowDebrief(false)}
+      />
+    );
+  }
 
   // Keep ref updated for timer callback
   handleEndCallRef.current = handleEndCall;
@@ -913,6 +984,24 @@ ${trackPromptOverride}
                     {formatTime(callDuration)}
                   </span>
                 </div>
+
+                {/* Coach Debrief Countdown */}
+                {callDuration < 180 && !personaLeft && (
+                  <div className="bg-charcoal/5 border-charcoal/10 flex items-center gap-2 rounded-full border px-3 py-1.5">
+                    <Zap className="size-3 text-amber-600" />
+                    <span className="text-charcoal/60 text-[10px] font-bold tracking-tight uppercase">
+                      Debrief Unlocks in {formatTime(180 - callDuration)}
+                    </span>
+                  </div>
+                )}
+                {callDuration >= 180 && !personaLeft && (
+                  <div className="animate-in fade-in zoom-in-95 flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 duration-500">
+                    <Zap className="size-3 fill-emerald-600 text-emerald-600" />
+                    <span className="text-[10px] font-bold tracking-tight text-emerald-600 uppercase">
+                      Coach Debrief Ready
+                    </span>
+                  </div>
+                )}
               </>
             )}
             <div className="flex items-center -space-x-2">

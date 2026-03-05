@@ -1,11 +1,15 @@
 rules_version = '2';
 
-// Craft rules based on data in your Storage bucket
-// See https://firebase.google.com/docs/storage/security for more information
 service firebase.storage {
   match /b/{bucket}/o {
+    // Permissive rules for development, matches deployed state
+    match /{allPaths=**} {
+      allow read, write: if request.time < timestamp.date(2026, 4, 3);
+    }
+
+    // Specific match for recordings (legacy/reference)
     match /recordings/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId || userId == "anonymous";
     }
   }
 }
