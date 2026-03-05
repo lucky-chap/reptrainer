@@ -20,12 +20,12 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
   if (tasks.length === 0) return null;
 
   return (
-    <div className="fixed bottom-20 sm:bottom-6 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+    <div className="pointer-events-none fixed right-4 bottom-20 z-50 flex w-full max-w-sm flex-col gap-2 sm:bottom-6">
       {tasks.map((task) => (
         <div
           key={task.id}
           className={cn(
-            "pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg backdrop-blur-xl animate-fade-up",
+            "animate-fade-up pointer-events-auto flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-xl",
             task.status === "generating" &&
               "bg-charcoal/5 border-charcoal/10 shadow-charcoal/5",
             task.status === "completed" &&
@@ -36,42 +36,51 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
         >
           {/* Icon */}
           {task.status === "generating" && (
-            <div className="size-8 rounded-lg bg-charcoal/10 flex items-center justify-center shrink-0">
-              <Loader2 className="size-4 text-charcoal animate-spin" />
+            <div className="bg-charcoal/10 flex size-8 shrink-0 items-center justify-center rounded-lg">
+              <Loader2 className="text-charcoal size-4 animate-spin" />
             </div>
           )}
           {task.status === "completed" && (
-            <div className="size-8 rounded-lg bg-emerald-glow/15 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="size-4 text-emerald-glow" />
+            <div className="bg-emerald-glow/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
+              <CheckCircle2 className="text-emerald-glow size-4" />
             </div>
           )}
           {task.status === "error" && (
-            <div className="size-8 rounded-lg bg-rose-glow/15 flex items-center justify-center shrink-0">
-              <AlertCircle className="size-4 text-rose-glow" />
+            <div className="bg-rose-glow/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
+              <AlertCircle className="text-rose-glow size-4" />
             </div>
           )}
 
           {/* Content */}
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             {task.status === "generating" && (
               <>
-                <p className="text-sm font-medium flex items-center gap-1.5 text-charcoal">
-                  <Sparkles className="size-3 text-warm-gray" />
+                <p className="text-charcoal flex items-center gap-1.5 text-sm font-medium">
+                  <Sparkles className="text-warm-gray size-3" />
                   Generating {task.type === "product" ? "product" : "persona"}…
                 </p>
                 {task.type === "persona" && (
-                  <p className="text-xs text-warm-gray truncate">
-                    For {task.productName}
-                  </p>
+                  <div className="mt-1 space-y-1">
+                    <p className="text-warm-gray truncate text-xs">
+                      For {task.productName}
+                    </p>
+                    <p className="text-charcoal/60 animate-pulse text-[10px] font-medium">
+                      {task.subStatus === "analyzing" && "Analyzing Industry…"}
+                      {task.subStatus === "creating_traits" &&
+                        "Creating Persona Traits…"}
+                      {task.subStatus === "generating_avatar" &&
+                        "Generating AI Avatar…"}
+                    </p>
+                  </div>
                 )}
               </>
             )}
             {task.status === "completed" && (
               <>
-                <p className="text-sm font-medium text-emerald-glow">
+                <p className="text-emerald-glow text-sm font-medium">
                   {task.type === "product" ? "Product" : "Persona"} created!
                 </p>
-                <p className="text-xs text-warm-gray truncate">
+                <p className="text-warm-gray truncate text-xs">
                   {task.type === "product"
                     ? task.productName
                     : task.personaName}{" "}
@@ -81,10 +90,10 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
             )}
             {task.status === "error" && (
               <>
-                <p className="text-sm font-medium text-rose-glow">
+                <p className="text-rose-glow text-sm font-medium">
                   Generation failed
                 </p>
-                <p className="text-xs text-warm-gray truncate">
+                <p className="text-warm-gray truncate text-xs">
                   {task.error || "Please try again"}
                 </p>
               </>
@@ -95,7 +104,7 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
           {task.status !== "generating" && (
             <button
               onClick={() => onDismiss(task.id)}
-              className="text-warm-gray-light hover:text-charcoal transition-colors shrink-0"
+              className="text-warm-gray-light hover:text-charcoal shrink-0 transition-colors"
             >
               <X className="size-4" />
             </button>

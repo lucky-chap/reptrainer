@@ -237,7 +237,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Performance Chart */}
         <Card className="border-border/60 shadow-none lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
             <div>
               <CardTitle className="text-base font-bold">
                 Performance Trend
@@ -246,36 +246,108 @@ export default function DashboardPage() {
                 Your last {weekScores.length} sessions
               </CardDescription>
             </div>
-            <BarChart3 className="text-warm-gray size-4" />
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="text-warm-gray hover:text-charcoal h-8 gap-1.5 px-3"
+            >
+              <Link href="/dashboard/analytics">
+                <span className="text-[10px] font-bold tracking-widest uppercase">
+                  View full Analytics
+                </span>
+                <ArrowRight className="size-3" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             {weekScores.length > 0 ? (
-              <div className="flex h-40 items-end gap-3 pt-4">
-                {weekScores.map((score, i) => (
-                  <div
-                    key={i}
-                    className="flex flex-1 flex-col items-center gap-2"
-                  >
-                    <span className="text-charcoal text-[10px] font-bold">
-                      {score > 0 ? score : "—"}
-                    </span>
-                    <div
-                      className="w-full rounded-t-lg transition-all duration-700"
-                      style={{
-                        height: `${score > 0 ? (score / 10) * 100 : 10}%`,
-                        backgroundColor:
-                          score >= 7
-                            ? "var(--color-charcoal)"
-                            : score >= 4
-                              ? "var(--color-warm-gray-light)"
-                              : "var(--color-cream-dark)",
-                      }}
-                    />
+              <div className="space-y-3">
+                {/* Chart Area */}
+                <div className="relative">
+                  {/* Background Grid Lines */}
+                  <div className="pointer-events-none absolute inset-x-0 top-0 bottom-6 flex flex-col justify-between">
+                    {[10, 8, 6, 4, 2].map((level) => (
+                      <div key={level} className="flex items-center gap-2">
+                        <span className="text-warm-gray/30 w-4 text-right text-[9px] font-medium">
+                          {level}
+                        </span>
+                        <div className="border-border/30 flex-1 border-b border-dashed" />
+                      </div>
+                    ))}
                   </div>
-                ))}
+
+                  {/* Bars */}
+                  <div className="flex h-52 items-end gap-2 pr-1 pl-7">
+                    {weekScores.map((score, i) => (
+                      <div
+                        key={i}
+                        className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+                      >
+                        {/* Always-visible Score */}
+                        <span
+                          className={cn(
+                            "text-[11px] font-bold transition-colors duration-300",
+                            score >= 8
+                              ? "text-charcoal"
+                              : score >= 5
+                                ? "text-warm-gray"
+                                : "text-warm-gray-light",
+                          )}
+                        >
+                          {score > 0 ? score : "–"}
+                        </span>
+
+                        {/* Thick Rounded Bar */}
+                        <div
+                          className={cn(
+                            "z-10 w-full max-w-10 rounded-lg transition-all duration-700 ease-out",
+                            "group-hover:scale-[1.05] group-hover:shadow-md",
+                            score >= 8
+                              ? "bg-charcoal"
+                              : score >= 5
+                                ? "bg-warm-gray"
+                                : "bg-cream-dark",
+                          )}
+                          style={{
+                            height: `${score > 0 ? Math.max((score / 10) * 100, 8) : 6}%`,
+                          }}
+                        />
+
+                        {/* Session Label */}
+                        <span className="text-warm-gray/40 text-[9px] font-medium tabular-nums">
+                          {i + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-5 pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <div className="bg-charcoal size-2.5 rounded-full" />
+                    <span className="text-warm-gray text-[10px] font-medium">
+                      Strong (8-10)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="bg-warm-gray size-2.5 rounded-full" />
+                    <span className="text-warm-gray text-[10px] font-medium">
+                      Average (5-7)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="bg-cream-dark size-2.5 rounded-full" />
+                    <span className="text-warm-gray text-[10px] font-medium">
+                      Needs Work (1-4)
+                    </span>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="flex h-40 items-center justify-center">
+              <div className="border-border/40 flex h-48 flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed">
+                <BarChart3 className="text-warm-gray/30 size-8" />
                 <p className="text-warm-gray text-sm">
                   Complete sessions to see your performance trend
                 </p>

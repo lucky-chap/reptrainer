@@ -20,7 +20,6 @@ import type { Product } from "@/lib/db";
 import { saveProduct, subscribeProducts, deleteProduct } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
-import { GenerationBanner } from "@/components/generation-banner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/product-card";
@@ -429,7 +428,6 @@ export default function ProductsPage() {
           ))}
         </div>
       )}
-      <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
 
       {/* Product Detail Dialog */}
       <Dialog

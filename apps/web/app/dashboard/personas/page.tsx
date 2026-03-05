@@ -25,7 +25,6 @@ import {
 } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
-import { GenerationBanner } from "@/components/generation-banner";
 import { PersonaCard } from "@/components/persona-card";
 import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
@@ -464,7 +463,6 @@ export default function PersonasPage() {
           ))}
         </div>
       )}
-      <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
     </div>
   );
 }

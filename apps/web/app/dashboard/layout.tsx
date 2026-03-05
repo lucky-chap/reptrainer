@@ -22,6 +22,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  GenerationProvider,
+  useGeneration,
+} from "@/context/generation-context";
+import { GenerationBanner } from "@/components/generation-banner";
 
 const navItems = [
   {
@@ -56,6 +61,15 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <GenerationProvider>
+      <DashboardContent>{children}</DashboardContent>
+    </GenerationProvider>
+  );
+}
+
+function DashboardContent({ children }: { children: React.ReactNode }) {
+  const { tasks, dismissTask } = useGeneration();
   const pathname = usePathname();
   const router = useRouter();
   const { user, loginWithGoogle, logout, loading } = useAuth();
@@ -235,6 +249,9 @@ export default function DashboardLayout({
           })}
         </div>
       </nav>
+
+      {/* Global Activity Indicator */}
+      <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
     </div>
   );
 }

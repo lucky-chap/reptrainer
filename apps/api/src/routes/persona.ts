@@ -8,6 +8,7 @@ import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
 import { requireApiSecret } from "../middleware/auth.js";
 import { generatePersona } from "../services/gemini.js";
+import { generatePersonaAvatar } from "../services/vertex.js";
 
 export const personaRoutes: Router = Router();
 
@@ -31,6 +32,30 @@ personaRoutes.post(
     try {
       const persona = await generatePersona(req.body);
       res.json(persona);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+const generateAvatarSchema = z.object({
+  gender: z.enum(["male", "female"]),
+  role: z.string().min(1),
+});
+
+/**
+ * POST /api/persona/generate-avatar
+ * Generates an avatar image using Vertex AI Imagen.
+ */
+personaRoutes.post(
+  "/generate-avatar",
+  requireApiSecret,
+  validateBody(generateAvatarSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { gender, role } = req.body;
+      const avatarDataUrl = await generatePersonaAvatar(gender, role);
+      res.json({ avatarDataUrl });
     } catch (error) {
       next(error);
     }

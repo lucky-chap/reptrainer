@@ -41,8 +41,16 @@ export function PersonaCard({
       <CardHeader className="pb-4">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
-            <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-2xl text-lg font-bold shadow-sm transition-transform duration-500 group-hover:rotate-3">
-              {persona.name.charAt(0)}
+            <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-lg font-bold shadow-sm transition-transform duration-500 group-hover:rotate-3">
+              {persona.avatarUrl ? (
+                <img
+                  src={persona.avatarUrl}
+                  alt={persona.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                persona.name.charAt(0)
+              )}
             </div>
             <div className="min-w-0">
               <CardTitle className="text-charcoal truncate text-base font-bold">

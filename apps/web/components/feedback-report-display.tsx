@@ -13,12 +13,14 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ObjectionHeatmap } from "./objection-heatmap";
 import type { FeedbackReport } from "@reptrainer/shared";
 
 interface FeedbackReportDisplayProps {
   report: FeedbackReport;
   personaName: string;
   durationSeconds: number;
+  insights?: { insight: string; timestamp: number }[];
   onBack: () => void;
 }
 
@@ -161,6 +163,7 @@ export function FeedbackReportDisplay({
   report,
   personaName,
   durationSeconds,
+  insights = [],
   onBack,
 }: FeedbackReportDisplayProps) {
   const formatDuration = (s: number) => {
@@ -179,7 +182,7 @@ export function FeedbackReportDisplay({
           : "Significant Gaps";
 
   return (
-    <div className="animate-fade-up mx-auto max-w-3xl space-y-6">
+    <div className="animate-fade-up mx-auto max-w-6xl space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
@@ -225,10 +228,24 @@ export function FeedbackReportDisplay({
             size="sm"
           />
         </div>
+
+        {insights.length > 0 && (
+          <div className="border-border/40 mt-8 border-t pt-8 text-left">
+            <ObjectionHeatmap
+              insights={insights}
+              durationSeconds={durationSeconds}
+              className="mx-auto max-w-2xl"
+            />
+            <p className="text-warm-gray mt-4 text-center text-[10px] italic">
+              Visualizing key moments from your session. Review these in detail
+              below.
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* Feedback Sections */}
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <FeedbackSection
           icon={Star}
           title="Strengths"
@@ -242,15 +259,12 @@ export function FeedbackReportDisplay({
           variant="warning"
         />
         <FeedbackSection
-          icon={XCircle}
-          title="Missed Opportunities"
-          items={report.missed_opportunities}
-          variant="danger"
-        />
-        <FeedbackSection
           icon={Lightbulb}
-          title="Suggested Improvements"
-          items={report.suggested_improvements}
+          title="Coach Tips"
+          items={[
+            ...report.missed_opportunities,
+            ...report.suggested_improvements,
+          ]}
           variant="info"
         />
       </div>

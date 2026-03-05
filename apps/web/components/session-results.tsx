@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { ObjectionHeatmap } from "./objection-heatmap";
 
 interface SessionResultsProps {
   session: Session;
@@ -142,6 +143,15 @@ export function SessionResults({
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const handleSeek = (seconds: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = seconds;
+      audioRef.current.play();
+    }
   };
 
   return (
@@ -358,7 +368,16 @@ export function SessionResults({
                       <Download className="mr-1.5 h-3 w-3" /> Download
                     </Button>
                   </div>
+                  <div className="mb-8 rounded-2xl bg-white/50 p-1">
+                    <ObjectionHeatmap
+                      insights={session.insights || []}
+                      durationSeconds={session.durationSeconds}
+                      onSeek={handleSeek}
+                    />
+                  </div>
+
                   <audio
+                    ref={audioRef}
                     controls
                     src={audioUrl}
                     className="accent-charcoal h-10 w-full"

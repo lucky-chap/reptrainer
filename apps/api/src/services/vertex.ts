@@ -233,3 +233,72 @@ export function getLiveSetupConfig(
     },
   };
 }
+
+/**
+ * Generate a persona avatar image using Vertex AI Imagen 4.0.
+ * Returns the base64 encoded image or a public URL.
+ */
+export async function generatePersonaAvatar(
+  gender: string,
+  role: string,
+): Promise<string> {
+  const project = env.GOOGLE_CLOUD_PROJECT;
+  const location = env.GOOGLE_CLOUD_LOCATION;
+  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/imagen-4.0-generate-001:predict`;
+
+  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. 8k resolution, highly detailed features.`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${await getAccessToken()}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify({
+      instances: [{ prompt }],
+      parameters: { sampleCount: 1 },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error("Imagen API Error:", errorBody);
+    throw new Error(`Failed to generate avatar: ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as {
+    predictions?: Array<{
+      bytesBase64?: string;
+      bytesBase64Encoded?: string;
+    }>;
+  };
+
+  // Log structure for debugging if we get no data
+  if (!data.predictions?.[0]) {
+    console.error("Imagen API returned no predictions:", JSON.stringify(data));
+  }
+
+  const base64Image =
+    data.predictions?.[0]?.bytesBase64Encoded ||
+    data.predictions?.[0]?.bytesBase64;
+
+  if (!base64Image) {
+    console.error(
+      "No image data in first prediction. Keys found:",
+      Object.keys(data.predictions?.[0] || {}),
+    );
+    throw new Error("No image data returned from Imagen API");
+  }
+
+  return `data:image/png;base64,${base64Image}`;
+}
+
+async function getAccessToken() {
+  const { GoogleAuth } = await import("google-auth-library");
+  const auth = new GoogleAuth({
+    scopes: "https://www.googleapis.com/auth/cloud-platform",
+  });
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+  return token.token;
+}

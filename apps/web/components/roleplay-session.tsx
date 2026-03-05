@@ -76,6 +76,10 @@ export function RoleplaySession({
     null,
   );
   const [evaluating, setEvaluating] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<
+    "audio" | "evaluating" | "saving" | "finalizing"
+  >("audio");
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userName, setUserName] = useState(user?.displayName || "");
   const [nameSubmitted, setNameSubmitted] = useState(!!user);
@@ -244,6 +248,7 @@ ${trackPromptOverride}
     getDuration,
     logManualInsight,
     isRecording,
+    isAISpeaking,
     startRecording,
     stopRecording,
   } = useGeminiLive({
@@ -253,6 +258,44 @@ ${trackPromptOverride}
     onError: handleError,
     onPersonaLeft: handlePersonaLeft,
   });
+
+  // ─── Whisper HUD Logic ───────────────────────────────────────────────
+  const [latestInsight, setLatestInsight] = useState<{
+    insight: string;
+    timestamp: number;
+  } | null>(null);
+  const [showHUD, setShowHUD] = useState(false);
+  const hudTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (insights && insights.length > 0) {
+      const last = insights[insights.length - 1];
+      if (last.timestamp !== latestInsight?.timestamp) {
+        setLatestInsight(last);
+        setShowHUD(true);
+
+        if (hudTimeoutRef.current) clearTimeout(hudTimeoutRef.current);
+        hudTimeoutRef.current = setTimeout(() => {
+          setShowHUD(false);
+        }, 8000); // Show for 8 seconds
+      }
+    }
+  }, [insights, latestInsight]);
+
+  // ─── Persona Avatar Logic ────────────────────────────────────────────
+  const getAvatarUrl = () => {
+    // Mapping personas to generated images for the demo
+    const name = persona.name.toLowerCase();
+    if (name.includes("margaret") || name.includes("cfo"))
+      return "/home/obed/.gemini/antigravity/brain/26f6e2ab-6bb7-4968-8780-8eafd8ad77ee/skeptical_cfo_avatar_1772681589501.png";
+    if (name.includes("founder") || name.includes("eager"))
+      return "/home/obed/.gemini/antigravity/brain/26f6e2ab-6bb7-4968-8780-8eafd8ad77ee/eager_founder_avatar_1772681609647.png";
+    if (name.includes("architect") || name.includes("analytical"))
+      return "/home/obed/.gemini/antigravity/brain/26f6e2ab-6bb7-4968-8780-8eafd8ad77ee/analytical_architect_avatar_1772681629525.png";
+    return null;
+  };
+
+  const avatarUrl = getAvatarUrl();
 
   // ─── Call Timer ────────────────────────────────────────────────────────
   const handleTimerWarning = useCallback(() => {
@@ -352,6 +395,8 @@ ${trackPromptOverride}
         : `[No transcript was captured for this ${formatTime(duration)} call with ${persona.name}]`;
 
     setEvaluating(true);
+    setLoadingStage("audio");
+    setLoadingProgress(10);
 
     try {
       const sessionId = uuidv4();
@@ -365,6 +410,9 @@ ${trackPromptOverride}
           console.error("Failed to upload audio:", uploadError);
         }
       }
+
+      setLoadingStage("evaluating");
+      setLoadingProgress(30);
 
       // Generate both legacy evaluation and enhanced feedback report in parallel
       const [evaluation, feedback] = await Promise.allSettled([
@@ -387,6 +435,9 @@ ${trackPromptOverride}
           scenarioId,
         }),
       ]);
+
+      setLoadingProgress(80);
+      setLoadingStage("saving");
 
       const evalResult =
         evaluation.status === "fulfilled" ? evaluation.value : null;
@@ -416,6 +467,9 @@ ${trackPromptOverride}
 
       await saveSession(session);
 
+      setLoadingProgress(95);
+      setLoadingStage("finalizing");
+
       // Update call session in Firestore
       await updateCallSession(callSessionId, {
         callEndTime: new Date().toISOString(),
@@ -428,6 +482,7 @@ ${trackPromptOverride}
         })),
       }).catch((err) => console.error("Failed to update call session:", err));
 
+      setLoadingProgress(100);
       setSavedSession(session);
       setFeedbackReport(feedbackResult);
       setShowResults(true);
@@ -466,6 +521,7 @@ ${trackPromptOverride}
         report={feedbackReport}
         personaName={persona.name}
         durationSeconds={callDuration}
+        insights={insights}
         onBack={onBack}
       />
     );
@@ -485,19 +541,56 @@ ${trackPromptOverride}
 
   // Show evaluating screen
   if (evaluating) {
+    const stageLabels = {
+      audio: "Uploading call audio...",
+      evaluating: "Analyzing performance with Senior Sales Coach...",
+      saving: "Saving session results...",
+      finalizing: "Finalizing your report...",
+    };
+
     return (
       <div className="animate-fade-up flex flex-col items-center justify-center py-20">
-        <div className="relative mb-6">
-          <div className="from-violet-glow/20 to-emerald-glow/10 flex size-20 items-center justify-center rounded-full bg-gradient-to-br">
-            <Loader2 className="text-violet-glow size-10 animate-spin" />
+        <div className="relative mb-10">
+          <div className="from-charcoal/5 to-charcoal/10 relative flex size-32 items-center justify-center overflow-hidden rounded-full bg-linear-to-br">
+            {/* Liquid Fill Progress */}
+            <div
+              className="bg-charcoal/10 absolute right-0 bottom-0 left-0 transition-all duration-700 ease-out"
+              style={{ height: `${loadingProgress}%` }}
+            />
+            <div className="relative z-10 flex flex-col items-center">
+              <span className="text-charcoal text-2xl font-bold">
+                {loadingProgress}%
+              </span>
+            </div>
           </div>
-          <div className="bg-violet-glow/10 animate-pulse-ring absolute inset-0 rounded-full" />
+          <div className="border-charcoal/5 absolute inset-0 animate-pulse rounded-full border-2" />
         </div>
-        <h3 className="mb-2 text-xl font-bold">Analyzing Your Performance</h3>
-        <p className="text-muted-foreground max-w-sm text-center text-sm">
-          Our senior sales coach is reviewing your transcript and generating
-          detailed, actionable feedback...
-        </p>
+
+        <div className="max-w-sm space-y-4 px-6 text-center">
+          <h3 className="text-charcoal text-xl font-bold">
+            {stageLabels[loadingStage]}
+          </h3>
+          <p className="text-warm-gray text-sm leading-relaxed">
+            {loadingStage === "evaluating"
+              ? "Our AI is reviewing every word of your transcript to provide specific, actionable feedback on your sales technique."
+              : "Hang tight, we're making sure all your call data is safely stored in your dashboard."}
+          </p>
+
+          {/* Progress Bar Mini */}
+          <div className="bg-cream border-border/30 mt-8 h-1.5 w-full overflow-hidden rounded-full border">
+            <div
+              className="bg-charcoal h-full rounded-full shadow-[0_0_8px_rgba(0,0,0,0.1)] transition-all duration-700 ease-out"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <Loader2 className="text-warm-gray size-3 animate-spin" />
+            <span className="text-warm-gray text-[10px] font-semibold tracking-widest uppercase">
+              Processing Securely
+            </span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -801,8 +894,16 @@ ${trackPromptOverride}
               <div className="bg-cream text-charcoal flex size-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
                 {displayName.charAt(0).toUpperCase()}
               </div>
-              <div className="bg-cream text-charcoal flex size-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
-                {persona.name.charAt(0)}
+              <div className="bg-cream text-charcoal flex size-8 items-center justify-center overflow-hidden rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
+                {persona.avatarUrl ? (
+                  <img
+                    src={persona.avatarUrl}
+                    alt={persona.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  persona.name.charAt(0)
+                )}
               </div>
             </div>
           </div>
@@ -861,19 +962,75 @@ ${trackPromptOverride}
               {/* Live call: persona avatar with visualizer */}
               {isConnected && !personaLeft && (
                 <div className="z-10 flex flex-col items-center justify-center">
-                  <div className="border-border/60 text-charcoal relative flex size-28 items-center justify-center rounded-full border bg-white text-5xl font-bold shadow-md sm:size-36">
-                    {persona.name.charAt(0)}
-                    <div className="border-charcoal/10 animate-pulse-ring absolute inset-[-15%] rounded-full border-2" />
+                  <div className="border-border/60 text-charcoal relative flex size-32 items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-md sm:size-40">
+                    <div className="from-cream flex size-full items-center justify-center bg-linear-to-br to-white">
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          className="size-full object-cover"
+                          alt={persona.name}
+                        />
+                      ) : (
+                        persona.name.charAt(0)
+                      )}
+                    </div>
+                    {isAISpeaking && (
+                      <div className="border-charcoal/20 absolute inset-0 animate-pulse rounded-full border-[6px]" />
+                    )}
+                    {isAISpeaking && (
+                      <div className="border-charcoal/10 animate-pulse-ring absolute inset-[-10%] rounded-full border-2" />
+                    )}
                   </div>
+
+                  {/* Whisper Coach HUD Overlay */}
+                  <div
+                    className={`absolute bottom-24 left-1/2 z-20 w-full max-w-sm -translate-x-1/2 px-4 transition-all duration-500 ease-out ${
+                      showHUD && coachMode
+                        ? "translate-y-0 opacity-100"
+                        : "pointer-events-none translate-y-4 opacity-0"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 rounded-2xl border border-amber-200/40 bg-white/95 p-4 shadow-xl backdrop-blur-sm">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
+                        <Zap className="size-4 text-amber-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold tracking-widest text-amber-600 uppercase">
+                          Whisper Coach
+                        </p>
+                        <p className="text-charcoal mt-0.5 text-xs leading-relaxed font-medium">
+                          {latestInsight?.insight ||
+                            "Analyzing conversation..."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Speaking Indicator */}
+                  <div className="mt-4 h-6">
+                    {isAISpeaking ? (
+                      <div className="animate-fade-in flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[10px] font-medium text-emerald-600">
+                        <div className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                        Buyer is speaking...
+                      </div>
+                    ) : (
+                      <div className="text-warm-gray text-[10px] font-medium">
+                        Listening...
+                      </div>
+                    )}
+                  </div>
+
                   {/* Audio visualizer */}
-                  <div className="mt-5 flex h-8 items-end gap-1.5">
+                  <div className="mt-2 flex h-8 items-end gap-1.5">
                     {Array.from({ length: 7 }).map((_, i) => (
                       <div
                         key={i}
-                        className="bg-charcoal/40 animate-sound-wave w-1 rounded-full"
+                        className={`bg-charcoal/40 w-1 rounded-full transition-all duration-300 ${
+                          isAISpeaking ? "animate-sound-wave" : "h-1"
+                        }`}
                         style={{
                           animationDelay: `${i * 0.12}s`,
-                          height: "4px",
+                          height: isAISpeaking ? undefined : "4px",
                         }}
                       />
                     ))}

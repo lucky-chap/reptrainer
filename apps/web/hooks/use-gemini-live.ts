@@ -35,6 +35,7 @@ interface UseGeminiLiveOptions {
 export function useGeminiLive(options: UseGeminiLiveOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [insights, setInsights] = useState<SalesInsight[]>([]);
   const [personaLeft, setPersonaLeft] = useState(false);
@@ -58,6 +59,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const startTimeRef = useRef<number>(0);
   const isCleanedUpRef = useRef(false);
   const personaLeftRef = useRef(false);
+  const pendingPersonaLeftRef = useRef(false);
 
   // Recording refs
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -282,14 +284,45 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     [],
   );
 
+  const triggerPersonaLeft = useCallback(() => {
+    if (personaLeftRef.current) return;
+
+    console.log("[GeminiLive] AI is leaving the call (playback finished)");
+    personaLeftRef.current = true;
+    setPersonaLeft(true);
+    optionsRef.current.onPersonaLeft?.();
+
+    // Stop sending mic audio
+    if (processorRef.current) {
+      try {
+        processorRef.current.disconnect();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
   // Play audio from the queue
   const playAudioQueue = useCallback(async () => {
-    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
+    if (isPlayingRef.current || audioQueueRef.current.length === 0) {
+      // If we are already finishing up and the queue is empty, check for pending termination
+      if (
+        !isPlayingRef.current &&
+        audioQueueRef.current.length === 0 &&
+        pendingPersonaLeftRef.current
+      ) {
+        triggerPersonaLeft();
+      }
+      return;
+    }
+
     isPlayingRef.current = true;
+    setIsAISpeaking(true);
 
     const ctx = playbackCtxRef.current;
     if (!ctx || ctx.state === "closed") {
       isPlayingRef.current = false;
+      setIsAISpeaking(false);
       return;
     }
 
@@ -339,7 +372,13 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     }
 
     isPlayingRef.current = false;
-  }, []);
+    setIsAISpeaking(false);
+
+    // If the persona decided to leave while speaking, trigger it now that audio finished
+    if (pendingPersonaLeftRef.current && !isCleanedUpRef.current) {
+      triggerPersonaLeft();
+    }
+  }, [triggerPersonaLeft]);
 
   // Check if text contains a closing phrase
   const containsClosingPhrase = useCallback((text: string): boolean => {
@@ -413,27 +452,18 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       if (
         role === "model" &&
         !personaLeftRef.current &&
+        !pendingPersonaLeftRef.current &&
         containsClosingPhrase(mergedText)
       ) {
         console.log(
-          "[GeminiLive] Closing phrase detected in AI speech:",
+          "[GeminiLive] Closing phrase detected in AI speech. Deferring termination until audio finishes:",
           mergedText.substring(0, 80),
         );
-        personaLeftRef.current = true;
-        setPersonaLeft(true);
-        optionsRef.current.onPersonaLeft?.();
+        pendingPersonaLeftRef.current = true;
 
-        // Clear audio queue so the AI goes silent after the closing statement
-        audioQueueRef.current = [];
-        isPlayingRef.current = false;
-
-        // Stop sending mic audio
-        if (processorRef.current) {
-          try {
-            processorRef.current.disconnect();
-          } catch {
-            /* ignore */
-          }
+        // If not playing anything, trigger immediately
+        if (!isPlayingRef.current && audioQueueRef.current.length === 0) {
+          triggerPersonaLeft();
         }
       }
     },
@@ -522,6 +552,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       playSoundEffect("connecting");
       setPersonaLeft(false);
       personaLeftRef.current = false;
+      pendingPersonaLeftRef.current = false;
+      setIsAISpeaking(false);
 
       // Get access token and project info from Node.js backend
       const baseUrl =
@@ -713,20 +745,14 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             }
 
             if (call.name === "end_roleplay") {
-              console.log("!!! AI CALLED end_roleplay tool");
-              personaLeftRef.current = true;
-              setPersonaLeft(true);
-              optionsRef.current.onPersonaLeft?.();
+              console.log(
+                "!!! AI CALLED end_roleplay tool. Deferring until audio finishes.",
+              );
+              pendingPersonaLeftRef.current = true;
 
-              // Clear audio queue so the AI goes silent
-              audioQueueRef.current = [];
-              isPlayingRef.current = false;
-
-              // Stop mic
-              if (processorRef.current) {
-                try {
-                  processorRef.current.disconnect();
-                } catch {}
+              // If not playing, trigger immediately
+              if (!isPlayingRef.current && audioQueueRef.current.length === 0) {
+                triggerPersonaLeft();
               }
             }
 
@@ -1004,6 +1030,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     logManualInsight,
     getDuration,
     isRecording,
+    isAISpeaking,
     startRecording,
     stopRecording,
     getRecordingBlob,

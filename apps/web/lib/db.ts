@@ -12,7 +12,12 @@ import {
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  uploadString,
+} from "firebase/storage";
 import { db, storage } from "./firebase";
 import { v4 as uuidv4 } from "uuid";
 import type {
@@ -46,6 +51,7 @@ export interface Persona {
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female";
+  avatarUrl?: string;
   traits: {
     aggressiveness: number;
     interruptionFrequency: string;
@@ -182,6 +188,13 @@ export async function getAllPersonas(userId: string): Promise<Persona[]> {
 
 export async function deletePersona(id: string): Promise<void> {
   await deleteDoc(doc(db, "personas", id));
+}
+
+export async function updatePersona(
+  id: string,
+  updates: Partial<Persona>,
+): Promise<void> {
+  await updateDoc(doc(db, "personas", id), updates);
 }
 
 // ─── Session Operations (Legacy) ─────────────────────────────────────────
@@ -323,6 +336,18 @@ export async function uploadSessionAudio(
 ): Promise<string> {
   const fileRef = ref(storage, `recordings/${userId}/${sessionId}.webm`);
   await uploadBytes(fileRef, audioBlob);
+  return getDownloadURL(fileRef);
+}
+
+export async function uploadPersonaAvatar(
+  userId: string,
+  personaId: string,
+  base64DataUrl: string,
+): Promise<string> {
+  const fileRef = ref(storage, `avatars/${userId}/${personaId}.png`);
+  // Handle data:image/png;base64,... format
+  const format = "data_url";
+  await uploadString(fileRef, base64DataUrl, format);
   return getDownloadURL(fileRef);
 }
 

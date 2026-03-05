@@ -105,3 +105,19 @@ export async function generateProduct(data: {
   }
   return res.json();
 }
+
+export async function generatePersonaAvatar(data: {
+  gender: "male" | "female";
+  role: string;
+}) {
+  const res = await fetch(`${baseUrl}/api/persona/generate-avatar`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to generate persona avatar: ${res.statusText}`);
+  }
+  return res.json();
+}

@@ -17,7 +17,6 @@ import { subscribeProducts, subscribePersonas, deletePersona } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { RoleplaySession } from "@/components/roleplay-session";
 import { TrainingTrackSelector } from "@/components/training-track-selector";
-import { GenerationBanner } from "@/components/generation-banner";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import Link from "next/link";
 import type { TrainingTrackId } from "@reptrainer/shared";
@@ -140,7 +139,6 @@ export default function TrainPage() {
             onSkip={handleSkipTrack}
           />
         </div>
-        <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
       </>
     );
   }
@@ -156,7 +154,6 @@ export default function TrainPage() {
           scenarioId={selectedScenarioId ?? undefined}
           onBack={handleBackToConfig}
         />
-        <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
       </>
     );
   }
@@ -264,12 +261,26 @@ export default function TrainPage() {
                 <div className="flex items-end">
                   <Button
                     onClick={handleStartRoleplay}
-                    disabled={!selectedProductId || !selectedPersonaId}
+                    disabled={
+                      !selectedProductId ||
+                      !selectedPersonaId ||
+                      tasks.some(
+                        (t) =>
+                          t.personaId === selectedPersonaId &&
+                          t.status === "generating",
+                      )
+                    }
                     variant="brand"
                     className="h-12 min-w-[180px] px-4"
                   >
                     <Target className="mr-2 size-4" />
-                    Choose Track & Start
+                    {tasks.some(
+                      (t) =>
+                        t.personaId === selectedPersonaId &&
+                        t.status === "generating",
+                    )
+                      ? "Generating Avatar…"
+                      : "Choose Track & Start"}
                   </Button>
                 </div>
               </div>
@@ -277,8 +288,6 @@ export default function TrainPage() {
           </CardContent>
         </Card>
       </div>
-
-      <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
     </>
   );
 }
