@@ -668,9 +668,17 @@ ${trackPromptOverride}
         {/* Persona preview */}
         <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
           <div className="flex items-center gap-4">
-            <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
-              {persona.name.charAt(0)}
-            </div>
+            {persona.avatarUrl || avatarUrl ? (
+              <img
+                src={persona.avatarUrl || (avatarUrl as string) || undefined}
+                alt={persona.name}
+                className="bg-cream size-12 shrink-0 rounded-full object-cover shadow-sm"
+              />
+            ) : (
+              <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
+                {persona.name.charAt(0)}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <h3 className="text-charcoal truncate text-sm font-semibold">
                 {persona.name}
@@ -742,9 +750,17 @@ ${trackPromptOverride}
         {/* Persona preview */}
         <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
           <div className="flex items-center gap-4">
-            <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
-              {persona.name.charAt(0)}
-            </div>
+            {persona.avatarUrl || avatarUrl ? (
+              <img
+                src={persona.avatarUrl || (avatarUrl as string) || undefined}
+                alt={persona.name}
+                className="bg-cream size-12 shrink-0 rounded-full object-cover shadow-sm"
+              />
+            ) : (
+              <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
+                {persona.name.charAt(0)}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <h3 className="text-charcoal truncate text-sm font-semibold">
                 {persona.name}
@@ -904,9 +920,11 @@ ${trackPromptOverride}
                 {displayName.charAt(0).toUpperCase()}
               </div>
               <div className="bg-cream text-charcoal flex size-8 items-center justify-center overflow-hidden rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
-                {persona.avatarUrl ? (
+                {persona.avatarUrl || avatarUrl ? (
                   <img
-                    src={persona.avatarUrl}
+                    src={
+                      persona.avatarUrl || (avatarUrl as string) || undefined
+                    }
                     alt={persona.name}
                     className="h-full w-full object-cover"
                   />
@@ -939,8 +957,20 @@ ${trackPromptOverride}
               {/* Pre-call idle state */}
               {!isConnected && !isConnecting && !personaLeft && (
                 <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
-                  <div className="border-border/60 text-charcoal mb-4 flex size-24 items-center justify-center rounded-full border bg-white text-5xl font-bold shadow-sm sm:size-32">
-                    {persona.name.charAt(0)}
+                  <div className="border-border/60 text-charcoal mb-4 flex size-24 items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-sm sm:size-32">
+                    {persona.avatarUrl || avatarUrl ? (
+                      <img
+                        src={
+                          persona.avatarUrl ||
+                          (avatarUrl as string) ||
+                          undefined
+                        }
+                        alt={persona.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      persona.name.charAt(0)
+                    )}
                   </div>
                   <h3 className="text-charcoal mb-1 text-lg font-semibold">
                     Ready to start
@@ -973,9 +1003,13 @@ ${trackPromptOverride}
                 <div className="z-10 flex flex-col items-center justify-center">
                   <div className="border-border/60 text-charcoal relative flex size-32 items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-md sm:size-40">
                     <div className="from-cream flex size-full items-center justify-center bg-linear-to-br to-white">
-                      {avatarUrl ? (
+                      {persona.avatarUrl || avatarUrl ? (
                         <img
-                          src={avatarUrl}
+                          src={
+                            persona.avatarUrl ||
+                            (avatarUrl as string) ||
+                            undefined
+                          }
                           className="size-full object-cover"
                           alt={persona.name}
                         />

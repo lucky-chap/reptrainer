@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -11,10 +11,25 @@ import {
   Calendar,
   BarChart3,
   Award,
+  Mic2,
+  Timer,
+  Ghost,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { subscribeSessions } from "@/lib/db";
-import type { Session } from "@/lib/db";
+import {
+  subscribeSessions,
+  subscribeProducts,
+  subscribePersonas,
+} from "@/lib/db";
+import type { Session, Product, Persona } from "@/lib/db";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardHeader,
@@ -25,46 +40,116 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import {
+  calculateCompetencies,
+  calculateDynamics,
+  aggregateDynamics,
+  calculateCategoryScores,
+  getOverallScore,
+} from "@/lib/analytics-utils";
+import {
+  ResponsiveContainer,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+} from "recharts";
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [timeframe, setTimeframe] = useState<string>("all");
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>("all");
+  const [selectedProductId, setSelectedProductId] = useState<string>("all");
 
   useEffect(() => {
     if (!user) return;
 
     const timer = setTimeout(() => setLoading(false), 100);
 
-    const unsub = subscribeSessions(
+    const unsubSessions = subscribeSessions(
       user.uid,
       (data) => setSessions(data),
-      (err) => console.error("Analytics subscription error:", err),
+      (err) => console.error("Analytics sessions error:", err),
+    );
+
+    const unsubProducts = subscribeProducts(
+      user.uid,
+      (data) => setProducts(data),
+      (err) => console.error("Analytics products error:", err),
+    );
+
+    const unsubPersonas = subscribePersonas(
+      user.uid,
+      (data) => setPersonas(data),
+      (err) => console.error("Analytics personas error:", err),
     );
 
     return () => {
       clearTimeout(timer);
-      unsub();
+      unsubSessions();
+      unsubProducts();
+      unsubPersonas();
     };
   }, [user]);
 
-  // Compute Analytics
-  const evaluatedSessions = sessions.filter((s) => s.evaluation);
-  const totalSessions = sessions.length;
+  // Filter sessions
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((s) => {
+      // Timeframe filter
+      if (timeframe !== "all") {
+        const sessionDate = new Date(s.createdAt);
+        const now = new Date();
+        const days = parseInt(timeframe);
+        const cutoff = new Date(now.setDate(now.getDate() - days));
+        if (sessionDate < cutoff) return false;
+      }
 
-  const avgScores =
-    evaluatedSessions.length > 0
+      // Persona filter
+      if (selectedPersonaId !== "all" && s.personaId !== selectedPersonaId) {
+        return false;
+      }
+
+      // Product filter
+      if (selectedProductId !== "all" && s.productId !== selectedProductId) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [sessions, timeframe, selectedPersonaId, selectedProductId]);
+
+  // Compute Analytics based on filtered sessions
+  const evaluatedSessions = useMemo(
+    () => filteredSessions.filter((s) => s.evaluation),
+    [filteredSessions],
+  );
+  const totalSessions = filteredSessions.length;
+
+  const avgScores = useMemo(() => {
+    return evaluatedSessions.length > 0
       ? {
           overall: Math.round(
             evaluatedSessions.reduce((sum, s) => {
-              const e = s.evaluation!;
-              return (
-                sum +
-                (e.objectionHandlingScore +
-                  e.confidenceScore +
-                  e.clarityScore) /
-                  3
-              );
+              return sum + getOverallScore(s.evaluation);
             }, 0) / evaluatedSessions.length,
           ),
           objection: Math.round(
@@ -87,18 +172,48 @@ export default function AnalyticsPage() {
           ),
         }
       : { overall: 0, objection: 0, confidence: 0, clarity: 0 };
+  }, [evaluatedSessions]);
 
-  // Trend data (last 14 sessions)
-  const trendData = sessions
-    .slice(0, 14)
-    .reverse()
-    .map((s) => {
-      if (!s.evaluation) return 0;
-      const e = s.evaluation;
-      return Math.round(
-        (e.objectionHandlingScore + e.confidenceScore + e.clarityScore) / 3,
-      );
-    });
+  // Advanced Analytics Data
+  const competencyData = useMemo(
+    () => calculateCompetencies(filteredSessions),
+    [filteredSessions],
+  );
+  const dynamics = useMemo(
+    () => aggregateDynamics(filteredSessions),
+    [filteredSessions],
+  );
+  const personaScores = useMemo(
+    () => calculateCategoryScores(filteredSessions, "persona"),
+    [filteredSessions],
+  );
+  const productScores = useMemo(
+    () => calculateCategoryScores(filteredSessions, "product"),
+    [filteredSessions],
+  );
+
+  const talkRatioData = [
+    { name: "You", value: dynamics.talkToListenRatio.user, color: "#1A1A1A" },
+    { name: "Persona", value: dynamics.talkToListenRatio.ai, color: "#9CA3AF" },
+  ];
+
+  // Trend data
+  const trendData = useMemo(() => {
+    // If timeframe is "all", we might want to show more than 14 for the full view,
+    // but for performance trend chart 14-20 is usually a good range.
+    const limit = timeframe === "all" ? 20 : 14;
+    return filteredSessions
+      .slice(0, limit)
+      .reverse()
+      .map((s, i) => {
+        return {
+          name: i + 1,
+          score: getOverallScore(s.evaluation),
+          confidence: s.evaluation?.confidenceScore || 0,
+          clarity: s.evaluation?.clarityScore || 0,
+        };
+      });
+  }, [filteredSessions, timeframe]);
 
   if (loading) {
     return (
@@ -109,7 +224,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="animate-fade-up space-y-8">
+    <div className="animate-fade-up space-y-8 pb-10">
       {/* Header */}
       <div className="flex flex-col gap-4">
         <Button
@@ -133,6 +248,83 @@ export default function AnalyticsPage() {
             Track your journey from pitch to close. See how your skills have
             evolved across every roleplay session.
           </p>
+        </div>
+      </div>
+      {/* Filters Bar */}
+      <div className="border-border/40 flex flex-wrap items-center gap-4 rounded-2xl border bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Calendar className="text-warm-gray size-4" />
+          <span className="text-warm-gray text-xs font-bold tracking-wider uppercase">
+            Filters:
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {/* Timeframe Filter */}
+          <Select value={timeframe} onValueChange={setTimeframe}>
+            <SelectTrigger className="bg-cream/20 w-[140px] font-medium">
+              <SelectValue placeholder="Timeframe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="7">Last 7 Days</SelectItem>
+              <SelectItem value="30">Last 30 Days</SelectItem>
+              <SelectItem value="90">Last 90 Days</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Product Filter */}
+          <Select
+            value={selectedProductId}
+            onValueChange={setSelectedProductId}
+          >
+            <SelectTrigger className="bg-cream/20 w-[180px] font-medium">
+              <SelectValue placeholder="Select Product" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Products</SelectItem>
+              {products.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.companyName || p.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Persona Filter */}
+          <Select
+            value={selectedPersonaId}
+            onValueChange={setSelectedPersonaId}
+          >
+            <SelectTrigger className="bg-cream/20 w-[180px] font-medium">
+              <SelectValue placeholder="Select Persona" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Personas</SelectItem>
+              {personas.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {(timeframe !== "all" ||
+            selectedPersonaId !== "all" ||
+            selectedProductId !== "all") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setTimeframe("all");
+                setSelectedPersonaId("all");
+                setSelectedProductId("all");
+              }}
+              className="text-warm-gray hover:text-charcoal text-xs"
+            >
+              Clear Filters
+            </Button>
+          )}
         </div>
       </div>
 
@@ -167,7 +359,7 @@ export default function AnalyticsPage() {
 
       {/* Main Charts Section */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Trend Chart */}
+        {/* Progress Timeline */}
         <Card className="border-border/60 overflow-hidden bg-white shadow-none lg:col-span-2">
           <CardHeader className="border-border/40 bg-cream/20 border-b">
             <div className="flex items-center justify-between">
@@ -176,96 +368,76 @@ export default function AnalyticsPage() {
                   Progress Timeline
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Performance score over last {trendData.length} sessions
+                  Performance and sentiment trends over last {trendData.length}{" "}
+                  sessions
                 </CardDescription>
               </div>
               <BarChart3 className="text-warm-gray size-4" />
             </div>
           </CardHeader>
           <CardContent className="p-8">
-            {trendData.length > 0 ? (
-              <div className="space-y-3">
-                {/* Chart Area */}
-                <div className="relative">
-                  {/* Background Grid Lines */}
-                  <div className="pointer-events-none absolute inset-x-0 top-0 bottom-6 flex flex-col justify-between">
-                    {[10, 8, 6, 4, 2].map((level) => (
-                      <div key={level} className="flex items-center gap-2">
-                        <span className="text-warm-gray/30 w-5 text-right text-[9px] font-medium">
-                          {level}
-                        </span>
-                        <div className="border-border/30 flex-1 border-b border-dashed" />
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Bars */}
-                  <div className="flex h-64 items-end gap-2 pr-1 pl-8">
-                    {trendData.map((score, i) => (
-                      <div
-                        key={i}
-                        className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
-                      >
-                        {/* Always-visible Score */}
-                        <span
-                          className={cn(
-                            "text-[11px] font-bold transition-colors duration-300",
-                            score >= 8
-                              ? "text-charcoal"
-                              : score >= 5
-                                ? "text-warm-gray"
-                                : "text-warm-gray-light",
-                          )}
-                        >
-                          {score > 0 ? score : "–"}
-                        </span>
-
-                        {/* Thick Rounded Bar */}
-                        <div
-                          className={cn(
-                            "w-full max-w-10 rounded-lg transition-all duration-700 ease-out",
-                            "group-hover:scale-[1.05] group-hover:shadow-md",
-                            score >= 8
-                              ? "bg-charcoal"
-                              : score >= 5
-                                ? "bg-warm-gray"
-                                : "bg-cream-dark",
-                          )}
-                          style={{
-                            height: `${score > 0 ? Math.max((score / 10) * 100, 8) : 6}%`,
-                          }}
-                        />
-
-                        {/* Session Label */}
-                        <span className="text-warm-gray/40 text-[9px] font-medium tabular-nums">
-                          {i + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Legend */}
-                <div className="flex items-center justify-center gap-5 pt-1">
-                  <div className="flex items-center gap-1.5">
-                    <div className="bg-charcoal size-2.5 rounded-full" />
-                    <span className="text-warm-gray text-[10px] font-medium">
-                      Strong (8-10)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="bg-warm-gray size-2.5 rounded-full" />
-                    <span className="text-warm-gray text-[10px] font-medium">
-                      Average (5-7)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="bg-cream-dark size-2.5 rounded-full" />
-                    <span className="text-warm-gray text-[10px] font-medium">
-                      Needs Work (1-4)
-                    </span>
-                  </div>
-                </div>
+            {trendData.length > 1 ? (
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={trendData}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+                  >
+                    <XAxis
+                      dataKey="name"
+                      stroke="#9CA3AF"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      label={{
+                        value: "Last 14 Sessions",
+                        position: "insideBottom",
+                        offset: -10,
+                        fontSize: 10,
+                        fill: "#9CA3AF",
+                      }}
+                    />
+                    <YAxis
+                      domain={[0, 10]}
+                      stroke="#9CA3AF"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      label={{
+                        value: "Score",
+                        angle: -90,
+                        position: "insideLeft",
+                        fontSize: 10,
+                        fill: "#9CA3AF",
+                        offset: 10,
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#FFF",
+                        borderRadius: "12px",
+                        border: "1px solid #E5E7EB",
+                        fontSize: "12px",
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#1A1A1A"
+                      strokeWidth={3}
+                      dot={{ fill: "#1A1A1A", strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="confidence"
+                      stroke="#9CA3AF"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             ) : (
               <div className="border-border/40 flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed">
@@ -282,114 +454,311 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Skill Composition */}
+        {/* Competency Radar */}
         <Card className="border-border/60 bg-white shadow-none">
           <CardHeader>
-            <CardTitle className="text-base font-bold">Skill Mastery</CardTitle>
+            <CardTitle className="text-base font-bold">Skill Radar</CardTitle>
             <CardDescription className="text-xs">
-              Weighted averages
+              Holistic view of your sales competencies
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-8 pt-4">
-            <SkillMetric
-              label="Objection Handling"
-              score={avgScores.objection}
-              icon={Target}
-              color="bg-charcoal"
-            />
-            <SkillMetric
-              label="Confidence"
-              score={avgScores.confidence}
-              icon={Zap}
-              color="bg-warm-gray"
-            />
-            <SkillMetric
-              label="Clarity"
-              score={avgScores.clarity}
-              icon={TrendingUp}
-              color="bg-warm-gray-light"
-            />
-
-            {evaluatedSessions.length === 0 && (
-              <div className="pt-4 text-center">
-                <p className="text-warm-gray text-xs italic">
-                  Complete evaluated sessions to see your skill breakdown.
-                </p>
-              </div>
+          <CardContent className="flex h-[300px] items-center justify-center pt-4">
+            {competencyData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart
+                  cx="50%"
+                  cy="50%"
+                  outerRadius="70%"
+                  data={competencyData}
+                >
+                  <PolarGrid stroke="#E5E7EB" />
+                  <PolarAngleAxis
+                    dataKey="subject"
+                    tick={{ fill: "#4B5563", fontSize: 10 }}
+                  />
+                  <PolarRadiusAxis
+                    angle={30}
+                    domain={[0, 10]}
+                    axisLine={false}
+                    tick={false}
+                  />
+                  <Radar
+                    name="Mastery"
+                    dataKey="A"
+                    stroke="#1A1A1A"
+                    fill="#1A1A1A"
+                    fillOpacity={0.15}
+                  />
+                  <Tooltip />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-warm-gray text-xs italic">
+                Complete evaluated sessions to see your radar.
+              </p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Activity Table-ish */}
-      <Card className="border-border/60 bg-white shadow-none">
-        <CardHeader>
-          <CardTitle className="text-base font-bold">
-            Performance History
-          </CardTitle>
-          <CardDescription className="text-xs">
-            A detailed look at your last few sessions
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-border/40 border-b">
-                  <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
-                    Date
-                  </th>
-                  <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
-                    Focus Area
-                  </th>
-                  <th className="text-warm-gray/60 px-2 pb-4 text-right text-[10px] font-bold tracking-widest uppercase">
-                    Score
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-border/20 divide-y">
-                {sessions.slice(0, 5).map((session) => (
-                  <tr
-                    key={session.id}
-                    className="group hover:bg-cream/10 transition-colors"
-                  >
-                    <td className="text-charcoal px-2 py-4 text-sm font-medium">
-                      {new Date(session.createdAt).toLocaleDateString(
-                        undefined,
-                        { month: "short", day: "numeric", year: "numeric" },
-                      )}
-                    </td>
-                    <td className="px-2 py-4">
-                      <span className="text-warm-gray text-xs capitalize">
-                        {session.evaluation?.strengths[0] || "General Practice"}
-                      </span>
-                    </td>
-                    <td className="px-2 py-4 text-right">
-                      <span
-                        className={cn(
-                          "inline-flex size-8 items-center justify-center rounded-lg text-xs font-bold",
-                          session.evaluation
-                            ? "bg-charcoal text-cream"
-                            : "bg-cream-dark text-warm-gray",
-                        )}
-                      >
-                        {session.evaluation
-                          ? Math.round(
-                              (session.evaluation.objectionHandlingScore +
-                                session.evaluation.confidenceScore +
-                                session.evaluation.clarityScore) /
-                                3,
-                            )
-                          : "—"}
-                      </span>
-                    </td>
+      {/* Category Performance */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="border-border/60 bg-white shadow-none">
+          <CardHeader>
+            <CardTitle className="text-base font-bold">
+              Persona Performance
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Average score per persona
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-[250px] pt-4">
+            {personaScores.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={personaScores} layout="vertical">
+                  <XAxis type="number" domain={[0, 10]} hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={100}
+                    fontSize={10}
+                    tick={{ fill: "#4B5563" }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#FFF",
+                      borderRadius: "8px",
+                      border: "1px solid #E5E7EB",
+                      fontSize: "10px",
+                    }}
+                  />
+                  <Bar dataKey="score" fill="#1A1A1A" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-warm-gray text-xs italic">
+                No persona data available.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-white shadow-none">
+          <CardHeader>
+            <CardTitle className="text-base font-bold">
+              Product Performance
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Average score per product/category
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-[250px] pt-4">
+            {productScores.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={productScores} layout="vertical">
+                  <XAxis type="number" domain={[0, 10]} hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={100}
+                    fontSize={10}
+                    tick={{ fill: "#4B5563" }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#FFF",
+                      borderRadius: "8px",
+                      border: "1px solid #E5E7EB",
+                      fontSize: "10px",
+                    }}
+                  />
+                  <Bar dataKey="score" fill="#9CA3AF" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-warm-gray text-xs italic">
+                No product data available.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Conversational Dynamics & Performance History */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Conversational Dynamics */}
+        <Card className="border-border/60 bg-white shadow-none">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-bold">
+                  Conversational Dynamics
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Behavioral patterns
+                </CardDescription>
+              </div>
+              <Mic2 className="text-warm-gray size-4" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6 pt-2">
+            {/* Talk/Listen Pie Chart */}
+            <div className="flex items-center gap-6">
+              <div className="h-32 w-32 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={talkRatioData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={30}
+                      outerRadius={45}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {talkRatioData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-2">
+                <p className="text-warm-gray text-[10px] font-bold tracking-widest uppercase">
+                  Talk-to-Listen %
+                </p>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-charcoal block text-lg font-bold">
+                      {dynamics.talkToListenRatio.user}%
+                    </span>
+                    <span className="text-warm-gray text-[10px]">You</span>
+                  </div>
+                  <div>
+                    <span className="text-warm-gray-light block text-lg font-bold">
+                      {dynamics.talkToListenRatio.ai}%
+                    </span>
+                    <span className="text-warm-gray text-[10px]">Persona</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 border-t pt-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                  <Timer className="size-3" />
+                  AVG PACE
+                </div>
+                <p className="text-charcoal text-xl font-bold">
+                  {dynamics.paceWPM}{" "}
+                  <span className="text-xs font-normal text-gray-400">WPM</span>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                  <Ghost className="size-3" />
+                  FILLERS
+                </div>
+                <p className="text-charcoal text-xl font-bold">
+                  {dynamics.fillerWords}{" "}
+                  <span className="text-xs font-normal text-gray-400">
+                    /min
+                  </span>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                  <ShieldAlert className="size-3" />
+                  INTERRUPTS
+                </div>
+                <p className="text-charcoal text-xl font-bold">
+                  {dynamics.interruptions}{" "}
+                  <span className="text-xs font-normal text-gray-400">
+                    /call
+                  </span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Performance History */}
+        <Card className="border-border/60 bg-white shadow-none lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base font-bold">
+              Performance History
+            </CardTitle>
+            <CardDescription className="text-xs">
+              A detailed look at your last few sessions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-border/40 border-b">
+                    <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
+                      Date
+                    </th>
+                    <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
+                      Context
+                    </th>
+                    <th className="text-warm-gray/60 px-2 pb-4 text-right text-[10px] font-bold tracking-widest uppercase">
+                      Score
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                </thead>
+                <tbody className="divide-border/20 divide-y">
+                  {sessions.slice(0, 5).map((session) => (
+                    <tr
+                      key={session.id}
+                      className="group hover:bg-cream/10 transition-colors"
+                    >
+                      <td className="text-charcoal px-2 py-4 text-sm font-medium">
+                        {new Date(session.createdAt).toLocaleDateString(
+                          undefined,
+                          { month: "short", day: "numeric" },
+                        )}
+                      </td>
+                      <td className="px-2 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-charcoal text-xs font-medium">
+                            {session.personaName}
+                          </span>
+                          <span className="text-warm-gray text-[10px] italic">
+                            {session.evaluation?.strengths[0]?.slice(0, 30)}...
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-4 text-right">
+                        <span
+                          className={cn(
+                            "inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold",
+                            session.evaluation
+                              ? "bg-charcoal text-cream"
+                              : "bg-cream-dark text-warm-gray",
+                          )}
+                        >
+                          {session.evaluation
+                            ? Math.round(
+                                (session.evaluation.objectionHandlingScore +
+                                  session.evaluation.confidenceScore +
+                                  session.evaluation.clarityScore) /
+                                  3,
+                              )
+                            : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -422,40 +791,5 @@ function MetricCard({
         </p>
       </CardContent>
     </Card>
-  );
-}
-
-function SkillMetric({
-  label,
-  score,
-  icon: Icon,
-  color,
-}: {
-  label: string;
-  score: number;
-  icon: any;
-  color: string;
-}) {
-  return (
-    <div className="group space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-charcoal flex items-center gap-2 text-xs font-bold tracking-wide uppercase">
-          <Icon className="text-warm-gray group-hover:text-charcoal size-3.5 transition-colors" />
-          {label}
-        </span>
-        <span className="text-charcoal text-xs font-bold">
-          {score > 0 ? `${score}/10` : "—"}
-        </span>
-      </div>
-      <div className="bg-cream h-2 overflow-hidden rounded-full">
-        <div
-          className={cn(
-            "h-full rounded-full transition-all duration-1000 ease-out",
-            color,
-          )}
-          style={{ width: `${score * 10}%` }}
-        />
-      </div>
-    </div>
   );
 }

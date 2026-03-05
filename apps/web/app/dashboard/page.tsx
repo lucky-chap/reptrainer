@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Swords,
@@ -32,6 +32,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { getOverallScore } from "@/lib/analytics-utils";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from "recharts";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -90,19 +99,14 @@ export default function DashboardPage() {
   const totalSessions = sessions.length;
   const totalDuration = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
   const evaluatedSessions = sessions.filter((s) => s.evaluation);
-  const avgScore =
-    evaluatedSessions.length > 0
-      ? Math.round(
-          evaluatedSessions.reduce((sum, s) => {
-            const e = s.evaluation!;
-            return (
-              sum +
-              (e.objectionHandlingScore + e.confidenceScore + e.clarityScore) /
-                3
-            );
-          }, 0) / evaluatedSessions.length,
-        )
-      : 0;
+  const avgScore = useMemo(() => {
+    if (evaluatedSessions.length === 0) return 0;
+    return Math.round(
+      evaluatedSessions.reduce((sum, s) => {
+        return sum + getOverallScore(s.evaluation);
+      }, 0) / evaluatedSessions.length,
+    );
+  }, [evaluatedSessions]);
 
   const avgObjection =
     evaluatedSessions.length > 0
@@ -137,17 +141,19 @@ export default function DashboardPage() {
   // Recent sessions (last 7)
   const recentSessions = sessions.slice(0, 7);
 
-  // Week-over-week scores for chart
-  const weekScores = recentSessions
-    .slice()
-    .reverse()
-    .map((s) => {
-      if (!s.evaluation) return 0;
-      const e = s.evaluation;
-      return Math.round(
-        (e.objectionHandlingScore + e.confidenceScore + e.clarityScore) / 3,
-      );
-    });
+  // Trend data for chart (last 7 sessions)
+  const trendData = useMemo(() => {
+    return sessions
+      .slice(0, 7)
+      .reverse()
+      .map((s, i) => {
+        return {
+          name: i + 1,
+          score: getOverallScore(s.evaluation),
+          confidence: s.evaluation?.confidenceScore || 0,
+        };
+      });
+  }, [sessions]);
 
   if (loading) {
     return (
@@ -243,7 +249,7 @@ export default function DashboardPage() {
                 Performance Trend
               </CardTitle>
               <CardDescription className="text-xs">
-                Your last {weekScores.length} sessions
+                Your last {trendData.length} sessions
               </CardDescription>
             </div>
             <Button
@@ -261,89 +267,68 @@ export default function DashboardPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            {weekScores.length > 0 ? (
-              <div className="space-y-3">
-                {/* Chart Area */}
-                <div className="relative">
-                  {/* Background Grid Lines */}
-                  <div className="pointer-events-none absolute inset-x-0 top-0 bottom-6 flex flex-col justify-between">
-                    {[10, 8, 6, 4, 2].map((level) => (
-                      <div key={level} className="flex items-center gap-2">
-                        <span className="text-warm-gray/30 w-4 text-right text-[9px] font-medium">
-                          {level}
-                        </span>
-                        <div className="border-border/30 flex-1 border-b border-dashed" />
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Bars */}
-                  <div className="flex h-52 items-end gap-2 pr-1 pl-7">
-                    {weekScores.map((score, i) => (
-                      <div
-                        key={i}
-                        className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
-                      >
-                        {/* Always-visible Score */}
-                        <span
-                          className={cn(
-                            "text-[11px] font-bold transition-colors duration-300",
-                            score >= 8
-                              ? "text-charcoal"
-                              : score >= 5
-                                ? "text-warm-gray"
-                                : "text-warm-gray-light",
-                          )}
-                        >
-                          {score > 0 ? score : "–"}
-                        </span>
-
-                        {/* Thick Rounded Bar */}
-                        <div
-                          className={cn(
-                            "z-10 w-full max-w-10 rounded-lg transition-all duration-700 ease-out",
-                            "group-hover:scale-[1.05] group-hover:shadow-md",
-                            score >= 8
-                              ? "bg-charcoal"
-                              : score >= 5
-                                ? "bg-warm-gray"
-                                : "bg-cream-dark",
-                          )}
-                          style={{
-                            height: `${score > 0 ? Math.max((score / 10) * 100, 8) : 6}%`,
-                          }}
-                        />
-
-                        {/* Session Label */}
-                        <span className="text-warm-gray/40 text-[9px] font-medium tabular-nums">
-                          {i + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Legend */}
-                <div className="flex items-center justify-center gap-5 pt-1">
-                  <div className="flex items-center gap-1.5">
-                    <div className="bg-charcoal size-2.5 rounded-full" />
-                    <span className="text-warm-gray text-[10px] font-medium">
-                      Strong (8-10)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="bg-warm-gray size-2.5 rounded-full" />
-                    <span className="text-warm-gray text-[10px] font-medium">
-                      Average (5-7)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="bg-cream-dark size-2.5 rounded-full" />
-                    <span className="text-warm-gray text-[10px] font-medium">
-                      Needs Work (1-4)
-                    </span>
-                  </div>
-                </div>
+            {trendData.length > 1 ? (
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={trendData}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+                  >
+                    <XAxis
+                      dataKey="name"
+                      stroke="#9CA3AF"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      label={{
+                        value: "Session ID",
+                        position: "insideBottom",
+                        offset: -10,
+                        fontSize: 10,
+                        fill: "#9CA3AF",
+                      }}
+                    />
+                    <YAxis
+                      domain={[0, 10]}
+                      stroke="#9CA3AF"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      label={{
+                        value: "Score",
+                        angle: -90,
+                        position: "insideLeft",
+                        fontSize: 10,
+                        fill: "#9CA3AF",
+                        offset: 10,
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#FFF",
+                        borderRadius: "12px",
+                        border: "1px solid #E5E7EB",
+                        fontSize: "12px",
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#1A1A1A"
+                      strokeWidth={3}
+                      dot={{ fill: "#1A1A1A", strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="confidence"
+                      stroke="#9CA3AF"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             ) : (
               <div className="border-border/40 flex h-48 flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed">
@@ -405,14 +390,8 @@ export default function DashboardPage() {
                   const persona = personas.find(
                     (p) => p.id === session.personaId,
                   );
-                  const score = session.evaluation
-                    ? Math.round(
-                        (session.evaluation.objectionHandlingScore +
-                          session.evaluation.confidenceScore +
-                          session.evaluation.clarityScore) /
-                          3,
-                      )
-                    : null;
+                  const score = getOverallScore(session.evaluation);
+                  const hasEvaluation = !!session.evaluation;
 
                   return (
                     <div
@@ -441,7 +420,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       </div>
-                      {score !== null && (
+                      {hasEvaluation && (
                         <div className="shrink-0 text-right">
                           <span className="text-charcoal text-lg font-bold">
                             {score}

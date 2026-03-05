@@ -322,10 +322,18 @@ export function SessionResults({
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="bg-cream flex items-center gap-4 rounded-2xl p-4">
-                <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-xl text-xl font-bold">
-                  {persona?.name.charAt(0) ||
+                <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-xl font-bold">
+                  {persona?.avatarUrl || session.personaAvatarUrl ? (
+                    <img
+                      src={persona?.avatarUrl || session.personaAvatarUrl}
+                      alt={persona?.name || session.personaName || "Persona"}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    persona?.name.charAt(0) ||
                     session.personaName?.charAt(0) ||
-                    "?"}
+                    "?"
+                  )}
                 </div>
                 <div>
                   <h4 className="text-charcoal font-bold">
