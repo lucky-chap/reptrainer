@@ -198,7 +198,7 @@ export default function DashboardPage() {
             Here&apos;s how your sales training is progressing.
           </p>
         </div>
-        <Button asChild variant="brand" className="px-6">
+        <Button asChild variant="brand" className="h-12 px-6">
           <Link href="/dashboard/train" className="gap-2">
             <Swords className="size-4" />
             Start training
@@ -545,7 +545,7 @@ function QuickAction({
   description: string;
 }) {
   return (
-    <Link href={href} className="group block">
+    <Link href={href} className="group block h-12">
       <Card className="border-border/60 shadow-none transition-all duration-300 hover:shadow-lg">
         <CardContent className="p-6">
           <div className="flex items-start gap-4">

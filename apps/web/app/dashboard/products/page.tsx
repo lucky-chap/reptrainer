@@ -152,7 +152,7 @@ export default function ProductsPage() {
             if (showForm) setShowForm(false);
           }}
           variant={showCreator ? "brandOutline" : "brand"}
-          className="px-6"
+          className="h-12 px-6"
         >
           {showCreator ? (
             <>
@@ -200,7 +200,7 @@ export default function ProductsPage() {
                 onClick={handleAiGenerate}
                 disabled={isGenerating}
                 variant="brand"
-                className="w-full rounded-xl"
+                className="h-12 w-full rounded-xl"
               >
                 {isGenerating ? (
                   <>

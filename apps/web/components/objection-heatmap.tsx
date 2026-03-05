@@ -55,26 +55,41 @@ export function ObjectionHeatmap({
   };
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-6", className)}>
       <div className="flex items-center justify-between">
         <h3 className="text-charcoal flex items-center gap-2 text-sm font-bold">
           <Zap className="size-4 text-amber-500" />
           Objection Heatmap & Deal Autopsy
         </h3>
-        <span className="text-warm-gray text-[10px] font-bold tracking-widest uppercase">
-          {insights.length} Moments Logged
-        </span>
+        <div className="flex items-center gap-2">
+          <div className="bg-cream rounded-md border border-black/5 px-2 py-1 shadow-inner">
+            <span className="text-charcoal/70 text-[10px] font-bold tracking-widest uppercase">
+              {insights.length} Moments
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="relative h-12 w-full pt-4">
+      <div className="relative w-full pt-4 pb-2">
         {/* The Timeline Track */}
-        <div className="bg-cream border-border/40 relative h-3 w-full overflow-hidden rounded-full border shadow-inner">
+        <div className="bg-cream/50 relative h-4 w-full overflow-hidden rounded-full border border-black/5 shadow-inner">
           {/* Subtle gradient track */}
-          <div className="h-full w-full bg-linear-to-r from-emerald-500/5 via-amber-500/5 to-rose-500/5" />
+          <div className="h-full w-full bg-linear-to-r from-emerald-500/10 via-amber-500/10 to-rose-500/10" />
+          <div className="absolute inset-0 bg-linear-to-b from-black/2 to-transparent" />
+        </div>
+
+        {/* Duration Labels */}
+        <div className="mt-3 flex items-center justify-between px-1">
+          <span className="text-charcoal/40 text-[10px] font-bold tracking-wider">
+            0:00
+          </span>
+          <span className="text-charcoal/40 text-[10px] font-bold tracking-wider">
+            {formatTime(durationSeconds)}
+          </span>
         </div>
 
         {/* Markers */}
-        <TooltipProvider>
+        <TooltipProvider delayDuration={100}>
           {insights.map((marker, i) => {
             const position = (marker.timestamp / durationSeconds) * 100;
             const colorClass = getMarkerColor(marker.insight);
@@ -85,37 +100,56 @@ export function ObjectionHeatmap({
                   <button
                     onClick={() => onSeek?.(marker.timestamp)}
                     className={cn(
-                      "group absolute top-1.5 flex h-6 w-1.5 -translate-x-1/2 flex-col items-center gap-1 transition-all hover:scale-x-150 active:scale-95",
+                      "group absolute top-1.5 flex h-9 w-4 -translate-x-1/2 flex-col items-center justify-center transition-all hover:z-20 focus:outline-hidden",
                     )}
                     style={{
-                      left: `${Math.min(Math.max(position, 0.5), 99.5)}%`,
+                      left: `${Math.min(Math.max(position, 1), 99)}%`,
                     }}
                   >
                     <div
                       className={cn(
-                        "size-full rounded-full border shadow-sm transition-colors",
+                        "h-full w-1.5 rounded-full border shadow-sm transition-all duration-300 group-hover:w-2 group-hover:scale-110",
                         colorClass,
                       )}
                     />
-                    <div className="bg-charcoal/10 size-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100" />
+                    {/* Hover Glow */}
+                    <div
+                      className={cn(
+                        "absolute -inset-2 rounded-full opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-40",
+                        colorClass.split(" ")[0], // extract bg color for glow
+                      )}
+                    />
+                    {/* Timestamp Label */}
+                    <span className="text-charcoal/40 group-hover:text-charcoal/70 absolute top-full mt-1.5 text-[9px] font-bold tracking-wider whitespace-nowrap transition-colors duration-300">
+                      {formatTime(marker.timestamp)}
+                    </span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent
                   side="top"
-                  className="bg-charcoal border-charcoal max-w-[240px] px-3 py-2 text-white shadow-xl"
+                  sideOffset={12}
+                  className="bg-charcoal border-charcoal/10 max-w-[260px] rounded-xl px-4 py-3 text-white shadow-2xl"
                 >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-1">
-                      <span className="text-[9px] font-bold tracking-widest text-white/50 uppercase">
-                        {formatTime(marker.timestamp)}
-                      </span>
-                      <Info className="size-3 text-white/30" />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={cn(
+                            "size-2 rounded-full",
+                            colorClass.split(" ")[0],
+                          )}
+                        />
+                        <span className="text-[10px] font-bold tracking-widest text-white/70 uppercase">
+                          {formatTime(marker.timestamp)}
+                        </span>
+                      </div>
+                      <Info className="size-3 text-white/40" />
                     </div>
-                    <p className="text-xs leading-relaxed font-medium">
+                    <p className="text-xs leading-relaxed font-medium text-white/90">
                       {marker.insight}
                     </p>
-                    <p className="text-[10px] text-white/40 italic">
-                      Click to replay audio from this moment
+                    <p className="pt-1 text-[10px] text-white/40 italic">
+                      Click to jump to this moment in the audio
                     </p>
                   </div>
                 </TooltipContent>
@@ -123,14 +157,6 @@ export function ObjectionHeatmap({
             );
           })}
         </TooltipProvider>
-
-        {/* Duration Labels */}
-        <div className="mt-2 flex items-center justify-between px-1">
-          <span className="text-warm-gray text-[10px] font-medium">0:00</span>
-          <span className="text-warm-gray text-[10px] font-medium">
-            {formatTime(durationSeconds)}
-          </span>
-        </div>
       </div>
     </div>
   );

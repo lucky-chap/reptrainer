@@ -27,7 +27,7 @@ const EVALUATION_MODEL = GEMINI_EVALUATION_MODEL; // Stable Vertex model
  * Extracts JSON from a potentially markdown-wrapped AI response.
  */
 function extractJson(text: string): string | null {
-  const match = text.match(/\{[\s\S]*\}/);
+  const match = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
   return match ? match[0] : null;
 }
 

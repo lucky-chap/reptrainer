@@ -196,7 +196,7 @@ export default function PersonasPage() {
             if (showForm) setShowForm(false);
           }}
           variant={showCreator ? "brandOutline" : "brand"}
-          className="px-6"
+          className="h-12 px-6"
         >
           {showCreator ? (
             <>
@@ -238,7 +238,7 @@ export default function PersonasPage() {
                   <p className="text-warm-gray mb-6 text-sm font-medium">
                     Add a product first to generate personas.
                   </p>
-                  <Button asChild variant="brandOutline">
+                  <Button asChild variant="brandOutline" className="h-12">
                     <Link href="/dashboard/products">Add a product</Link>
                   </Button>
                 </div>

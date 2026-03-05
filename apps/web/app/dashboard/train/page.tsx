@@ -225,10 +225,10 @@ function TrainPageContent() {
                   session.
                 </p>
                 <div className="flex items-center justify-center gap-4">
-                  <Button asChild variant="brand" className="px-6">
+                  <Button asChild variant="brand" className="h-12 px-6">
                     <Link href="/dashboard/products">Manage Products</Link>
                   </Button>
-                  <Button asChild variant="brandOutline" className="px-6">
+                  <Button asChild variant="brandOutline" className="h-12 px-6">
                     <Link href="/dashboard/personas">Manage Personas</Link>
                   </Button>
                 </div>

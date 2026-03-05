@@ -31,9 +31,10 @@ export function CoachDebrief({
   onClose,
 }: CoachDebriefProps) {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentSlide = slides[currentSlideIndex];
 
@@ -41,6 +42,7 @@ export function CoachDebrief({
     if (currentSlideIndex < slides.length - 1) {
       setCurrentSlideIndex((prev) => prev + 1);
       setProgress(0);
+      setIsPlaying(true);
     } else {
       onClose();
     }
@@ -50,25 +52,54 @@ export function CoachDebrief({
     if (currentSlideIndex > 0) {
       setCurrentSlideIndex((prev) => prev - 1);
       setProgress(0);
+      setIsPlaying(true);
     }
   }, [currentSlideIndex]);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.src = `data:audio/mp3;base64,${audioBase64[currentSlideIndex]}`;
-      if (isPlaying) {
-        audioRef.current.play().catch(console.error);
+    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    const base64 = audioBase64[currentSlideIndex];
+
+    // Reset state for new slide
+    audio.pause();
+    setProgress(0);
+
+    if (base64) {
+      audio.src = `data:audio/mpeg;base64,${base64}`;
+      audio.load();
+
+      if (hasInteracted && isPlaying) {
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            if (err.name !== "AbortError") {
+              console.error("Audio playback error:", err);
+              setIsPlaying(false);
+            }
+          });
+        }
+      }
+    } else {
+      audio.removeAttribute("src");
+      audio.load();
+      // No audio fallback
+      if (hasInteracted && isPlaying) {
+        const timer = setTimeout(() => handleNext(), 5000);
+        return () => clearTimeout(timer);
       }
     }
-  }, [currentSlideIndex, audioBase64, isPlaying]);
+  }, [currentSlideIndex, audioBase64, hasInteracted, isPlaying, handleNext]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const updateProgress = () => {
-      const p = (audio.currentTime / audio.duration) * 100;
-      setProgress(p || 0);
+      if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+        const p = (audio.currentTime / audio.duration) * 100;
+        setProgress(p || 0);
+      }
     };
 
     const handleEnded = () => {
@@ -85,18 +116,58 @@ export function CoachDebrief({
   }, [handleNext]);
 
   const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
+    if (!audioRef.current) return;
+
+    if (!hasInteracted) {
+      setHasInteracted(true);
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      const base64 = audioBase64[currentSlideIndex];
+      if (base64) {
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            if (err.name !== "AbortError") {
+              console.error(err);
+            }
+          });
+        }
       }
-      setIsPlaying(!isPlaying);
+      setIsPlaying(true);
+    }
+  };
+
+  const handleStartInteraction = () => {
+    setHasInteracted(true);
+    setIsPlaying(true);
+    if (audioRef.current && audioBase64[currentSlideIndex]) {
+      audioRef.current.play().catch((e) => {
+        if (e?.name !== "AbortError") console.error(e);
+      });
     }
   };
 
   return (
     <div className="bg-charcoal text-cream animate-in fade-in fixed inset-0 z-[100] flex flex-col items-center justify-center duration-500">
+      {!hasInteracted && (
+        <div
+          className="bg-charcoal/80 absolute inset-0 z-[200] flex cursor-pointer items-center justify-center backdrop-blur-sm transition-opacity duration-300"
+          onClick={handleStartInteraction}
+        >
+          <div className="animate-in zoom-in-95 flex flex-col items-center gap-6 duration-500">
+            <div className="bg-cream text-charcoal shadow-cream/20 flex size-20 items-center justify-center rounded-full shadow-2xl transition-transform hover:scale-105">
+              <Play className="ml-1 size-8" />
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight">
+              Click anywhere to start debrief
+            </h2>
+          </div>
+        </div>
+      )}
       {/* Background Decor */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-10">
         <div className="bg-cream/20 absolute -top-1/4 -left-1/4 h-1/2 w-1/2 rounded-full blur-[120px]" />
@@ -143,9 +214,14 @@ export function CoachDebrief({
       </div>
 
       {/* Content Area */}
-      <div className="z-10 flex w-full max-w-4xl flex-col items-center gap-12 px-8 md:flex-row">
+      <div
+        className={cn(
+          "relative z-10 flex w-full max-w-4xl flex-col items-center gap-8 px-4 py-24 transition-all duration-1000 sm:gap-12 sm:px-8 md:flex-row md:py-0",
+          !hasInteracted && "scale-95 opacity-20 blur-sm",
+        )}
+      >
         {/* Visual Component */}
-        <div className="group flex aspect-square w-full items-center justify-center overflow-hidden rounded-[40px] border border-white/5 bg-white/5 shadow-2xl md:w-1/2">
+        <div className="group flex aspect-square w-full shrink-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/5 bg-white/5 shadow-2xl sm:w-2/3 sm:rounded-[40px] md:w-1/2">
           <VisualDiagram
             type={currentSlide.type}
             description={currentSlide.visual}
@@ -153,52 +229,57 @@ export function CoachDebrief({
         </div>
 
         {/* Text Area */}
-        <div className="w-full space-y-8 md:w-1/2">
-          <div className="space-y-4">
+        <div className="flex w-full flex-col justify-center space-y-6 sm:space-y-8 md:w-1/2">
+          <div className="space-y-3 sm:space-y-4">
             <span className="inline-block rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold tracking-[0.2em] uppercase opacity-70">
               {currentSlide.type}
             </span>
-            <h1 className="heading-serif animate-in slide-in-from-bottom-4 text-4xl leading-tight font-bold duration-700 md:text-5xl lg:text-6xl">
+            <h1 className="heading-serif animate-in slide-in-from-bottom-4 text-3xl leading-tight font-bold duration-700 sm:text-4xl md:text-5xl lg:text-6xl">
               {currentSlide.title}
             </h1>
           </div>
 
           <div className="relative">
-            <div className="absolute top-0 bottom-0 -left-6 w-1 overflow-hidden rounded-full bg-white/10">
+            <div className="absolute top-0 bottom-0 -left-4 w-1 overflow-hidden rounded-full bg-white/10 sm:-left-6">
               <div
                 className="bg-cream w-full rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)] transition-all duration-300 ease-linear"
                 style={{ height: `${progress}%` }}
               />
             </div>
-            <p className="animate-in fade-in text-xl leading-relaxed font-medium italic opacity-80 delay-300 duration-1000 md:text-2xl">
+            <p className="animate-in fade-in text-lg leading-relaxed font-medium italic opacity-80 delay-300 duration-1000 sm:text-xl md:text-2xl">
               &quot;{currentSlide.narration}&quot;
             </p>
           </div>
 
-          <div className="flex items-center gap-6 pt-4">
+          <div className="flex items-center gap-4 pt-2 sm:gap-6 sm:pt-4">
             <Button
               onClick={togglePlay}
-              className="bg-cream text-charcoal group size-14 rounded-full shadow-lg transition-all hover:bg-white active:scale-95"
+              className="bg-cream text-charcoal group relative z-10 size-12 shrink-0 rounded-full shadow-lg transition-all hover:bg-white active:scale-95 sm:size-14"
             >
               {isPlaying ? (
-                <Pause className="fill-charcoal size-6" />
+                <Pause className="fill-charcoal size-5 sm:size-6" />
               ) : (
-                <Play className="fill-charcoal ml-1 size-6" />
+                <Play className="fill-charcoal ml-1 size-5 sm:size-6" />
               )}
             </Button>
 
-            <div className="flex h-1 flex-1 items-center gap-2 overflow-hidden rounded-full bg-white/10">
+            <div className="flex h-1 min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-full bg-white/10 sm:gap-2">
               {slides.map((_, i) => (
                 <div
                   key={i}
                   className={cn(
-                    "h-full rounded-full transition-all duration-500",
+                    "h-full cursor-pointer rounded-full transition-all duration-500 hover:bg-white/40",
                     i < currentSlideIndex
                       ? "bg-cream flex-[2]"
                       : i === currentSlideIndex
                         ? "bg-cream flex-[4] shadow-[0_0_8px_rgba(255,255,255,0.4)]"
                         : "flex-1 bg-white/10",
                   )}
+                  onClick={() => {
+                    setCurrentSlideIndex(i);
+                    setProgress(0);
+                    if (hasInteracted) setIsPlaying(true);
+                  }}
                 />
               ))}
             </div>
@@ -207,29 +288,21 @@ export function CoachDebrief({
       </div>
 
       {/* Footer Controls */}
-      <div className="absolute right-0 bottom-12 left-0 flex justify-center gap-4 px-8">
+      <div className="from-charcoal via-charcoal/80 absolute right-0 bottom-4 left-0 z-20 flex justify-center gap-3 bg-linear-to-t to-transparent px-4 pt-12 pb-4 sm:bottom-6 sm:gap-4 sm:px-8">
         <Button
-          variant="outline"
+          variant="brandOutline"
           onClick={handlePrev}
           disabled={currentSlideIndex === 0}
-          className="h-14 rounded-2xl border-white/10 px-8 text-white/60 hover:bg-white/5 hover:text-white"
+          className="h-10 rounded-xl border-white/10 px-4 text-white/60 hover:bg-white/5 hover:text-white sm:h-12 sm:rounded-2xl sm:px-8"
         >
           Previous
         </Button>
         <Button
           onClick={handleNext}
-          className="h-14 gap-3 rounded-2xl bg-white/10 px-8 text-white hover:bg-white/20"
+          className="h-10 gap-2 rounded-xl bg-white/10 px-6 text-white hover:bg-white/20 sm:h-12 sm:gap-3 sm:rounded-2xl sm:px-8"
         >
           {currentSlideIndex === slides.length - 1 ? "Finish" : "Next Slide"}
-          <ChevronRight className="size-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={onClose}
-          className="gap-2 text-white/40 hover:bg-transparent hover:text-white/80"
-        >
-          <SkipForward className="size-4" />
-          Skip Presentation
+          <ChevronRight className="size-4 sm:size-5" />
         </Button>
       </div>
 

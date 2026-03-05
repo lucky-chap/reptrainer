@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Clock,
   RotateCcw,
+  Trash2,
   Download,
   Headphones,
   Zap,
@@ -112,6 +113,7 @@ export function SessionResults({
   const [debriefData, setDebriefData] = useState<any>(session.debrief || null);
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
   const [showDebrief, setShowDebrief] = useState(false);
+  const [isDeletingDebrief, setIsDeletingDebrief] = useState(false);
 
   const handleGenerateDebrief = async () => {
     if (generatingDebrief) return;
@@ -222,7 +224,7 @@ export function SessionResults({
         </Button>
         <Button
           onClick={onBack}
-          className="bg-charcoal text-cream hover:bg-charcoal/90 rounded-full px-6"
+          className="bg-charcoal text-cream hover:bg-charcoal/90 h-12 rounded-full px-6"
         >
           <RotateCcw className="mr-2 h-4 w-4" />
           New Roleplay Session
@@ -464,6 +466,44 @@ export function SessionResults({
                     <Sparkles className="size-3.5 text-amber-500" />
                     Coach Debrief
                   </h5>
+                  {debriefData && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={isDeletingDebrief}
+                      onClick={async () => {
+                        setIsDeletingDebrief(true);
+                        try {
+                          const updatedSession = { ...session };
+                          // Remove debrief internally
+                          delete updatedSession.debrief;
+                          await Promise.all([
+                            saveSession(updatedSession),
+                            // Pass null to clear out the field or remove it from the backend
+                            updateCallSession(session.id, {
+                              debrief: null as any,
+                            }).catch(() => {}), // use as any in case typing complains
+                          ]);
+                          setDebriefData(null);
+                        } finally {
+                          setIsDeletingDebrief(false);
+                        }
+                      }}
+                      className="h-7 px-2 text-xs text-rose-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                    >
+                      {isDeletingDebrief ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="mr-1.5 h-3 w-3" />
+                          Delete
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
 
                 {debriefData ? (

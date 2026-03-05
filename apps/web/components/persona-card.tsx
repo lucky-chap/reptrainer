@@ -111,11 +111,11 @@ export function PersonaCard({
           "{persona.objectionStrategy}"
         </p>
       </CardContent>
-      <CardFooter className="px-6 pt-2 pb-6">
+      <CardFooter className="px-6">
         <Button
           asChild
           variant="brand"
-          className="shadow-charcoal/10 group/btn w-full rounded-xl transition-all hover:shadow-lg"
+          className="shadow-charcoal/10 group/btn h-12 w-full rounded-full transition-all hover:shadow-lg"
         >
           <Link href={`/dashboard/train?personaId=${persona.id}`}>
             Start Roleplay

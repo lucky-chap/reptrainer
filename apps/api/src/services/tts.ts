@@ -1,4 +1,5 @@
 import { TextToSpeechClient } from "@google-cloud/text-to-speech";
+import { protos } from "@google-cloud/text-to-speech";
 import { env } from "../config/env.js";
 
 const client = new TextToSpeechClient();
@@ -7,11 +8,12 @@ const client = new TextToSpeechClient();
  * Synthesizes speech from text and returns a base64 encoded MP3 string.
  */
 export async function synthesizeSpeech(text: string): Promise<string> {
-  const request = {
-    input: { text },
-    voice: { languageCode: "en-US", ssmlGender: "NEUTRAL" as const },
-    audioConfig: { audioEncoding: "MP3" as const },
-  };
+  const request: protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest =
+    {
+      input: { text },
+      voice: { languageCode: "en-US", ssmlGender: "NEUTRAL" as const },
+      audioConfig: { audioEncoding: "MP3" as const },
+    };
 
   try {
     const [response] = await client.synthesizeSpeech(request);
