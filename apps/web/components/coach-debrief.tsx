@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { DebriefSlide } from "@reptrainer/shared";
+import Image from "next/image";
 
 interface CoachDebriefProps {
   slides: DebriefSlide[];
@@ -266,7 +267,7 @@ export function CoachDebrief({
             variant="ghost"
             size="icon"
             onClick={() => setIsMuted(!isMuted)}
-            className="rounded-full hover:bg-white/10"
+            className="rounded-full p-5 hover:bg-white/10 hover:text-zinc-300"
           >
             {isMuted ? (
               <VolumeX className="size-5" />
@@ -278,7 +279,7 @@ export function CoachDebrief({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="rounded-full hover:bg-white/10"
+            className="rounded-full p-5 hover:bg-white/10 hover:text-zinc-300"
           >
             <X className="size-6" />
           </Button>
@@ -288,12 +289,12 @@ export function CoachDebrief({
       {/* Content Area */}
       <div
         className={cn(
-          "relative z-10 flex w-full max-w-4xl flex-col items-center gap-8 px-4 py-24 transition-all duration-1000 sm:gap-12 sm:px-8 md:flex-row md:py-0",
+          "relative z-10 flex w-full max-w-400 flex-col items-center gap-12 px-4 py-24 transition-all duration-1000 sm:px-8 md:flex-row md:py-0",
           !hasInteracted && "scale-95 opacity-20 blur-sm",
         )}
       >
         {/* Visual Component */}
-        <div className="group flex aspect-square w-full shrink-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/5 bg-white/5 shadow-2xl sm:w-2/3 sm:rounded-[40px] md:w-1/2">
+        <div className="group flex aspect-video w-full shrink-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/5 bg-white/5 shadow-2xl sm:rounded-[40px] md:w-3/5">
           <VisualDiagram
             type={currentSlide.type}
             description={currentSlide.visual}
@@ -302,24 +303,24 @@ export function CoachDebrief({
         </div>
 
         {/* Text Area */}
-        <div className="flex w-full flex-col justify-center space-y-6 sm:space-y-8 md:w-1/2">
+        <div className="flex w-full flex-col justify-center space-y-8 sm:space-y-10 md:w-2/5 md:pl-8">
           <div className="space-y-3 sm:space-y-4">
             <span className="inline-block rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold tracking-[0.2em] uppercase opacity-70">
               {currentSlide.type}
             </span>
-            <h1 className="heading-serif animate-in slide-in-from-bottom-4 text-3xl leading-tight font-bold duration-700 sm:text-4xl md:text-5xl lg:text-6xl">
+            <h1 className="heading-serif animate-in slide-in-from-bottom-4 text-3xl leading-tight font-bold duration-700 sm:text-4xl">
               {currentSlide.title}
             </h1>
           </div>
 
           <div className="relative">
-            <div className="absolute top-0 bottom-0 -left-4 w-1 overflow-hidden rounded-full bg-white/10 sm:-left-6">
+            <div className="absolute top-0 bottom-0 -left-2 w-1 overflow-hidden rounded-full bg-white/10 sm:-left-4 sm:-left-6">
               <div
                 className="bg-cream w-full rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)] transition-all duration-300 ease-linear"
                 style={{ height: `${progress}%` }}
               />
             </div>
-            <p className="animate-in fade-in text-lg leading-relaxed font-medium italic opacity-80 delay-300 duration-1000 sm:text-xl md:text-2xl">
+            <p className="animate-in fade-in ml-2 text-sm leading-relaxed font-medium italic opacity-85 delay-300 duration-1000 sm:ml-0 sm:text-xl md:text-2xl">
               &quot;{currentSlide.narration}&quot;
             </p>
           </div>
@@ -336,16 +337,16 @@ export function CoachDebrief({
               )}
             </Button>
 
-            <div className="flex h-1 min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-full bg-white/10 sm:gap-2">
+            <div className="flex h-1 min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-full sm:gap-2">
               {slides.map((_, i) => (
                 <div
                   key={i}
                   className={cn(
                     "h-full cursor-pointer rounded-full transition-all duration-500 hover:bg-white/40",
                     i < currentSlideIndex
-                      ? "bg-cream flex-[2]"
+                      ? "bg-cream flex-2"
                       : i === currentSlideIndex
-                        ? "bg-cream flex-[4] shadow-[0_0_8px_rgba(255,255,255,0.4)]"
+                        ? "bg-cream flex-4 shadow-[0_0_8px_rgba(255,255,255,0.4)]"
                         : "flex-1 bg-white/10",
                   )}
                   onClick={() => {
@@ -401,12 +402,14 @@ function VisualDiagram({
 }) {
   if (visualUrl) {
     return (
-      <div className="relative flex h-full w-full items-center justify-center p-6 sm:p-12">
+      <div className="relative flex h-full w-full items-center justify-center p-2 sm:p-4 md:p-6">
         <div className="absolute inset-0 bg-linear-to-br from-white/5 to-transparent opacity-50" />
-        <img
+        <Image
           src={visualUrl}
           alt={description}
-          className="animate-in fade-in zoom-in z-10 max-h-full max-w-full rounded-2xl border border-white/10 shadow-2xl duration-1000"
+          className="animate-in fade-in z-10 h-full w-full rounded-2xl border border-white/10 object-cover shadow-2xl duration-1000"
+          width={1000}
+          height={1000}
         />
       </div>
     );

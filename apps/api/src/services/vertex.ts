@@ -172,7 +172,7 @@ export function getLiveSetupConfig(
     setup: {
       model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
       generation_config: {
-        response_modalities: ["AUDIO"],
+        response_modalities: ["AUDIO", "TEXT"],
         speech_config: {
           voice_config: {
             prebuilt_voice_config: {

@@ -736,10 +736,15 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
 
           for (const call of calls) {
             if (call.name === "log_sales_insight") {
-              console.log("!!! SALES INSIGHT LOGGED:", call.args);
+              const insightContent = call.args.insight;
+              const insightTime = call.args.timestamp || getDuration();
+              console.log("[VertexAI] 💡 INSIGHT LOGGED:", {
+                insight: insightContent,
+                timestamp: insightTime,
+              });
               const newInsight: SalesInsight = {
-                insight: call.args.insight,
-                timestamp: call.args.timestamp || getDuration(),
+                insight: insightContent,
+                timestamp: insightTime,
               };
               setInsights((prev) => [...prev, newInsight]);
             }

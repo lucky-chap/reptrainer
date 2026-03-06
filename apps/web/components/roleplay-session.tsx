@@ -96,7 +96,7 @@ export function RoleplaySession({
   const [warningShown, setWarningShown] = useState(false);
   const [callSessionId] = useState(() => uuidv4());
   const [inputLocked, setInputLocked] = useState(false);
-  const [coachMode, setCoachMode] = useState(false);
+  const [coachMode, setCoachMode] = useState(true);
   const [showDebrief, setShowDebrief] = useState(false);
   const [debriefData, setDebriefData] = useState<CoachDebriefResponse | null>(
     null,
@@ -202,7 +202,7 @@ ${trackPromptOverride}
 - You are the BUYER, not the sales rep. Do not pitch for them or fill in gaps they should address.
 
 ─── SALES COACHING & INSIGHTS (SILENT) ───
-1. **AUTONOMOUS LOGGING**: As the meeting progresses, identify 3-5 key moments where the rep shows a specific strength or a clear area for improvement (e.g., "Handled the price objection with ROI data" or "Avoided the direct question about security"). Call "log_sales_insight" IMMEDIATELY when these moments occur.
+1. **AUTONOMOUS LOGGING**: You are a world-class sales coach. As the meeting progresses, actively identify 3-5 key moments where the rep shows a specific strength or a clear area for improvement (e.g., "Handled the price objection with ROI data" or "Avoided the direct question about security"). Call "log_sales_insight" IMMEDIATELY when these moments occur. Do NOT wait for silence. These insights are your primary way of providing real-time coaching.
 2. **BUTTON TRIGGERS**: If you receive "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]", IMMEDIATELY call "log_sales_insight" with a summary of the rep's most recent performance. Do this SILENTLY; do not break character.
 3. **VOCAL CUES**: If the rep says "Remember this" or "Log that", call the tool and acknowledge them briefly in character (e.g., "Noted. Now, about your implementation timeline...").
 4. **ENDING THE MEETING**: When you decide to wrap up and leave the meeting (as described in section 5 of BEHAVIOR RULES), you MUST:
@@ -277,14 +277,19 @@ ${trackPromptOverride}
   useEffect(() => {
     if (insights && insights.length > 0) {
       const last = insights[insights.length - 1];
-      if (last.timestamp !== latestInsight?.timestamp) {
+      // Use both timestamp AND content to detect new insights
+      if (
+        last.timestamp !== latestInsight?.timestamp ||
+        last.insight !== latestInsight?.insight
+      ) {
         setLatestInsight(last);
         setShowHUD(true);
 
         if (hudTimeoutRef.current) clearTimeout(hudTimeoutRef.current);
         hudTimeoutRef.current = setTimeout(() => {
           setShowHUD(false);
-        }, 8000); // Show for 8 seconds
+          hudTimeoutRef.current = null;
+        }, 10000); // Show for 10 seconds for better readability
       }
     }
   }, [insights, latestInsight]);
