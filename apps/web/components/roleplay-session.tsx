@@ -41,6 +41,7 @@ import {
 } from "@/app/actions/api";
 import { useAuth } from "@/context/auth-context";
 import { CoachDebrief } from "@/components/coach-debrief";
+import { updateUserMetrics } from "@/lib/progress-service";
 import {
   CALL_DURATION_DEFAULT,
   CALL_WARNING_THRESHOLD_SECONDS,
@@ -155,6 +156,7 @@ You continuously evaluate the sales rep for:
 ─── BEHAVIOR RULES ───
 
 1. INTERRUPT the rep if:
+   - **MANDATORY**: You MUST interrupt the rep at least once (preferably early or mid-call) to clarify a claim or push back on a vague point. Jump in mid-sentence if they make a big promise.
    - They avoid answering your question.
    - They speak vaguely or use buzzwords without substance.
    - They show uncertainty or hedge excessively.
@@ -558,6 +560,20 @@ ${trackPromptOverride}
       setLoadingProgress(100);
       setSavedSession(session);
       setFeedbackReport(feedbackResult);
+
+      // ─── Update User Metrics ──────────────────────────────────────────
+      if (user) {
+        // Construct a CallSession-like object for metrics update
+        const callSessionData = {
+          ...session,
+          transcriptMessages: transcript,
+          feedbackReport: feedbackResult,
+          legacyEvaluation: evalResult,
+        } as any;
+        updateUserMetrics(user.uid, callSessionData).catch((err) =>
+          console.error("Failed to update user metrics:", err),
+        );
+      }
     } catch (error) {
       console.error("Evaluation error:", error);
       userId = user?.uid || "anonymous";
@@ -1443,7 +1459,12 @@ ${trackPromptOverride}
                           >
                             {entry.role === "user" ? displayName : persona.name}
                           </p>
-                          <p className="leading-relaxed">{entry.text}</p>
+                          <p className="leading-relaxed">
+                            {entry.text}
+                            {entry.isStreaming && (
+                              <span className="ml-1 inline-block h-3.5 w-1 animate-pulse rounded-full bg-current align-middle opacity-50" />
+                            )}
+                          </p>
                         </div>
                       </div>
                     ))

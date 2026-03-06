@@ -172,7 +172,7 @@ export function getLiveSetupConfig(
     setup: {
       model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
       generation_config: {
-        response_modalities: ["AUDIO", "TEXT"],
+        response_modalities: ["AUDIO"],
         speech_config: {
           voice_config: {
             prebuilt_voice_config: {
@@ -188,9 +188,9 @@ export function getLiveSetupConfig(
       output_audio_transcription: {},
       realtime_input_config: {
         automatic_activity_detection: {
-          silence_duration_ms: 2000,
+          silence_duration_ms: 1200,
           start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
-          end_of_speech_sensitivity: "END_SENSITIVITY_LOW",
+          end_of_speech_sensitivity: "END_SENSITIVITY_MEDIUM",
         },
       },
       tools: [

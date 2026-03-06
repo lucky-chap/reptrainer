@@ -32,6 +32,7 @@ export async function generatePersona(data: {
   targetCustomer: string;
   industry: string;
   objections: string[];
+  personalityType?: string;
 }) {
   const res = await fetch(`${baseUrl}/api/persona/generate`, {
     method: "POST",

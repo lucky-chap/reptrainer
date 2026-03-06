@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Swords,
   TrendingUp,
@@ -20,7 +21,9 @@ import {
   subscribeProducts,
   subscribePersonas,
   subscribeSessions,
+  subscribeUserMetrics,
 } from "@/lib/db";
+import { type UserMetrics } from "@reptrainer/shared";
 import { useAuth } from "@/context/auth-context";
 import {
   Card,
@@ -49,6 +52,7 @@ export default function DashboardPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<UserMetrics | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -87,11 +91,18 @@ export default function DashboardPage() {
       handleError,
     );
 
+    const unsubMetrics = subscribeUserMetrics(
+      user.uid,
+      (data) => setMetrics(data),
+      handleError,
+    );
+
     return () => {
       clearTimeout(loadingTimer);
       unsubProducts();
       unsubPersonas();
       unsubSessions();
+      unsubMetrics();
     };
   }, [user]);
 
@@ -184,7 +195,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="animate-fade-up space-y-8">
+    <div className="animate-fade-up space-y-8 pb-20">
       {/* Page Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -208,28 +219,48 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <StatCard
           icon={Activity}
           label="Total Sessions"
-          value={totalSessions.toString()}
-          subtext={`${Math.floor(totalDuration / 60)}m total practice`}
+          value={metrics?.totalCalls.toString() || totalSessions.toString()}
+          subtext={`${metrics ? Math.floor(metrics.totalDurationSeconds / 60) : Math.floor(totalDuration / 60)}m total practice`}
+        />
+        <StatCard
+          icon={Zap}
+          label="Practice Streak"
+          value={
+            metrics?.practiceStreak ? `${metrics.practiceStreak} Days` : "—"
+          }
+          subtext={
+            metrics?.lastPracticeDate
+              ? `Last: ${new Date(metrics.lastPracticeDate).toLocaleDateString()}`
+              : "Start a streak today"
+          }
         />
         <StatCard
           icon={Star}
           label="Avg. Score"
-          value={avgScore > 0 ? `${avgScore}/10` : "—"}
+          value={
+            metrics?.averageScore
+              ? `${Math.round(metrics.averageScore)}/100`
+              : avgScore > 0
+                ? `${avgScore}/10`
+                : "—"
+          }
           subtext={
-            evaluatedSessions.length > 0
-              ? `From ${evaluatedSessions.length} evaluated`
-              : "Complete a session to see"
+            metrics?.totalCalls
+              ? `Across ${metrics.totalCalls} sessions`
+              : evaluatedSessions.length > 0
+                ? `From ${evaluatedSessions.length} evaluated`
+                : "Complete a session to see"
           }
         />
         <StatCard
-          icon={UserCircle}
-          label="Personas"
-          value={personas.length.toString()}
-          subtext={`Across ${products.length} products`}
+          icon={Target}
+          label="Tracks Done"
+          value={metrics?.tracksCompleted.length.toString() || "0"}
+          subtext={`Out of ${personas.length} active personas`}
         />
         <StatCard
           icon={Package}
@@ -355,10 +386,30 @@ export default function DashboardPage() {
             <SkillBar
               icon={Target}
               label="Objection Handling"
-              score={avgObjection}
+              score={
+                metrics
+                  ? Math.round(metrics.objectionHandlingAverage / 10)
+                  : avgObjection
+              }
             />
-            <SkillBar icon={Zap} label="Confidence" score={avgConfidence} />
-            <SkillBar icon={TrendingUp} label="Clarity" score={avgClarity} />
+            <SkillBar
+              icon={Zap}
+              label="Confidence"
+              score={
+                metrics
+                  ? Math.round(metrics.confidenceAverage / 10)
+                  : avgConfidence
+              }
+            />
+            <SkillBar
+              icon={TrendingUp}
+              label="Closing Success"
+              score={
+                metrics
+                  ? Math.round(metrics.closingSuccessAverage / 10)
+                  : avgClarity
+              }
+            />
 
             {evaluatedSessions.length === 0 && (
               <p className="text-warm-gray pt-2 text-center text-[10px] font-medium tracking-wider uppercase">
@@ -376,12 +427,12 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-bold">
               Recent Sessions
             </CardTitle>
-            <Button variant="brandOutline" size="sm" asChild className="px-3">
-              <Link href="/dashboard/history" className="gap-1">
+            <Link href="/dashboard/history" className="gap-1">
+              <Button variant="brandOutline" className="flex items-center px-3">
                 View all
                 <ArrowRight className="size-3.5" />
-              </Link>
-            </Button>
+              </Button>
+            </Link>
           </CardHeader>
           <CardContent>
             {recentSessions.length > 0 ? (
@@ -400,9 +451,21 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center gap-4">
                         <div className="bg-charcoal text-cream flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold">
-                          {persona?.name.charAt(0) ||
+                          {persona?.avatarUrl ? (
+                            <div className="h-full w-full rounded-full">
+                              <Image
+                                src={persona?.avatarUrl}
+                                alt={persona?.name}
+                                className="h-full w-full rounded-full object-cover"
+                                width={48}
+                                height={48}
+                              />
+                            </div>
+                          ) : (
+                            persona?.name.charAt(0) ||
                             session.personaName?.charAt(0) ||
-                            "?"}
+                            "?"
+                          )}
                         </div>
                         <div className="min-w-0">
                           <p className="text-charcoal truncate text-sm font-bold">
@@ -545,7 +608,7 @@ function QuickAction({
   description: string;
 }) {
   return (
-    <Link href={href} className="group block h-12">
+    <Link href={href} className="group block">
       <Card className="border-border/60 shadow-none transition-all duration-300 hover:shadow-lg">
         <CardContent className="p-6">
           <div className="flex items-start gap-4">

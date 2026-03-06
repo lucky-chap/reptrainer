@@ -39,5 +39,10 @@ service cloud.firestore {
       allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
     }
+
+    // UserMetrics collection
+    match /userMetrics/{userId} {
+      allow read, write: if isAuthenticated() && isOwner(userId);
+    }
   }
 }

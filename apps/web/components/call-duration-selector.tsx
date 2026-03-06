@@ -109,13 +109,12 @@ export function CallDurationSelector({
         className="bg-charcoal text-cream hover:bg-charcoal-light h-12 w-full rounded-xl font-semibold shadow-sm transition-all"
       >
         <Clock className="mr-2 size-4" />
-        Start{" "}
+        Call for{" "}
         {customMode
           ? customValue
-            ? `${customValue} Minute`
+            ? `${customValue} Minutes`
             : ""
-          : `${selected} Minute`}{" "}
-        Call
+          : `${selected} Minutes`}
       </Button>
 
       <p className="text-warm-gray-light text-center text-[11px]">

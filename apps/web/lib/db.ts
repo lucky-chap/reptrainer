@@ -28,6 +28,9 @@ import type {
   TranscriptMessage,
   TrainingTrackId,
   CoachDebriefResponse,
+  UserMetrics,
+  ProgressReport,
+  PersonalityType,
 } from "@reptrainer/shared";
 
 // ─── Data Models ───────────────────────────────────────────────────────────
@@ -53,6 +56,7 @@ export interface Persona {
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female";
+  personalityType?: PersonalityType;
   avatarUrl?: string;
   traits: {
     aggressiveness: number;
@@ -214,6 +218,34 @@ export async function updatePersona(
   updates: Partial<Persona>,
 ): Promise<void> {
   await updateDoc(doc(db, "personas", id), updates);
+}
+
+// ─── Metrics Operations ──────────────────────────────────────────────────
+
+export async function getUserMetrics(
+  userId: string,
+): Promise<UserMetrics | undefined> {
+  const docRef = doc(db, "userMetrics", userId);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? (docSnap.data() as UserMetrics) : undefined;
+}
+
+export async function saveUserMetrics(metrics: UserMetrics): Promise<void> {
+  await setDoc(doc(db, "userMetrics", metrics.userId), metrics);
+}
+
+export function subscribeUserMetrics(
+  userId: string,
+  onData: (metrics: UserMetrics | null) => void,
+  onError: (err: Error) => void,
+) {
+  return onSnapshot(
+    doc(db, "userMetrics", userId),
+    (snap) => {
+      onData(snap.exists() ? (snap.data() as UserMetrics) : null);
+    },
+    onError,
+  );
 }
 
 // ─── Session Operations (Legacy) ─────────────────────────────────────────

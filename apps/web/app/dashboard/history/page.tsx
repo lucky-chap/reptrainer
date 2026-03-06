@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import type { Session, Persona, Product } from "@/lib/db";
 import {
   deleteSession,
@@ -188,9 +189,21 @@ export default function HistoryPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="bg-charcoal text-cream flex size-10 items-center justify-center rounded-xl text-sm font-bold">
-                          {persona?.name.charAt(0) ||
+                          {persona?.avatarUrl ? (
+                            <div className="h-full w-full rounded-full">
+                              <Image
+                                src={persona?.avatarUrl}
+                                alt={persona?.name}
+                                className="h-full w-full rounded-full object-cover"
+                                width={48}
+                                height={48}
+                              />
+                            </div>
+                          ) : (
+                            persona?.name.charAt(0) ||
                             session.personaName?.charAt(0) ||
-                            "?"}
+                            "?"
+                          )}
                         </div>
                         <div>
                           <p className="text-charcoal text-base font-bold">

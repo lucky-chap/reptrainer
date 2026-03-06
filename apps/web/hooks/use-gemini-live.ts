@@ -16,6 +16,7 @@ export interface TranscriptEntry {
   role: "user" | "model";
   text: string;
   timestamp: number;
+  isStreaming?: boolean;
 }
 
 export interface SalesInsight {
@@ -386,47 +387,52 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     return CLOSING_PHRASES.some((phrase) => lower.includes(phrase));
   }, []);
 
-  // Add a transcript entry helper
+  // Add a transcript entry helper (supports streaming)
   const addTranscriptEntry = useCallback(
-    (role: "user" | "model", text: string) => {
-      if (!text.trim()) return;
+    (role: "user" | "model", text: string, isIncremental: boolean = false) => {
+      if (!text) return; // Allow empty trimmed for incremental if needed, but usually chunks have text
 
       const now = Date.now();
       const currentTranscript = transcriptRef.current;
-      let mergedText = text.trim();
+      let mergedText = text;
       let isNewEntry = true;
 
-      // Merge consecutive messages from same role if within 5 seconds
+      // Merge consecutive messages from same role if within 5 seconds OR if current is streaming
       const MERGE_WINDOW_MS = 5000;
 
       if (currentTranscript.length > 0) {
         const lastEntry = currentTranscript[currentTranscript.length - 1];
         const entryTimeMs = lastEntry.timestamp + startTimeRef.current;
 
-        if (lastEntry.role === role && now - entryTimeMs < MERGE_WINDOW_MS) {
-          // Prevent appending the exact same text if the transcription API duplicates part.text
-          if (
-            !lastEntry.text.includes(text.trim()) &&
-            !text.trim().includes(lastEntry.text)
-          ) {
-            mergedText =
-              lastEntry.text +
-              (lastEntry.text.endsWith(" ") || text.startsWith(" ")
-                ? ""
-                : " ") +
-              text.trim();
+        // If same role and recent OR the last entry was a streaming entry of the same role
+        if (
+          lastEntry.role === role &&
+          (now - entryTimeMs < MERGE_WINDOW_MS || lastEntry.isStreaming)
+        ) {
+          if (isIncremental) {
+            // Append the chunk
+            mergedText = lastEntry.text + text;
           } else {
-            // If it's a longer version of the same text (e.g. from outputTx API), replace it
-            mergedText =
-              text.trim().length > lastEntry.text.length
-                ? text.trim()
-                : lastEntry.text;
+            // This is a final/full text replacement
+            // Only replace if it's actually different or more complete
+            if (
+              text.trim().length >= lastEntry.text.trim().length ||
+              !lastEntry.isStreaming
+            ) {
+              mergedText = text;
+            } else {
+              mergedText = lastEntry.text;
+            }
           }
 
           isNewEntry = false;
 
           // Update the last entry
-          const updatedEntry = { ...lastEntry, text: mergedText };
+          const updatedEntry: TranscriptEntry = {
+            ...lastEntry,
+            text: mergedText,
+            isStreaming: isIncremental,
+          };
           transcriptRef.current = [
             ...currentTranscript.slice(0, -1),
             updatedEntry,
@@ -441,6 +447,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             role,
             text: mergedText,
             timestamp: now - startTimeRef.current,
+            isStreaming: isIncremental,
           },
         ];
       }
@@ -448,9 +455,10 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       setTranscript([...transcriptRef.current]);
       optionsRef.current.onTranscriptUpdate?.([...transcriptRef.current]);
 
-      // Detect AI ending the meeting from its speech using the FULL merged text
+      // Detect AI ending the meeting from its speech
       if (
         role === "model" &&
+        !isIncremental && // Detect on final/stable text
         !personaLeftRef.current &&
         !pendingPersonaLeftRef.current &&
         containsClosingPhrase(mergedText)
@@ -619,7 +627,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             setup: {
               model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
               generation_config: {
-                response_modalities: ["AUDIO", "TEXT"],
+                response_modalities: ["AUDIO"],
               },
             },
           };
@@ -788,12 +796,18 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           serverContent?.input_transcription;
 
         if (inputTx?.text) {
-          // Accumulate incremental transcription
-          inputTranscriptBufferRef.current += inputTx.text;
-          // If the message says it's final, add to the UI transcript
+          addTranscriptEntry("user", inputTx.text, true);
           if (inputTx.finished || inputTx.is_final) {
-            addTranscriptEntry("user", inputTranscriptBufferRef.current);
+            // Mark the turn as complete by calling with isIncremental=false
+            // and the full buffered text (or just signal finality)
+            addTranscriptEntry(
+              "user",
+              inputTranscriptBufferRef.current + inputTx.text,
+              false,
+            );
             inputTranscriptBufferRef.current = "";
+          } else {
+            inputTranscriptBufferRef.current += inputTx.text;
           }
         }
 
@@ -804,15 +818,16 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           serverContent?.output_transcription;
 
         if (outputTx?.text) {
-          // Accumulate incremental AI transcription
-          outputTranscriptBufferRef.current += outputTx.text;
-          // Only commit to transcript when the transcription chunk is final
+          addTranscriptEntry("model", outputTx.text, true);
           if (outputTx.finished || outputTx.is_final) {
-            const finalText = outputTranscriptBufferRef.current.trim();
-            if (finalText) {
-              addTranscriptEntry("model", finalText);
-            }
+            addTranscriptEntry(
+              "model",
+              outputTranscriptBufferRef.current + outputTx.text,
+              false,
+            );
             outputTranscriptBufferRef.current = "";
+          } else {
+            outputTranscriptBufferRef.current += outputTx.text;
           }
         }
 

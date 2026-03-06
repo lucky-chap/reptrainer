@@ -27,25 +27,25 @@ export function HeroSection() {
   return (
     <section
       ref={sectionRef}
-      className="landing-section pt-28 md:pt-36 lg:pt-44 pb-16 md:pb-24"
+      className="landing-section pt-28 pb-16 md:pt-36 md:pb-24 lg:pt-44"
     >
       {/* Badge */}
-      <div className="reveal flex justify-center mb-8">
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-charcoal/5 text-xs font-medium tracking-wide uppercase text-warm-gray">
+      <div className="reveal mb-8 flex justify-center">
+        <span className="bg-charcoal/5 text-warm-gray inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium tracking-wide uppercase">
           welcome to reptrainer
         </span>
       </div>
 
       {/* Main Heading */}
-      <div className="reveal reveal-delay-1 text-center max-w-4xl mx-auto mb-8">
-        <h1 className="heading-serif text-4xl md:text-6xl lg:text-7xl xl:text-8xl text-charcoal">
+      <div className="reveal reveal-delay-1 mx-auto mb-8 max-w-4xl text-center">
+        <h1 className="heading-serif text-charcoal text-4xl md:text-6xl lg:text-7xl xl:text-8xl">
           Built for <em>High-Stakes</em> Sales Conversations.
         </h1>
       </div>
 
       {/* Subtitle */}
-      <div className="reveal reveal-delay-2 text-center max-w-2xl mx-auto mb-10">
-        <p className="text-base md:text-lg text-warm-gray leading-relaxed">
+      <div className="reveal reveal-delay-2 mx-auto mb-10 max-w-2xl text-center">
+        <p className="text-warm-gray text-base leading-relaxed md:text-lg">
           Reptrainer simulates real buyer objections, coaches your responses in
           real-time, and helps your team close with confidence. Powered by
           Gemini AI.
@@ -53,50 +53,50 @@ export function HeroSection() {
       </div>
 
       {/* CTAs */}
-      <div className="reveal reveal-delay-3 flex items-center justify-center gap-4 mb-14">
+      <div className="reveal reveal-delay-3 mb-14 flex items-center justify-center gap-4">
         <Link
           href={ctaHref}
-          className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-charcoal text-cream text-sm font-medium hover:bg-charcoal-light transition-all duration-200 group"
+          className="bg-charcoal text-cream hover:bg-charcoal-light group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium transition-all duration-200"
         >
           {user ? "Go to Dashboard" : "Get started now"}
-          <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
+          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
         <Link
           href="#features"
-          className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full border border-border text-sm font-medium text-charcoal hover:bg-charcoal/5 transition-all duration-200"
+          className="border-border text-charcoal hover:bg-charcoal/5 inline-flex items-center gap-2 rounded-full border px-7 py-3.5 text-sm font-medium transition-all duration-200"
         >
           Explore more
         </Link>
       </div>
 
       {/* Rating */}
-      <div className="reveal reveal-delay-3 flex items-center justify-center gap-2 mb-16">
+      <div className="reveal reveal-delay-3 mb-16 flex items-center justify-center gap-2">
         <div className="flex">
           {[...Array(5)].map((_, i) => (
-            <Star key={i} className="size-4 fill-amber-glow text-amber-glow" />
+            <Star key={i} className="fill-amber-glow text-amber-glow size-4" />
           ))}
         </div>
-        <span className="text-sm text-warm-gray">
+        <span className="text-warm-gray text-sm">
           Rated 4.97/5 from 500+ sessions
         </span>
       </div>
 
       {/* Bento Grid Preview */}
-      <div className="reveal reveal-delay-4 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
+      <div className="reveal reveal-delay-4 mx-auto grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-3">
         {/* Main card */}
-        <div className="md:col-span-2 bg-white rounded-2xl border border-border/60 p-8 relative overflow-hidden">
-          <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-emerald-glow/10 text-emerald-glow text-xs font-medium">
+        <div className="border-border/60 relative overflow-hidden rounded-2xl border bg-white p-8 md:col-span-2">
+          <div className="bg-emerald-glow/10 text-emerald-glow absolute top-4 right-4 rounded-full px-3 py-1 text-xs font-medium">
             Live Session
           </div>
-          <h3 className="text-sm font-medium text-warm-gray mb-2">
+          <h3 className="text-warm-gray mb-2 text-sm font-medium">
             Performance Summary
           </h3>
-          <p className="heading-serif text-3xl md:text-4xl text-charcoal mb-6">
-            87<span className="text-lg text-warm-gray">/100</span>
+          <p className="heading-serif text-charcoal mb-6 text-3xl md:text-4xl">
+            87<span className="text-warm-gray text-lg">/100</span>
           </p>
 
           {/* Mini bar chart */}
-          <div className="flex items-end gap-2 h-20 mt-4">
+          <div className="mt-4 flex h-20 items-end gap-2">
             {[65, 72, 58, 85, 92, 78, 87].map((val, i) => (
               <div
                 key={i}
@@ -111,22 +111,22 @@ export function HeroSection() {
               />
             ))}
           </div>
-          <div className="flex justify-between text-[10px] text-warm-gray mt-2">
+          <div className="text-warm-gray mt-2 flex justify-between text-[10px]">
             <span>Mon</span>
             <span>Tue</span>
             <span>Wed</span>
             <span>Thu</span>
             <span>Fri</span>
             <span>Sat</span>
-            <span className="font-medium text-charcoal">Today</span>
+            <span className="text-charcoal font-medium">Today</span>
           </div>
         </div>
 
         {/* Side cards */}
         <div className="flex flex-col gap-4">
           {/* Scrolling tags */}
-          <div className="bg-white rounded-2xl border border-border/60 p-6 flex-1 overflow-hidden">
-            <h3 className="text-sm font-medium text-warm-gray mb-4">
+          <div className="border-border/60 flex-1 overflow-hidden rounded-2xl border bg-white p-6">
+            <h3 className="text-warm-gray mb-4 text-sm font-medium">
               Training Focus
             </h3>
             <div className="space-y-2">
@@ -150,10 +150,10 @@ export function HeroSection() {
               ].map(({ icon: Icon, label, color }) => (
                 <div
                   key={label}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-cream/60"
+                  className="bg-cream/60 flex items-center gap-2.5 rounded-lg px-3 py-2"
                 >
                   <Icon className={`size-4 ${color}`} />
-                  <span className="text-xs font-medium text-charcoal">
+                  <span className="text-charcoal text-xs font-medium">
                     {label}
                   </span>
                 </div>
@@ -162,19 +162,19 @@ export function HeroSection() {
           </div>
 
           {/* Mini message */}
-          <div className="bg-white rounded-2xl border border-border/60 p-6">
+          <div className="border-border/60 rounded-2xl border bg-white p-6">
             <div className="flex items-start gap-3">
-              <div className="size-8 rounded-full bg-violet-glow/10 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-violet-glow">AI</span>
+              <div className="bg-violet-glow/10 flex size-8 shrink-0 items-center justify-center rounded-full">
+                <span className="text-violet-glow text-xs font-bold">AI</span>
               </div>
               <div>
-                <p className="text-xs font-medium text-charcoal">
+                <p className="text-charcoal text-xs font-medium">
                   AI Coach&nbsp;
                   <span className="text-warm-gray font-normal">12:13pm</span>
                 </p>
-                <p className="text-xs text-warm-gray mt-1 leading-relaxed">
-                  Great pivot on that pricing objection. Try leading with value
-                  next time.
+                <p className="text-emerald-glow mt-1 text-xs leading-relaxed font-medium">
+                  💡 INSIGHT: Great pivot on that pricing objection. Try leading
+                  with value next time.
                 </p>
               </div>
             </div>
@@ -184,13 +184,13 @@ export function HeroSection() {
 
       {/* Social proof band */}
       <div className="reveal mt-16 flex flex-col items-center gap-4">
-        <p className="text-sm text-warm-gray">
-          Join over <span className="font-medium text-charcoal">500</span> sales
+        <p className="text-warm-gray text-sm">
+          Join over <span className="text-charcoal font-medium">500</span> sales
           teams already training with Reptrainer.
         </p>
         <Link
           href="#testimonials"
-          className="text-sm font-medium text-charcoal underline decoration-border underline-offset-4 hover:decoration-charcoal transition-colors"
+          className="text-charcoal decoration-border hover:decoration-charcoal text-sm font-medium underline underline-offset-4 transition-colors"
         >
           See customer stories
         </Link>

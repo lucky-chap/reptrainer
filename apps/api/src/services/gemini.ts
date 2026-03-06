@@ -1,13 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 import { GEMINI_TEXT_MODEL } from "@reptrainer/shared";
 import { env } from "../config/env.js";
-import type {
-  GeneratePersonaRequest,
-  GeneratePersonaResponse,
-  EvaluateSessionRequest,
-  EvaluateSessionResponse,
-  GenerateProductRequest,
-  GenerateProductResponse,
+import {
+  type GeneratePersonaRequest,
+  type GeneratePersonaResponse,
+  type EvaluateSessionRequest,
+  type EvaluateSessionResponse,
+  type GenerateProductRequest,
+  type GenerateProductResponse,
+  PROSPECT_PERSONALITY_TEMPLATES,
+  type ProspectPersonalityTemplate,
 } from "@reptrainer/shared";
 
 const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
@@ -69,8 +71,33 @@ IMPORTANT:
 export async function generatePersona(
   input: GeneratePersonaRequest,
 ): Promise<GeneratePersonaResponse> {
-  const { companyName, description, targetCustomer, industry, objections } =
-    input;
+  const {
+    companyName,
+    description,
+    targetCustomer,
+    industry,
+    objections,
+    personalityType,
+  } = input;
+
+  const template = personalityType
+    ? (PROSPECT_PERSONALITY_TEMPLATES.find(
+        (t) => t.type === personalityType,
+      ) as ProspectPersonalityTemplate)
+    : null;
+
+  const personalityContext = template
+    ? `
+─── PERSONALITY TEMPLATE: ${template.name} ───
+- Behavioral Profile: ${template.behavioralProfile}
+- Tone: ${template.tone}
+- Patience: ${template.patience}
+- Verbosity: ${template.verbosity}
+- Objection Likelihood: ${template.objectionLikelihood}
+- Preferred Selling Points: ${template.preferredSellingPoints.join(", ")}
+- Emotional Triggers: ${template.emotionalTriggers.join(", ")}
+`
+    : "";
 
   const prompt = `You are a sales training AI. Generate a realistic, challenging buyer persona for a high-pressure sales roleplay session.
 
@@ -79,14 +106,15 @@ Context:
 - Product: ${description}
 - Target Customer: ${targetCustomer}
 - Industry: ${industry}
-- Common Objections: ${objections.join(", ")}
+- Common Objections: ${objections.join(", ")}${personalityContext}
 
 Generate a buyer persona with the following JSON structure. Return ONLY valid JSON, no markdown:
 {
   "name": "A realistic, memorable full name. Use culturally diverse names — mix ethnicities and backgrounds. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. Avoid generic names like 'John Smith' or 'Jane Doe'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
   "role": "A specific, realistic job title (e.g., 'SVP of Revenue Operations', 'Chief Data Officer', 'Director of IT Infrastructure'). Avoid generic titles like 'Manager'.",
   "gender": "male" or "female" (must match the name),
-  "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. Include: their communication style (direct, analytical, impatient, etc.), what triggers their skepticism, specific pet peeves in sales pitches (e.g., 'hates buzzwords', 'demands ROI before features'), their decision-making approach (consensus-driven, data-driven, gut-feel), and what would make them end a meeting early. Make the persona feel like a real, specific person with strong opinions.",
+  "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. ${template ? `IT MUST INCORPORATE THE BEHAVIORAL PROFILE, TONE, AND TRIGGERS FROM THE ${template.name} TEMPLATE.` : "Include: their communication style (direct, analytical, impatient, etc.), what triggers their skepticism, specific pet peeves in sales pitches (e.g., 'hates buzzwords', 'demands ROI before features'), their decision-making approach (consensus-driven, data-driven, gut-feel), and what would make them end a meeting early."} Make the persona feel like a real, specific person with strong opinions.",
+  "personalityType": "${personalityType || "custom"}",
   "intensityLevel": 1-3 (1=friendly skeptic, 2=tough negotiator, 3=hostile gatekeeper),
   "objectionStrategy": "A specific 2-3 sentence strategy this persona uses to push back. E.g., 'Opens with budget concerns, then escalates to questioning whether the product solves a real problem. Will demand competitive comparisons and walk if the rep can't provide them.'",
   "traits": {

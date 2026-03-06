@@ -20,12 +20,33 @@ export interface PersonaTraits {
     | "budget-focused";
 }
 
+export type PersonalityType =
+  | "impatient-executive"
+  | "analytical-buyer"
+  | "budget-conscious-founder"
+  | "emotional-decision-maker"
+  | "skeptical-lead"
+  | "competitor-user";
+
+export interface ProspectPersonalityTemplate {
+  type: PersonalityType;
+  name: string;
+  behavioralProfile: string;
+  tone: string;
+  patience: "low" | "medium" | "high";
+  verbosity: "low" | "medium" | "high";
+  objectionLikelihood: "low" | "medium" | "high";
+  preferredSellingPoints: string[];
+  emotionalTriggers: string[];
+}
+
 export interface Persona {
   id: string;
   productId: string;
   name: string;
   role: string;
   personalityPrompt: string;
+  personalityType?: PersonalityType;
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female";
@@ -158,6 +179,29 @@ export interface CallSession {
   createdAt: string;
 }
 
+// ─── Progress Tracking Types ───────────────────────────────────────────────
+
+export interface UserMetrics {
+  userId: string;
+  totalCalls: number;
+  totalDurationSeconds: number;
+  averageScore: number;
+  practiceStreak: number;
+  lastPracticeDate: string | null; // ISO Date
+  objectionHandlingAverage: number;
+  closingSuccessAverage: number;
+  confidenceAverage: number;
+  talkTimeRatioAverage: number; // 0-100
+  tracksCompleted: TrainingTrackId[];
+  updatedAt: string;
+}
+
+export interface ProgressReport {
+  metrics: UserMetrics;
+  historicalScores: { date: string; score: number }[];
+  tips: string[];
+}
+
 // ─── API Request / Response Types ───────────────────────────────────────────
 
 export interface GeneratePersonaRequest {
@@ -166,6 +210,7 @@ export interface GeneratePersonaRequest {
   targetCustomer: string;
   industry: string;
   objections: string[];
+  personalityType?: PersonalityType;
 }
 
 export interface GeneratePersonaResponse {
@@ -173,6 +218,7 @@ export interface GeneratePersonaResponse {
   role: string;
   gender: "male" | "female";
   personalityPrompt: string;
+  personalityType?: PersonalityType;
   intensityLevel: number;
   objectionStrategy: string;
   traits: PersonaTraits;

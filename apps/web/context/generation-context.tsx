@@ -39,7 +39,10 @@ export interface GenerationTask {
 export interface GenerationContextType {
   tasks: GenerationTask[];
   isGenerating: boolean;
-  generatePersona: (product: Product) => Promise<void>;
+  generatePersona: (
+    product: Product,
+    personalityType?: string,
+  ) => Promise<void>;
   generateProduct: (data: {
     companyName?: string;
     briefDescription?: string;
@@ -76,7 +79,7 @@ export function GenerationProvider({
   }, [tasks]);
 
   const generatePersona = useCallback(
-    async (product: Product) => {
+    async (product: Product, personalityType?: string) => {
       const taskId = uuidv4();
 
       const task: GenerationTask = {
@@ -105,6 +108,7 @@ export function GenerationProvider({
           targetCustomer: product.targetCustomer,
           industry: product.industry,
           objections: product.objections,
+          personalityType,
         });
 
         if (!activeRef.current.get(taskId)) return;
@@ -128,6 +132,7 @@ export function GenerationProvider({
           intensityLevel: data.intensityLevel,
           objectionStrategy: data.objectionStrategy,
           gender: data.gender || "female",
+          personalityType: data.personalityType,
           traits: data.traits,
           createdAt: new Date().toISOString(),
         };

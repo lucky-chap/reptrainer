@@ -28,6 +28,7 @@ import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import { PersonaCard } from "@/components/persona-card";
 import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
+import { PROSPECT_PERSONALITY_TEMPLATES } from "@reptrainer/shared";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -69,6 +70,9 @@ export default function PersonasPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    null,
+  );
+  const [selectedPersonality, setSelectedPersonality] = useState<string | null>(
     null,
   );
   const [loading, setLoading] = useState(true);
@@ -119,7 +123,7 @@ export default function PersonasPage() {
     if (!selectedProductId) return;
     const product = products.find((p) => p.id === selectedProductId);
     if (product) {
-      generatePersona(product);
+      generatePersona(product, selectedPersonality || undefined);
       setShowCreator(false);
     }
   };
@@ -263,6 +267,35 @@ export default function PersonasPage() {
                       ))}
                     </SelectContent>
                   </Select>
+
+                  <div className="pt-2">
+                    <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
+                      Personality Type (Optional)
+                    </Label>
+                    <Select
+                      value={selectedPersonality || "custom"}
+                      onValueChange={(val) =>
+                        setSelectedPersonality(val === "custom" ? null : val)
+                      }
+                    >
+                      <SelectTrigger className="h-12 w-full rounded-xl">
+                        <SelectValue placeholder="AI Default" />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        className="max-h-60 rounded-xl"
+                      >
+                        <SelectItem value="custom">
+                          AI Default (Balanced)
+                        </SelectItem>
+                        {PROSPECT_PERSONALITY_TEMPLATES.map((t) => (
+                          <SelectItem key={t.type} value={t.type}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
             </CardContent>
