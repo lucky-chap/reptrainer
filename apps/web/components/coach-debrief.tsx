@@ -21,13 +21,15 @@ import type { DebriefSlide } from "@reptrainer/shared";
 
 interface CoachDebriefProps {
   slides: DebriefSlide[];
-  audioBase64: string[];
+  audioBase64?: string[];
+  audioUrls?: string[];
   onClose: () => void;
 }
 
 export function CoachDebrief({
   slides,
-  audioBase64,
+  audioBase64 = [],
+  audioUrls = [],
   onClose,
 }: CoachDebriefProps) {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
@@ -35,6 +37,8 @@ export function CoachDebrief({
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
+  const [audioAllowed, setAudioAllowed] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentSlide = slides[currentSlideIndex];
 
@@ -44,53 +48,94 @@ export function CoachDebrief({
       setProgress(0);
       setIsPlaying(true);
     } else {
-      onClose();
+      setIsFinished(true);
     }
-  }, [currentSlideIndex, slides.length, onClose]);
+  }, [currentSlideIndex, slides.length]);
 
   const handlePrev = useCallback(() => {
-    if (currentSlideIndex > 0) {
-      setCurrentSlideIndex((prev) => prev - 1);
-      setProgress(0);
-      setIsPlaying(true);
+    if (isFinished) {
+      setIsFinished(false);
+      return;
     }
+    setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : prev));
+    setProgress(0);
+    setIsPlaying(true);
+  }, [isFinished]);
+
+  // Handle slide changes and 1s stall to simulate pause
+  useEffect(() => {
+    setAudioAllowed(false);
+    const timer = setTimeout(() => {
+      setAudioAllowed(true);
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [currentSlideIndex]);
 
+  // 1. Handle slide changes and audio source loading
   useEffect(() => {
-    if (!audioRef.current) return;
     const audio = audioRef.current;
+    if (!audio) return;
     const base64 = audioBase64[currentSlideIndex];
+    const url = audioUrls[currentSlideIndex];
 
     // Reset state for new slide
     audio.pause();
     setProgress(0);
 
-    if (base64) {
+    if (url) {
+      audio.src = url;
+      audio.load();
+    } else if (base64) {
       audio.src = `data:audio/mpeg;base64,${base64}`;
       audio.load();
-
-      if (hasInteracted && isPlaying) {
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            if (err.name !== "AbortError") {
-              console.error("Audio playback error:", err);
-              setIsPlaying(false);
-            }
-          });
-        }
-      }
     } else {
       audio.removeAttribute("src");
       audio.load();
-      // No audio fallback
-      if (hasInteracted && isPlaying) {
-        const timer = setTimeout(() => handleNext(), 5000);
-        return () => clearTimeout(timer);
-      }
     }
-  }, [currentSlideIndex, audioBase64, hasInteracted, isPlaying, handleNext]);
+  }, [currentSlideIndex, audioBase64, audioUrls]);
 
+  // 2. Play/Pause state synchronization
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !hasInteracted || !audioAllowed || isFinished) return;
+
+    if (isPlaying) {
+      audio.play().catch((err) => {
+        if (err.name !== "AbortError") {
+          console.error("Audio playback error:", err);
+          setIsPlaying(false);
+        }
+      });
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying, hasInteracted, currentSlideIndex, audioAllowed, isFinished]);
+
+  // 3. Fallback timer for missing audio
+  useEffect(() => {
+    if (
+      !hasInteracted ||
+      !isPlaying ||
+      audioBase64[currentSlideIndex] ||
+      audioUrls[currentSlideIndex] ||
+      !audioAllowed ||
+      isFinished
+    )
+      return;
+
+    const timer = setTimeout(() => handleNext(), 5000);
+    return () => clearTimeout(timer);
+  }, [
+    currentSlideIndex,
+    audioBase64,
+    hasInteracted,
+    isPlaying,
+    handleNext,
+    audioAllowed,
+    isFinished,
+  ]);
+
+  // 4. Audio event listeners
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -116,46 +161,73 @@ export function CoachDebrief({
   }, [handleNext]);
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || isFinished) return;
 
     if (!hasInteracted) {
       setHasInteracted(true);
+      setIsPlaying(true);
+      return;
     }
 
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      const base64 = audioBase64[currentSlideIndex];
-      if (base64) {
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            if (err.name !== "AbortError") {
-              console.error(err);
-            }
-          });
-        }
-      }
-      setIsPlaying(true);
-    }
+    setIsPlaying((prev) => !prev);
   };
 
   const handleStartInteraction = () => {
     setHasInteracted(true);
     setIsPlaying(true);
-    if (audioRef.current && audioBase64[currentSlideIndex]) {
-      audioRef.current.play().catch((e) => {
-        if (e?.name !== "AbortError") console.error(e);
-      });
-    }
   };
 
+  if (isFinished) {
+    return (
+      <div className="bg-charcoal text-cream animate-in fade-in fixed inset-0 z-100 flex flex-col items-center justify-center duration-500">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-10">
+          <div className="bg-cream/20 absolute -top-1/4 -left-1/4 h-1/2 w-1/2 rounded-full blur-[120px]" />
+          <div className="bg-charcoal-light/40 absolute -right-1/4 -bottom-1/4 h-1/2 w-1/2 rounded-full blur-[120px]" />
+        </div>
+
+        <div className="animate-in zoom-in-95 relative z-10 flex max-w-lg flex-col items-center gap-8 text-center duration-700">
+          <div className="bg-cream/10 relative flex size-24 items-center justify-center rounded-3xl border border-white/10 shadow-2xl">
+            <div className="absolute -top-2 -right-2 flex size-8 items-center justify-center rounded-full bg-emerald-500 shadow-lg">
+              <Zap className="size-4 fill-white text-white" />
+            </div>
+            <RotateCcw className="text-cream h-10 w-10 rotate-45" />
+          </div>
+
+          <div className="space-y-4">
+            <h1 className="heading-serif text-4xl font-bold sm:text-5xl">
+              Debrief Complete
+            </h1>
+            <p className="text-cream/60 text-lg leading-relaxed font-medium italic">
+              Analysis concluded. You have identified key growth areas to
+              dominate your next session.
+            </p>
+          </div>
+
+          <div className="flex w-full flex-col gap-3 px-8 pt-4 sm:flex-row">
+            <Button
+              variant="brandOutline"
+              onClick={() => setIsFinished(false)}
+              className="h-12 flex-1 rounded-2xl border-white/10 text-white/60 hover:bg-white/5 hover:text-white"
+            >
+              Back to Slides
+            </Button>
+            <Button
+              onClick={onClose}
+              className="bg-cream text-charcoal h-12 flex-1 rounded-2xl font-bold shadow-lg transition-all hover:bg-white"
+            >
+              Return to Session
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-charcoal text-cream animate-in fade-in fixed inset-0 z-[100] flex flex-col items-center justify-center duration-500">
+    <div className="bg-charcoal text-cream animate-in fade-in fixed inset-0 z-100 flex flex-col items-center justify-center duration-500">
       {!hasInteracted && (
         <div
-          className="bg-charcoal/80 absolute inset-0 z-[200] flex cursor-pointer items-center justify-center backdrop-blur-sm transition-opacity duration-300"
+          className="bg-charcoal/80 absolute inset-0 z-200 flex cursor-pointer items-center justify-center backdrop-blur-sm transition-opacity duration-300"
           onClick={handleStartInteraction}
         >
           <div className="animate-in zoom-in-95 flex flex-col items-center gap-6 duration-500">

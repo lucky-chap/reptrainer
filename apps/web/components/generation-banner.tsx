@@ -69,7 +69,7 @@ export function GenerationBanner({ tasks, onDismiss }: GenerationBannerProps) {
                       {task.subStatus === "creating_traits" &&
                         "Creating Persona Traits…"}
                       {task.subStatus === "generating_avatar" &&
-                        "Generating AI Avatar…"}
+                        "Generating Avatar…"}
                     </p>
                   </div>
                 )}

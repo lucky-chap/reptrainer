@@ -1,6 +1,7 @@
 import { TextToSpeechClient } from "@google-cloud/text-to-speech";
 import { protos } from "@google-cloud/text-to-speech";
 import { env } from "../config/env.js";
+import { GEMINI_VOICE_MODEL, GEMINI_VOICE_NAME } from "@reptrainer/shared";
 
 const client = new TextToSpeechClient();
 
@@ -11,7 +12,12 @@ export async function synthesizeSpeech(text: string): Promise<string> {
   const request: protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest =
     {
       input: { text },
-      voice: { languageCode: "en-US", ssmlGender: "NEUTRAL" as const },
+      voice: {
+        languageCode: "en-US",
+        ssmlGender: "NEUTRAL" as const,
+        name: GEMINI_VOICE_NAME,
+        modelName: GEMINI_VOICE_MODEL,
+      },
       audioConfig: { audioEncoding: "MP3" as const },
     };
 

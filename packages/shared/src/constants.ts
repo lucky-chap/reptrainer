@@ -7,6 +7,12 @@ export const GEMINI_EVALUATION_MODEL = "gemini-2.5-flash";
 /** Gemini model used for the Multimodal Live API (WebSocket) */
 export const GEMINI_LIVE_MODEL = "gemini-live-2.5-flash-native-audio";
 
+/** Gemini model used for voice generation */
+export const GEMINI_VOICE_MODEL = "gemini-2.5-flash-preview-tts";
+
+/** Gemini voice name */
+export const GEMINI_VOICE_NAME = "Zephyr";
+
 /** Scoring range */
 export const MIN_SCORE = 1;
 export const MAX_SCORE = 10;

@@ -244,5 +244,6 @@ export interface DebriefSlide {
 
 export interface CoachDebriefResponse {
   slides: DebriefSlide[];
-  audioBase64: string[]; // Corresponding base64 audio for each slide
+  audioBase64?: string[]; // Corresponding base64 audio for each slide (usually from API)
+  audioUrls?: string[]; // Remote URLs stored in Firebase Storage
 }

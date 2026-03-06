@@ -358,6 +358,48 @@ export async function uploadSessionAudio(
   return getDownloadURL(fileRef);
 }
 
+export async function uploadDebriefAudio(
+  userId: string,
+  sessionId: string,
+  audioBase64: string[],
+): Promise<string[]> {
+  const uploadPromises = audioBase64.map(async (base64, index) => {
+    const fileRef = ref(
+      storage,
+      `debriefs/${userId}/${sessionId}/slide_${index}.mp3`,
+    );
+    // Remove data:audio/mpeg;base64, if present
+    const cleanBase64 = base64.replace(/^data:audio\/mpeg;base64,/, "");
+    await uploadString(fileRef, cleanBase64, "base64", {
+      contentType: "audio/mpeg",
+    });
+    return getDownloadURL(fileRef);
+  });
+
+  return Promise.all(uploadPromises);
+}
+
+export async function deleteDebriefAudio(
+  userId: string,
+  sessionId: string,
+  numSlides: number,
+): Promise<void> {
+  const deletePromises = Array.from({ length: numSlides }).map((_, index) => {
+    const fileRef = ref(
+      storage,
+      `debriefs/${userId}/${sessionId}/slide_${index}.mp3`,
+    );
+    return deleteObject(fileRef).catch((err) => {
+      // Ignore if file doesn't exist
+      if (err.code !== "storage/object-not-found") {
+        console.error(`Error deleting debrief audio slide ${index}:`, err);
+      }
+    });
+  });
+
+  await Promise.all(deletePromises);
+}
+
 export async function uploadPersonaAvatar(
   userId: string,
   personaId: string,

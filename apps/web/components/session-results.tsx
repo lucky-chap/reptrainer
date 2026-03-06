@@ -19,9 +19,15 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
-import { saveSession, updateCallSession } from "@/lib/db";
+import {
+  saveSession,
+  updateCallSession,
+  uploadDebriefAudio,
+  deleteDebriefAudio,
+} from "@/lib/db";
 import { CoachDebrief } from "./coach-debrief";
 import { generateCoachDebrief } from "@/app/actions/api";
+import type { CoachDebriefResponse } from "@reptrainer/shared";
 import {
   Card,
   CardHeader,
@@ -36,6 +42,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { ObjectionHeatmap } from "./objection-heatmap";
 import Image from "next/image";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface SessionResultsProps {
   session: Session;
@@ -110,13 +126,17 @@ export function SessionResults({
   product,
   onBack,
 }: SessionResultsProps) {
-  const [debriefData, setDebriefData] = useState<any>(session.debrief || null);
+  const [debriefData, setDebriefData] = useState<CoachDebriefResponse | null>(
+    session.debrief || null,
+  );
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
+  const [isPersistingDebrief, setIsPersistingDebrief] = useState(false);
   const [showDebrief, setShowDebrief] = useState(false);
   const [isDeletingDebrief, setIsDeletingDebrief] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleGenerateDebrief = async () => {
-    if (generatingDebrief) return;
+    if (generatingDebrief || isPersistingDebrief) return;
     setGeneratingDebrief(true);
     try {
       console.log("[SessionResults] Generating on-demand coach debrief...");
@@ -127,23 +147,77 @@ export function SessionResults({
         durationSeconds: session.durationSeconds,
       });
 
-      // Update local state
+      // Update local state immediately with base64 for instant preview if needed
+      // but we'll wait for persistence before showing the "View" button fully if we want
       setDebriefData(debrief);
 
-      // Persist to Firestore
-      console.log(
-        "[SessionResults] Persisting on-demand debrief to Firestore...",
-      );
-      await Promise.all([
-        saveSession({ ...session, debrief }),
-        updateCallSession(session.id, { debrief }).catch(() => {}),
-      ]);
+      setIsPersistingDebrief(true);
+      try {
+        console.log(
+          "[SessionResults] Uploading debrief audio to Firebase Storage...",
+        );
+        const audioUrls = await uploadDebriefAudio(
+          session.userId,
+          session.id,
+          debrief.audioBase64 || [],
+        );
+
+        // Prepare optimized debrief (no base64, just urls)
+        const optimizedDebrief: CoachDebriefResponse = {
+          ...debrief,
+          audioUrls,
+          audioBase64: [], // Clear out base64 to save Firestore space
+        };
+
+        // Update local state with URLs
+        setDebriefData(optimizedDebrief);
+
+        // Persist to Firestore
+        console.log(
+          "[SessionResults] Persisting optimized debrief to Firestore...",
+        );
+        await Promise.all([
+          saveSession({ ...session, debrief: optimizedDebrief }),
+          updateCallSession(session.id, { debrief: optimizedDebrief }).catch(
+            () => {},
+          ),
+        ]);
+      } finally {
+        setIsPersistingDebrief(false);
+      }
 
       setShowDebrief(true);
     } catch (error) {
       console.error("Failed to generate on-demand debrief:", error);
     } finally {
       setGeneratingDebrief(false);
+    }
+  };
+
+  const handleDeleteDebrief = async () => {
+    if (!debriefData || isDeletingDebrief) return;
+    setIsDeletingDebrief(true);
+    try {
+      const updatedSession = { ...session };
+      // Remove debrief internally
+      delete updatedSession.debrief;
+
+      await Promise.all([
+        deleteDebriefAudio(
+          session.userId,
+          session.id,
+          debriefData.slides.length,
+        ),
+        saveSession(updatedSession),
+        // Pass null to clear out the field or remove it from the backend
+        updateCallSession(session.id, {
+          debrief: null as any,
+        }).catch(() => {}),
+      ]);
+      setDebriefData(null);
+    } finally {
+      setIsDeletingDebrief(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -203,7 +277,8 @@ export function SessionResults({
     return (
       <CoachDebrief
         slides={debriefData.slides}
-        audioBase64={debriefData.audioBase64}
+        audioBase64={debriefData.audioBase64 || []}
+        audioUrls={debriefData.audioUrls || []}
         onClose={() => setShowDebrief(false)}
       />
     );
@@ -470,25 +545,8 @@ export function SessionResults({
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={isDeletingDebrief}
-                      onClick={async () => {
-                        setIsDeletingDebrief(true);
-                        try {
-                          const updatedSession = { ...session };
-                          // Remove debrief internally
-                          delete updatedSession.debrief;
-                          await Promise.all([
-                            saveSession(updatedSession),
-                            // Pass null to clear out the field or remove it from the backend
-                            updateCallSession(session.id, {
-                              debrief: null as any,
-                            }).catch(() => {}), // use as any in case typing complains
-                          ]);
-                          setDebriefData(null);
-                        } finally {
-                          setIsDeletingDebrief(false);
-                        }
-                      }}
+                      disabled={isDeletingDebrief || isPersistingDebrief}
+                      onClick={() => setShowDeleteConfirm(true)}
                       className="h-7 px-2 text-xs text-rose-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                     >
                       {isDeletingDebrief ? (
@@ -509,10 +567,25 @@ export function SessionResults({
                 {debriefData ? (
                   <Button
                     onClick={() => setShowDebrief(true)}
-                    className="bg-charcoal text-cream hover:bg-charcoal/90 w-full rounded-xl py-6"
+                    disabled={isDeletingDebrief || isPersistingDebrief}
+                    className="bg-charcoal text-cream hover:bg-charcoal/90 w-full rounded-xl py-6 disabled:opacity-50"
                   >
-                    <Zap className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
-                    View Coach Debrief
+                    {isDeletingDebrief ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin text-amber-400" />
+                        Processing...
+                      </>
+                    ) : isPersistingDebrief ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin text-amber-400" />
+                        Persisting...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
+                        View Coach Debrief
+                      </>
+                    )}
                   </Button>
                 ) : session.durationSeconds >= 180 ? (
                   <Button
@@ -524,7 +597,7 @@ export function SessionResults({
                     {generatingDebrief ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating AI Analysis...
+                        Generating Debrief...
                       </>
                     ) : (
                       <>
@@ -621,6 +694,58 @@ export function SessionResults({
           </Card>
         </div>
       </div>
+      {/* Deletion Confirmation */}
+      <AlertDialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => !open && setShowDeleteConfirm(false)}
+      >
+        <AlertDialogContent className="rounded-2xl border-none p-8 sm:max-w-[400px]">
+          <AlertDialogHeader className="space-y-4">
+            <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-rose-50">
+              <Trash2 className="size-8 text-rose-600" />
+            </div>
+            <div className="space-y-2 text-center">
+              <AlertDialogTitle className="heading-serif text-charcoal text-2xl">
+                Delete <em>Debrief?</em>
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-warm-gray/70 text-sm leading-relaxed font-medium">
+                This will permanently remove the coach debrief and its
+                associated audio files. This action cannot be undone.
+              </AlertDialogDescription>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <AlertDialogCancel asChild>
+              <Button
+                variant="brandOutline"
+                className="h-12 w-full rounded-xl sm:flex-1"
+                disabled={isDeletingDebrief}
+              >
+                No, Keep it
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleDeleteDebrief();
+                }}
+                disabled={isDeletingDebrief}
+                className="h-12 w-full rounded-xl bg-rose-600 text-white shadow-lg shadow-rose-200 hover:bg-rose-700 sm:flex-1"
+              >
+                {isDeletingDebrief ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Yes, Delete"
+                )}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

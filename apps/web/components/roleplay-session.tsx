@@ -48,6 +48,7 @@ import {
   type TrainingTrackId,
   type FeedbackReport,
   type TranscriptMessage,
+  type CoachDebriefResponse,
 } from "@reptrainer/shared";
 
 interface RoleplaySessionProps {
@@ -97,10 +98,9 @@ export function RoleplaySession({
   const [inputLocked, setInputLocked] = useState(false);
   const [coachMode, setCoachMode] = useState(false);
   const [showDebrief, setShowDebrief] = useState(false);
-  const [debriefData, setDebriefData] = useState<{
-    slides: any[];
-    audioBase64: string[];
-  } | null>(null);
+  const [debriefData, setDebriefData] = useState<CoachDebriefResponse | null>(
+    null,
+  );
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
