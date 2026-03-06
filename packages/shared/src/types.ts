@@ -238,12 +238,16 @@ export type DebriefSlideType = "overview" | "problem" | "correction" | "drill";
 export interface DebriefSlide {
   title: string;
   narration: string; // Max 20 seconds
-  visual: string; // Description for CSS/SVG diagram
+  visual: string; // Description for Imagen infographic
   type: DebriefSlideType;
+  visualBase64?: string; // AI-generated infographic (base64)
+  visualUrl?: string; // AI-generated infographic (Storage URL)
 }
 
 export interface CoachDebriefResponse {
   slides: DebriefSlide[];
   audioBase64?: string[]; // Corresponding base64 audio for each slide (usually from API)
+  visualBase64?: string[]; // AI-generated infographics as base64
   audioUrls?: string[]; // Remote URLs stored in Firebase Storage
+  visualUrls?: string[]; // Remote URLs for AI-generated infographics
 }

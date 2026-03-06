@@ -24,6 +24,8 @@ import {
   updateCallSession,
   uploadDebriefAudio,
   deleteDebriefAudio,
+  uploadDebriefVisuals,
+  deleteDebriefVisuals,
 } from "@/lib/db";
 import { CoachDebrief } from "./coach-debrief";
 import { generateCoachDebrief } from "@/app/actions/api";
@@ -154,19 +156,35 @@ export function SessionResults({
       setIsPersistingDebrief(true);
       try {
         console.log(
-          "[SessionResults] Uploading debrief audio to Firebase Storage...",
+          "[SessionResults] Uploading debrief assets to Firebase Storage...",
         );
-        const audioUrls = await uploadDebriefAudio(
-          session.userId,
-          session.id,
-          debrief.audioBase64 || [],
-        );
+        const [audioUrls, visualUrls] = await Promise.all([
+          uploadDebriefAudio(
+            session.userId,
+            session.id,
+            debrief.audioBase64 || [],
+          ),
+          uploadDebriefVisuals(
+            session.userId,
+            session.id,
+            debrief.slides.map((s) => s.visualBase64 || ""),
+          ),
+        ]);
 
         // Prepare optimized debrief (no base64, just urls)
         const optimizedDebrief: CoachDebriefResponse = {
           ...debrief,
           audioUrls,
+          visualUrls: visualUrls || [],
           audioBase64: [], // Clear out base64 to save Firestore space
+          visualBase64: [], // Clear out base64
+          slides: debrief.slides.map((slide, index) => {
+            const { visualBase64: _vb64, ...rest } = slide;
+            return {
+              ...rest,
+              visualUrl: visualUrls?.[index] || slide.visualUrl || "",
+            };
+          }),
         };
 
         // Update local state with URLs
@@ -204,6 +222,11 @@ export function SessionResults({
 
       await Promise.all([
         deleteDebriefAudio(
+          session.userId,
+          session.id,
+          debriefData.slides.length,
+        ),
+        deleteDebriefVisuals(
           session.userId,
           session.id,
           debriefData.slides.length,

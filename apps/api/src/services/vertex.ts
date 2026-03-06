@@ -12,6 +12,7 @@ import {
   GEMINI_TEXT_MODEL,
   GEMINI_EVALUATION_MODEL,
   GEMINI_LIVE_MODEL,
+  GEMINI_IMAGE_MODEL,
 } from "@reptrainer/shared";
 
 // Initialize Vertex AI
@@ -244,7 +245,7 @@ export async function generatePersonaAvatar(
 ): Promise<string> {
   const project = env.GOOGLE_CLOUD_PROJECT;
   const location = env.GOOGLE_CLOUD_LOCATION;
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/imagen-4.0-generate-001:predict`;
+  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${GEMINI_IMAGE_MODEL}:predict`;
 
   const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
 
@@ -297,6 +298,61 @@ export async function generatePersonaAvatar(
   return `data:image/jpeg;base64,${base64Image}`;
 }
 
+/**
+ * Generate a coaching infographic using Vertex AI Imagen 4.0.
+ * Returns the base64 encoded image or a public URL.
+ */
+export async function generateSlideInfographic(
+  visualDescription: string,
+): Promise<string> {
+  const project = env.GOOGLE_CLOUD_PROJECT;
+  const location = env.GOOGLE_CLOUD_LOCATION;
+  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${GEMINI_IMAGE_MODEL}:predict`;
+
+  const stylePrefix =
+    "modern SaaS dashboard infographic, flat design, minimal, clean UI, vector style, white background, subtle purple and blue accents, startup analytics aesthetic. ";
+  const prompt = stylePrefix + visualDescription;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${await getAccessToken()}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify({
+      instances: [{ prompt }],
+      parameters: {
+        sampleCount: 1,
+        mimeType: "image/jpeg",
+        compressionQuality: 80,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error("Imagen API Error:", errorBody);
+    throw new Error(`Failed to generate infographic: ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as {
+    predictions?: Array<{
+      bytesBase64?: string;
+      bytesBase64Encoded?: string;
+    }>;
+  };
+
+  const base64Image =
+    data.predictions?.[0]?.bytesBase64Encoded ||
+    data.predictions?.[0]?.bytesBase64;
+
+  if (!base64Image) {
+    throw new Error("No image data returned from Imagen API");
+  }
+
+  return `data:image/jpeg;base64,${base64Image}`;
+}
+
 async function getAccessToken() {
   const { GoogleAuth } = await import("google-auth-library");
   const auth = new GoogleAuth({
@@ -322,30 +378,73 @@ export async function generateCoachDebrief(
     } as GenerationConfig,
   });
 
-  const prompt = `You are a world-class sales coach. Create a "Coach Debrief" for the sales rep based on their performance in the following transcript.
-  
-  Persona Context:
-  - Buyer Name: ${personaName}
-  - Buyer Role: ${personaRole}
+  const prompt = `You are a world-class sales coach creating a short "Coach Debrief" presentation for a sales rep after a practice call.
 
-  Transcript:
-  ${transcript}
+Persona Context:
+- Buyer Name: ${personaName}
+- Buyer Role: ${personaRole}
 
-  Generate EXACTLY 4 slides for a debrief presentation. Each slide must follow this strict JSON structure:
-  {
-    "title": "Concise headline for the slide",
-    "narration": "A spoken script for the coach (vocalized text). Keep it under 20 seconds when spoken (approx 40-50 words max).",
-    "visual": "A physical description of a diagram to show. Be specific (e.g., 'A bar chart showing rep quality across 10 reps', 'A stick figure leaning back with a red highlight on the neck area').",
-    "type": "overview" | "problem" | "correction" | "drill"
-  }
+Transcript:
+${transcript}
 
-  Slide Requirements:
-  1. Slide 1 (Type: overview): A high-level summary of the session. What was the vibe? Did it go well overall?
-  2. Slide 2 (Type: problem): Identify the SINGLE most significant mistake or friction point. Be specific about what the rep said or didn't say.
-  3. Slide 3 (Type: correction): Explain HOW to fix that specific problem. Provide a "Before vs After" comparison of what to say.
-  4. Slide 4 (Type: drill): Propose one specific, actionable drill for the rep to practice before their next real call.
+Your job is to produce a concise, insightful 4-slide coaching presentation.
 
-  Return ONLY a valid JSON array of 4 objects.`;
+Each slide will be turned into:
+- narrated audio (TTS)
+- an AI-generated infographic image
+
+Therefore, the visual descriptions MUST describe clean infographic-style diagrams suitable for a modern SaaS analytics dashboard.
+
+IMPORTANT VISUAL STYLE RULES:
+All visuals must follow this design language:
+- SaaS dashboard infographic
+- flat design
+- minimal
+- clean UI
+- vector style
+- white background
+- subtle purple and blue accents
+- modern startup analytics aesthetic
+
+Avoid artistic illustrations, cartoons, or paintings. Prefer charts, diagrams, timelines, comparison cards, and dashboards.
+
+Generate EXACTLY 4 slides using this strict JSON structure:
+
+{
+  "title": "Concise headline for the slide",
+  "narration": "A spoken coaching script. Keep it under 20 seconds when spoken (40–50 words max). Clear, confident, and supportive.",
+  "visual": "A detailed description of an infographic or analytics-style diagram that illustrates the coaching insight.",
+  "type": "overview" | "problem" | "correction" | "drill"
+}
+
+Slide Requirements:
+
+Slide 1 (type: overview)
+Provide a high-level summary of the call.
+The visual should be a coaching analytics dashboard or conversation performance heatmap showing stages like:
+Introduction, Discovery, Pitch, Objection Handling, Closing.
+
+Slide 2 (type: problem)
+Identify the SINGLE biggest mistake or friction point in the conversation.
+Quote or reference the rep's words if possible.
+The visual should highlight the problematic moment, such as:
+- a conversation timeline with a red drop in engagement
+- a highlighted objection moment
+- a comparison chart showing strong vs weak moments.
+
+Slide 3 (type: correction)
+Explain how to fix the problem.
+Include a clear "Before vs After" example of what the rep should say.
+The visual should be a side-by-side comparison infographic showing:
+"Original Response" vs "Improved Response".
+
+Slide 4 (type: drill)
+Give the rep one actionable practice drill they can do before their next call.
+The drill should be specific and practical.
+The visual should be a simple practice framework diagram or step-by-step coaching card showing how to rehearse the skill.
+
+Return ONLY a valid JSON array of 4 slide objects.
+Do not include explanations or extra text.`;
 
   const response = await model.generateContent(prompt);
   const text = response.response.candidates?.[0].content.parts?.[0].text ?? "";

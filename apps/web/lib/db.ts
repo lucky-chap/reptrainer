@@ -379,6 +379,28 @@ export async function uploadDebriefAudio(
   return Promise.all(uploadPromises);
 }
 
+export async function uploadDebriefVisuals(
+  userId: string,
+  sessionId: string,
+  visualBase64: string[],
+): Promise<string[]> {
+  const uploadPromises = visualBase64.map(async (base64, index) => {
+    if (!base64) return "";
+    const fileRef = ref(
+      storage,
+      `debriefs/${userId}/${sessionId}/visual_${index}.jpg`,
+    );
+    // Handle data:image/jpeg;base64, or data:image/png;base64,
+    const cleanBase64 = base64.replace(/^data:image\/[a-z]+;base64,/, "");
+    await uploadString(fileRef, cleanBase64, "base64", {
+      contentType: "image/jpeg",
+    });
+    return getDownloadURL(fileRef);
+  });
+
+  return Promise.all(uploadPromises);
+}
+
 export async function deleteDebriefAudio(
   userId: string,
   sessionId: string,
@@ -393,6 +415,26 @@ export async function deleteDebriefAudio(
       // Ignore if file doesn't exist
       if (err.code !== "storage/object-not-found") {
         console.error(`Error deleting debrief audio slide ${index}:`, err);
+      }
+    });
+  });
+
+  await Promise.all(deletePromises);
+}
+
+export async function deleteDebriefVisuals(
+  userId: string,
+  sessionId: string,
+  numVisuals: number,
+): Promise<void> {
+  const deletePromises = Array.from({ length: numVisuals }).map((_, index) => {
+    const fileRef = ref(
+      storage,
+      `debriefs/${userId}/${sessionId}/visual_${index}.jpg`,
+    );
+    return deleteObject(fileRef).catch((err) => {
+      if (err.code !== "storage/object-not-found") {
+        console.error(`Error deleting debrief visual slide ${index}:`, err);
       }
     });
   });

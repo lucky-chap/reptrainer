@@ -297,6 +297,7 @@ export function CoachDebrief({
           <VisualDiagram
             type={currentSlide.type}
             description={currentSlide.visual}
+            visualUrl={currentSlide.visualUrl}
           />
         </div>
 
@@ -392,11 +393,26 @@ export function CoachDebrief({
 function VisualDiagram({
   type,
   description,
+  visualUrl,
 }: {
   type: string;
   description: string;
+  visualUrl?: string;
 }) {
-  // Simple CSS/SVG diagrams based on slide type
+  if (visualUrl) {
+    return (
+      <div className="relative flex h-full w-full items-center justify-center p-6 sm:p-12">
+        <div className="absolute inset-0 bg-linear-to-br from-white/5 to-transparent opacity-50" />
+        <img
+          src={visualUrl}
+          alt={description}
+          className="animate-in fade-in zoom-in z-10 max-h-full max-w-full rounded-2xl border border-white/10 shadow-2xl duration-1000"
+        />
+      </div>
+    );
+  }
+
+  // Simple CSS/SVG diagrams based on slide type as fallback
   switch (type) {
     case "overview":
       return (

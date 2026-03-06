@@ -7,9 +7,12 @@ import {
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
 import { requireApiSecret } from "../middleware/auth.js";
-import { evaluateSession } from "../services/vertex.js";
+import {
+  evaluateSession,
+  generateCoachDebrief,
+  generateSlideInfographic,
+} from "../services/vertex.js";
 import { generateFeedbackReport } from "../services/feedback.js";
-import { generateCoachDebrief } from "../services/vertex.js";
 import { synthesizeSpeech } from "../services/tts.js";
 
 export const sessionRoutes: Router = Router();
@@ -43,7 +46,7 @@ const debriefSchema = z.object({
 
 /**
  * POST /api/session/debrief
- * Generates a 4-slide personalized AI coaching debrief with voiceover.
+ * Generates a 4-slide personalized AI coaching debrief with voiceover and infographics.
  */
 sessionRoutes.post(
   "/debrief",
@@ -54,10 +57,10 @@ sessionRoutes.post(
       const { transcript, personaName, personaRole } = req.body;
 
       console.log(
-        `[debrief] Generating coach debrief for session with ${personaName} (${personaRole})`,
+        `[debrief] Generating multimodal coach debrief for session with ${personaName} (${personaRole})`,
       );
 
-      // 1. Generate 4 slides JSON
+      // 1. Generate 4 slides JSON via Gemini
       let slides;
       try {
         slides = await generateCoachDebrief(
@@ -73,10 +76,11 @@ sessionRoutes.post(
         throw new Error(`AI generation failed: ${geminiError.message}`);
       }
 
-      // 2. Synthesize audio for each slide narration
+      // 2. Synthesize audio AND generate infographics for each slide
       console.log(
-        `[debrief] Synthesizing audio for ${slides.length} slides...`,
+        `[debrief] Processing multimodal assets for ${slides.length} slides...`,
       );
+
       const audioPromises = slides.map(async (slide: any, index: number) => {
         try {
           const base64 = await synthesizeSpeech(slide.narration);
@@ -89,18 +93,46 @@ sessionRoutes.post(
             `[debrief] TTS failed for slide ${index + 1} ("${slide.title}"):`,
             error,
           );
-          return ""; // Return empty string for fallback if TTS fails per slide
+          return "";
         }
       });
 
-      const audioBase64 = await Promise.all(audioPromises);
+      const visualPromises = slides.map(async (slide: any, index: number) => {
+        try {
+          const base64 = await generateSlideInfographic(slide.visual);
+          console.log(
+            `[debrief] Imagen successful for slide ${index + 1}: ${slide.title}`,
+          );
+          return base64;
+        } catch (error) {
+          console.error(
+            `[debrief] Imagen failed for slide ${index + 1} ("${slide.title}"):`,
+            error,
+          );
+          return "";
+        }
+      });
+
+      const [audioBase64, visualBase64] = await Promise.all([
+        Promise.all(audioPromises),
+        Promise.all(visualPromises),
+      ]);
+
+      // Add visualBase64 to each slide object
+      slides.forEach((slide: any, index: number) => {
+        if (visualBase64[index]) {
+          slide.visualBase64 = visualBase64[index];
+        }
+      });
+
       console.log(
-        `[debrief] Finished audio synthesis. Returning ${audioBase64.filter((a) => !!a).length}/${slides.length} audio tracks.`,
+        `[debrief] Multimodal generation complete. Audio: ${audioBase64.filter((a: string) => !!a).length}/${slides.length}, Visuals: ${visualBase64.filter((v: string) => !!v).length}/${slides.length}`,
       );
 
       res.json({
         slides,
         audioBase64,
+        visualBase64,
       });
     } catch (error: any) {
       console.error("[debrief] Fatal error in debrief route:", error);
