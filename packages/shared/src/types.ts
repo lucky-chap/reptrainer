@@ -54,6 +54,7 @@ export interface Persona {
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female";
+  voiceName?: string;
   traits: PersonaTraits;
   createdAt: string;
 }
@@ -217,12 +218,14 @@ export interface GeneratePersonaRequest {
   industry: string;
   objections: string[];
   personalityType?: PersonalityType;
+  gender?: "male" | "female" | "other";
 }
 
 export interface GeneratePersonaResponse {
   name: string;
   role: string;
   gender: "male" | "female";
+  voiceName: string;
   personalityPrompt: string;
   personalityType?: PersonalityType;
   intensityLevel: number;

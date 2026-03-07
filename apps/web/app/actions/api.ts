@@ -33,6 +33,7 @@ export async function generatePersona(data: {
   industry: string;
   objections: string[];
   personalityType?: string;
+  gender?: "male" | "female" | "other";
 }) {
   const res = await fetch(`${baseUrl}/api/persona/generate`, {
     method: "POST",
@@ -110,7 +111,7 @@ export async function generateProduct(data: {
 }
 
 export async function generatePersonaAvatar(data: {
-  gender: "male" | "female";
+  gender: "male" | "female" | "other";
   role: string;
 }) {
   const res = await fetch(`${baseUrl}/api/persona/generate-avatar`, {

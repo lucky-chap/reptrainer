@@ -17,6 +17,7 @@ export interface TranscriptEntry {
   text: string;
   timestamp: number;
   isStreaming?: boolean;
+  isInterrupted?: boolean;
 }
 
 export interface SalesInsight {
@@ -833,8 +834,37 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
 
         // Handle interruption
         if (message.interrupted || serverContent?.interrupted) {
+          console.log("[VertexAI] Interruption received. Stopping playback.");
+          // Clear queue first
           audioQueueRef.current = [];
+
+          // Stop current source if playing
+          if (currentSourceRef.current) {
+            try {
+              currentSourceRef.current.stop();
+            } catch (e) {
+              /* ignore */
+            }
+            currentSourceRef.current = null;
+          }
+
+          // Mark last model entry as interrupted
+          const currentTranscript = [...transcriptRef.current];
+          for (let i = currentTranscript.length - 1; i >= 0; i--) {
+            if (currentTranscript[i].role === "model") {
+              currentTranscript[i] = {
+                ...currentTranscript[i],
+                isInterrupted: true,
+              };
+              break;
+            }
+          }
+          transcriptRef.current = currentTranscript;
+          setTranscript(currentTranscript);
+          optionsRef.current.onTranscriptUpdate?.(currentTranscript);
+
           isPlayingRef.current = false;
+          setIsAISpeaking(false);
         }
       };
 

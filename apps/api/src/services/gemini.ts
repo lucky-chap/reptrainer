@@ -78,7 +78,16 @@ export async function generatePersona(
     industry,
     objections,
     personalityType,
+    gender: preferredGender,
   } = input;
+
+  // Handle gender randomization if "other" is chosen
+  const finalGender =
+    preferredGender === "other"
+      ? Math.random() > 0.5
+        ? "male"
+        : "female"
+      : preferredGender;
 
   const template = personalityType
     ? (PROSPECT_PERSONALITY_TEMPLATES.find(
@@ -107,12 +116,13 @@ Context:
 - Target Customer: ${targetCustomer}
 - Industry: ${industry}
 - Common Objections: ${objections.join(", ")}${personalityContext}
+${finalGender ? `- Preferred Gender: ${finalGender}` : ""}
 
 Generate a buyer persona with the following JSON structure. Return ONLY valid JSON, no markdown:
 {
-  "name": "A realistic, memorable full name. Use culturally diverse names — mix ethnicities and backgrounds. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. Avoid generic names like 'John Smith' or 'Jane Doe'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
+  "name": "A realistic, memorable full name${finalGender ? ` for a ${finalGender} executive` : ""}. Use culturally diverse names — mix ethnicities and backgrounds. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. Avoid generic names like 'John Smith' or 'Jane Doe'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
   "role": "A specific, realistic job title (e.g., 'SVP of Revenue Operations', 'Chief Data Officer', 'Director of IT Infrastructure'). Avoid generic titles like 'Manager'.",
-  "gender": "male" or "female" (must match the name),
+  "gender": "${finalGender || '"male" or "female"'} (must match the name)",
   "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. ${template ? `IT MUST INCORPORATE THE BEHAVIORAL PROFILE, TONE, AND TRIGGERS FROM THE ${template.name} TEMPLATE.` : "Include: their communication style (direct, analytical, impatient, etc.), what triggers their skepticism, specific pet peeves in sales pitches (e.g., 'hates buzzwords', 'demands ROI before features'), their decision-making approach (consensus-driven, data-driven, gut-feel), and what would make them end a meeting early."} Make the persona feel like a real, specific person with strong opinions.",
   "personalityType": "${personalityType || "custom"}",
   "intensityLevel": 1-3 (1=friendly skeptic, 2=tough negotiator, 3=hostile gatekeeper),
@@ -125,7 +135,7 @@ Generate a buyer persona with the following JSON structure. Return ONLY valid JS
 }
 
 IMPORTANT:
-- Vary the gender across generations — create a realistic mix of male and female personas.
+- ${finalGender ? `The name and gender MUST be ${finalGender}.` : "Vary the gender across generations — create a realistic mix of male and female personas."}
 - The name MUST clearly match the gender field.
 - Make the name MEMORABLE and DISTINCT — these are senior executives with presence.
 - Vary cultural backgrounds. Do NOT default to generic Anglo-Saxon names every time.`;

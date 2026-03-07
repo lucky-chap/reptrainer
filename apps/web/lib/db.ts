@@ -63,7 +63,8 @@ export interface Persona {
   personalityPrompt: string;
   intensityLevel: number; // 1-3
   objectionStrategy: string;
-  gender: "male" | "female";
+  gender: "male" | "female" | "other";
+  voiceName?: string;
   personalityType?: PersonalityType;
   avatarUrl?: string;
   traits: {

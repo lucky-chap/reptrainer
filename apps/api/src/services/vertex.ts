@@ -3,6 +3,7 @@ import {
   GenerationConfig,
   type ModelParams,
 } from "@google-cloud/vertexai";
+import { type LiveConnectConfig } from "@google/genai";
 import { env } from "../config/env.js";
 import {
   GeneratePersonaRequest,
@@ -24,6 +25,42 @@ const vertexAI = new VertexAI({
 const TEXT_MODEL = GEMINI_TEXT_MODEL; // Stable Vertex model
 const EVALUATION_MODEL = GEMINI_EVALUATION_MODEL; // Stable Vertex model
 
+const FEMALE_VOICES = [
+  "Zephyr",
+  "Kore",
+  "Leda",
+  "Aoede",
+  "Callirrhoe",
+  "Autonoe",
+  "Despina",
+  "Erinome",
+  "Laomedeia",
+  "Achernar",
+  "Pulcherrima",
+  "Achird",
+  "Vindemiatrix",
+  "Sulafat",
+];
+
+const MALE_VOICES = [
+  "Puck",
+  "Charon",
+  "Fenrir",
+  "Orus",
+  "Enceladus",
+  "Iapetus",
+  "Umbriel",
+  "Algieba",
+  "Algenib",
+  "Rasalgethi",
+  "Alnilam",
+  "Schedar",
+  "Gacrux",
+  "Zubenelgenubi",
+  "Sadachbia",
+  "Sadaltager",
+];
+
 /**
  * Extracts JSON from a potentially markdown-wrapped AI response.
  */
@@ -38,8 +75,14 @@ function extractJson(text: string): string | null {
 export async function generatePersona(
   input: GeneratePersonaRequest,
 ): Promise<GeneratePersonaResponse> {
-  const { companyName, description, targetCustomer, industry, objections } =
-    input;
+  const {
+    companyName,
+    description,
+    targetCustomer,
+    industry,
+    objections,
+    gender,
+  } = input;
 
   const model = vertexAI.getGenerativeModel({
     model: TEXT_MODEL,
@@ -63,6 +106,7 @@ Generate a buyer persona with the following JSON structure. Return ONLY valid JS
   "name": "A realistic, memorable full name. Use culturally diverse names — mix ethnicities and backgrounds. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. Avoid generic names like 'John Smith' or 'Jane Doe'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
   "role": "A specific, realistic job title (e.g., 'SVP of Revenue Operations', 'Chief Data Officer', 'Director of IT Infrastructure'). Avoid generic titles like 'Manager'.",
   "gender": "male" or "female" (must match the name),
+  "voiceName": "Choose one from the context-appropriate list based on the gender: ${gender === "male" ? MALE_VOICES.join(", ") : gender === "female" ? FEMALE_VOICES.join(", ") : [...MALE_VOICES, ...FEMALE_VOICES].join(", ")}",
   "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. Include: their communication style (direct, analytical, impatient, etc.), what triggers their skepticism, specific pet peeves in sales pitches (e.g., 'hates buzzwords', 'demands ROI before features'), their decision-making approach (consensus-driven, data-driven, gut-feel), and what would make them end a meeting early. Make the persona feel like a real, specific person with strong opinions.",
   "intensityLevel": 1-3 (1=friendly skeptic, 2=tough negotiator, 3=hostile gatekeeper),
   "objectionStrategy": "A specific 2-3 sentence strategy this persona uses to push back. E.g., 'Opens with budget concerns, then escalates to questioning whether the product solves a real problem. Will demand competitive comparisons and walk if the rep can't provide them.'",
@@ -182,7 +226,12 @@ export function getLiveSetupConfig(
         },
       },
       system_instruction: {
-        parts: [{ text: systemPrompt }],
+        parts: [
+          {
+            text: "You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions.",
+          },
+          { text: systemPrompt },
+        ],
       },
       input_audio_transcription: {},
       output_audio_transcription: {},
@@ -247,7 +296,7 @@ export async function generatePersonaAvatar(
   const location = env.GOOGLE_CLOUD_LOCATION;
   const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${GEMINI_IMAGE_MODEL}:predict`;
 
-  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
+  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their early 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
 
   const response = await fetch(url, {
     method: "POST",

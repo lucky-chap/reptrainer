@@ -99,6 +99,14 @@ export default function PersonasPage() {
   const [manualStrategy, setManualStrategy] = useState("");
   const [manualIntensity, setManualIntensity] = useState(1);
   const [manualProductId, setManualProductId] = useState("");
+  const [manualGender, setManualGender] = useState<"male" | "female" | "other">(
+    "female",
+  );
+
+  // AI Generation State
+  const [selectedGender, setSelectedGender] = useState<
+    "male" | "female" | "other"
+  >("other");
 
   const { tasks, isGenerating, generatePersona, dismissTask } =
     useBackgroundGeneration();
@@ -149,8 +157,11 @@ export default function PersonasPage() {
     if (!selectedProductId) return;
     const product = products.find((p) => p.id === selectedProductId);
     if (product) {
-      generatePersona(product, selectedPersonality || undefined);
-      setShowCreator(false);
+      generatePersona(
+        product,
+        selectedPersonality || undefined,
+        selectedGender,
+      );
     }
   };
 
@@ -181,7 +192,7 @@ export default function PersonasPage() {
       personalityPrompt: `You are ${manualName}, a ${manualRole}. Your strategy is ${manualStrategy}.`,
       intensityLevel: manualIntensity,
       objectionStrategy: manualStrategy,
-      gender: "female",
+      gender: manualGender,
       traits: {
         aggressiveness: manualIntensity * 3,
         interruptionFrequency: "low",
@@ -325,6 +336,29 @@ export default function PersonasPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="pt-2">
+                    <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
+                      Preferred Gender
+                    </Label>
+                    <Select
+                      value={selectedGender}
+                      onValueChange={(val: "male" | "female" | "other") =>
+                        setSelectedGender(val)
+                      }
+                    >
+                      <SelectTrigger className="h-12 w-full rounded-xl">
+                        <SelectValue placeholder="AI Selects" />
+                      </SelectTrigger>
+                      <SelectContent position="popper" className="rounded-xl">
+                        <SelectItem value="other">
+                          AI Selects (Mixed)
+                        </SelectItem>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -433,6 +467,32 @@ export default function PersonasPage() {
                     required
                     className="h-12 rounded-xl"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="manualGender"
+                    className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                  >
+                    Gender
+                  </Label>
+                  <Select
+                    value={manualGender}
+                    onValueChange={(val: "male" | "female" | "other") =>
+                      setManualGender(val)
+                    }
+                  >
+                    <SelectTrigger
+                      id="manualGender"
+                      className="h-12 rounded-xl"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other / Randomized</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

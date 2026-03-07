@@ -18,6 +18,7 @@ const generatePersonaSchema = z.object({
   targetCustomer: z.string().min(1),
   industry: z.string().min(1),
   objections: z.array(z.string()).min(1),
+  gender: z.enum(["male", "female", "other"]).optional(),
 });
 
 /**

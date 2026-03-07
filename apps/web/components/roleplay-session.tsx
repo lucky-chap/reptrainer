@@ -214,18 +214,61 @@ ${trackPromptOverride}
 **CRITICAL**: Never mention "tools", "logging", or being an AI. Stay 100% in your persona as ${persona.name}.`;
 
   // Map persona gender to a matching Gemini voice
-  const MALE_VOICES = ["Puck", "Charon", "Fenrir", "Orus"];
-  const FEMALE_VOICES = ["Kore", "Aoede", "Leda", "Zephyr"];
+  const FEMALE_VOICES = [
+    "Zephyr",
+    "Kore",
+    "Leda",
+    "Aoede",
+    "Callirrhoe",
+    "Autonoe",
+    "Despina",
+    "Erinome",
+    "Laomedeia",
+    "Achernar",
+    "Pulcherrima",
+    "Achird",
+    "Vindemiatrix",
+    "Sulafat",
+  ];
+
+  const MALE_VOICES = [
+    "Puck",
+    "Charon",
+    "Fenrir",
+    "Orus",
+    "Enceladus",
+    "Iapetus",
+    "Umbriel",
+    "Algieba",
+    "Algenib",
+    "Rasalgethi",
+    "Alnilam",
+    "Schedar",
+    "Gacrux",
+    "Zubenelgenubi",
+    "Sadachbia",
+    "Sadaltager",
+  ];
 
   const getVoiceForPersona = useCallback(() => {
+    // If a specific voice was assigned during generation, use it
+    if (persona.voiceName) {
+      console.log(
+        `[RoleplaySession] Using assigned voice: ${persona.voiceName}`,
+      );
+      return persona.voiceName;
+    }
+
     const gender = persona.gender || "female";
     const voices = gender === "male" ? MALE_VOICES : FEMALE_VOICES;
     // Pick a consistent voice per persona (based on name hash)
     const hash = persona.name
       .split("")
       .reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    return voices[hash % voices.length];
-  }, [persona.gender, persona.name]);
+    const selectedVoice = voices[hash % voices.length];
+    console.log(`[RoleplaySession] Using fallback voice: ${selectedVoice}`);
+    return selectedVoice;
+  }, [persona.gender, persona.name, persona.voiceName]);
 
   const voiceName = getVoiceForPersona();
 
@@ -1463,6 +1506,11 @@ ${trackPromptOverride}
                             {entry.text}
                             {entry.isStreaming && (
                               <span className="ml-1 inline-block h-3.5 w-1 animate-pulse rounded-full bg-current align-middle opacity-50" />
+                            )}
+                            {entry.role === "model" && entry.isInterrupted && (
+                              <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 opacity-80">
+                                <PhoneOff className="size-2.5" /> [Interrupted]
+                              </span>
                             )}
                           </p>
                         </div>
