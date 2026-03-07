@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Users, Mail, Shield, User, Clock, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Users,
+  Mail,
+  Shield,
+  User,
+  Clock,
+  Trash2,
+  Copy,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,20 +22,24 @@ import {
 } from "@/components/ui/card";
 import { InviteMemberModal } from "@/components/team/invite-member-modal";
 import { useTeam } from "@/context/team-context";
+import { useAuth } from "@/context/auth-context";
 import {
   getTeamMembers,
   getPendingInvitations,
   removeTeamMember,
 } from "@/lib/db";
+import { toast } from "sonner";
 import type { TeamMember, Invitation } from "@reptrainer/shared";
 import { Badge } from "@/components/ui/badge";
 
 export default function TeamPage() {
+  const { user } = useAuth();
   const { activeMembership, isAdmin } = useTeam();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!activeMembership) return;
@@ -46,6 +60,14 @@ export default function TeamPage() {
   useEffect(() => {
     fetchData();
   }, [activeMembership]);
+
+  const copyInvitationLink = (id: string) => {
+    const link = `${window.location.origin}/invite/${id}`;
+    navigator.clipboard.writeText(link);
+    setCopiedId(id);
+    toast.success("Invitation link copied");
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const handleRemoveMember = async (userId: string) => {
     if (!activeMembership) return;
@@ -127,21 +149,39 @@ export default function TeamPage() {
                     className="flex items-center justify-between py-4"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="bg-charcoal/5 flex size-10 items-center justify-center rounded-full">
-                        <User className="text-charcoal size-5" />
+                      <div className="bg-charcoal/5 flex size-10 items-center justify-center overflow-hidden rounded-full">
+                        {member.userId === user?.uid ? (
+                          user?.photoURL ? (
+                            <img
+                              src={user.photoURL}
+                              alt="You"
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            <User className="text-charcoal size-5" />
+                          )
+                        ) : member.userAvatarUrl ? (
+                          <img
+                            src={member.userAvatarUrl}
+                            alt={member.userName || "Team member"}
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <User className="text-charcoal size-5" />
+                        )}
                       </div>
                       <div>
                         <p className="text-sm font-medium">
-                          {member.userId === activeMembership.id
+                          {member.userId === user?.uid
                             ? "You"
-                            : member.userId}
+                            : member.userName || member.userId}
                         </p>
                         <Badge variant="outline" className="mt-1 capitalize">
                           {member.role}
                         </Badge>
                       </div>
                     </div>
-                    {member.userId !== activeMembership.id && (
+                    {member.userId !== user?.uid && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -208,6 +248,21 @@ export default function TeamPage() {
                         {new Date(invitation.expiresAt).toLocaleDateString()}
                       </span>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 w-full gap-2 text-xs"
+                      onClick={() => copyInvitationLink(invitation.id)}
+                    >
+                      {copiedId === invitation.id ? (
+                        <Check className="size-3 text-green-600" />
+                      ) : (
+                        <Copy className="size-3" />
+                      )}
+                      {copiedId === invitation.id
+                        ? "Copied"
+                        : "Copy Invite Link"}
+                    </Button>
                   </div>
                 ))}
               </div>

@@ -123,7 +123,7 @@ export default function ProductsPage() {
     const product: Product = {
       id: uuidv4(),
       userId: user?.uid || "anonymous",
-      teamId: selectedTeamId || undefined,
+      teamId: selectedTeamId || "personal", // Fallback for personal space
       companyName,
       description,
       targetCustomer,
@@ -142,7 +142,12 @@ export default function ProductsPage() {
   };
 
   const handleAiGenerate = async () => {
-    await generateProduct({});
+    if (!selectedTeamId) {
+      // In a real app, maybe show a toast, but here we'll fallback
+      await generateProduct({ teamId: "personal" });
+    } else {
+      await generateProduct({ teamId: selectedTeamId });
+    }
     setShowCreator(false);
   };
 
@@ -227,7 +232,7 @@ export default function ProductsPage() {
                 onClick={handleAiGenerate}
                 disabled={isGenerating}
                 variant="brand"
-                className="h-12 w-full rounded-xl"
+                className="h-12 w-full rounded-full"
               >
                 {isGenerating ? (
                   <>

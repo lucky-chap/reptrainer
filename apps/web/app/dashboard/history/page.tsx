@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import {
   Card,
   CardHeader,
@@ -58,6 +59,7 @@ export default function HistoryPage() {
     null,
   );
   const [teams, setTeams] = useState<any[]>([]);
+  const { isAdmin } = useTeam();
 
   useEffect(() => {
     if (!user) return;
@@ -185,14 +187,23 @@ export default function HistoryPage() {
       {/* Header */}
       <div>
         <span className="text-warm-gray mb-2 block text-xs font-medium tracking-widest uppercase">
-          Past Sessions
+          {isAdmin ? "Team History" : "Your History"}
         </span>
         <h1 className="heading-serif text-charcoal mb-2 text-3xl md:text-4xl lg:text-5xl">
-          Team <em>History.</em>
+          {isAdmin ? (
+            <>
+              Team <em>History.</em>
+            </>
+          ) : (
+            <>
+              Your <em>Performance.</em>
+            </>
+          )}
         </h1>
         <p className="text-warm-gray text-base">
-          Review your team's past roleplay sessions and track collective
-          improvement.
+          {isAdmin
+            ? "Review your team's past roleplay sessions and track collective improvement."
+            : "Review your past roleplay sessions and track your personal improvement over time."}
         </p>
       </div>
 

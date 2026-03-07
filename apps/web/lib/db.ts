@@ -44,7 +44,7 @@ import type {
 export interface Product {
   id: string;
   userId: string;
-  teamId?: string;
+  teamId: string;
   companyName: string;
   description: string;
   targetCustomer: string;
@@ -56,7 +56,7 @@ export interface Product {
 export interface Persona {
   id: string;
   userId: string;
-  teamId?: string;
+  teamId: string;
   productId: string;
   name: string;
   role: string;
@@ -164,6 +164,7 @@ export async function seedDemoProducts(userId: string): Promise<Product[]> {
     {
       id: uuidv4(),
       userId,
+      teamId: "personal", // Fallback for demo
       companyName: "DataStream Pro",
       industry: "Enterprise Data Analytics",
       description:
@@ -649,7 +650,12 @@ export function subscribeSessions(
 }
 // ─── Team Operations ─────────────────────────────────────────────────────
 
-export async function createTeam(name: string, ownerId: string): Promise<Team> {
+export async function createTeam(
+  name: string,
+  ownerId: string,
+  ownerName?: string,
+  ownerAvatarUrl?: string,
+): Promise<Team> {
   const team: Team = {
     id: uuidv4(),
     name,
@@ -659,7 +665,7 @@ export async function createTeam(name: string, ownerId: string): Promise<Team> {
   await setDoc(doc(db, "teams", team.id), team);
 
   // Add creator as admin member
-  await addTeamMember(team.id, ownerId, "admin");
+  await addTeamMember(team.id, ownerId, "admin", ownerName, ownerAvatarUrl);
 
   return team;
 }
@@ -807,11 +813,15 @@ export async function addTeamMember(
   teamId: string,
   userId: string,
   role: "admin" | "member" = "member",
+  userName?: string,
+  userAvatarUrl?: string,
 ): Promise<void> {
   const member: TeamMember = {
     id: `${teamId}_${userId}`,
     teamId,
     userId,
+    userName,
+    userAvatarUrl,
     role,
     joinedAt: new Date().toISOString(),
   };
@@ -840,7 +850,7 @@ export async function createInvitation(
     role,
     status: "pending",
     invitedBy,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days
   };
   await setDoc(doc(db, "invitations", invitation.id), invitation);
   return invitation;
@@ -857,13 +867,21 @@ export async function getInvitation(
 export async function acceptInvitation(
   tokenId: string,
   userId: string,
+  userName?: string,
+  userAvatarUrl?: string,
 ): Promise<void> {
   const invitation = await getInvitation(tokenId);
   if (!invitation || invitation.status !== "pending") {
     throw new Error("Invalid or expired invitation");
   }
 
-  await addTeamMember(invitation.teamId, userId, invitation.role);
+  await addTeamMember(
+    invitation.teamId,
+    userId,
+    invitation.role,
+    userName,
+    userAvatarUrl,
+  );
   await updateDoc(doc(db, "invitations", tokenId), { status: "accepted" });
 }
 

@@ -46,6 +46,7 @@ export interface GenerationContextType {
   generateProduct: (data: {
     companyName?: string;
     briefDescription?: string;
+    teamId: string;
   }) => Promise<void>;
   dismissTask: (taskId: string) => void;
 }
@@ -125,6 +126,7 @@ export function GenerationProvider({
         const persona: Persona = {
           id: personaId,
           userId: user?.uid || "anonymous",
+          teamId: product.teamId || "personal",
           productId: product.id,
           name: data.name,
           role: data.role,
@@ -207,7 +209,11 @@ export function GenerationProvider({
   );
 
   const generateProduct = useCallback(
-    async (data: { companyName?: string; briefDescription?: string }) => {
+    async (data: {
+      companyName?: string;
+      briefDescription?: string;
+      teamId: string;
+    }) => {
       const taskId = uuidv4();
 
       const task: GenerationTask = {
@@ -228,6 +234,7 @@ export function GenerationProvider({
         const product: Product = {
           id: uuidv4(),
           userId: user?.uid || "anonymous",
+          teamId: data.teamId,
           companyName: generatedData.companyName,
           description: generatedData.description,
           targetCustomer: generatedData.targetCustomer,

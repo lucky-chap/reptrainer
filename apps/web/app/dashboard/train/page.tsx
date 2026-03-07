@@ -64,7 +64,7 @@ function TrainPageContent() {
   );
 
   const { tasks, isGenerating, dismissTask } = useBackgroundGeneration();
-  const { memberships, loading: teamLoading } = useTeam();
+  const { memberships, isAdmin, loading: teamLoading } = useTeam();
   const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
 
   useEffect(() => {
@@ -200,15 +200,23 @@ function TrainPageContent() {
         {/* Page header */}
         <div>
           <span className="text-warm-gray mb-2 block text-xs font-medium tracking-widest uppercase">
-            Training
+            {isAdmin ? "Team Training" : "Your Training"}
           </span>
           <h1 className="heading-serif text-charcoal mb-2 text-3xl md:text-4xl lg:text-5xl">
-            Team <em>Training.</em>
+            {isAdmin ? (
+              <>
+                Team <em>Training.</em>
+              </>
+            ) : (
+              <>
+                Personal <em>Practice.</em>
+              </>
+            )}
           </h1>
           <p className="text-warm-gray max-w-xl text-base">
-            Train yourself or your team with AI buyer personas. Practice
-            objection handling, closing, and more to drive collective
-            performance.
+            {isAdmin
+              ? "Train yourself or your team with AI buyer personas. Practice objection handling, closing, and more to drive collective performance."
+              : "Sharpen your sales skills with AI buyer personas. Practice objection handling and closing in a low-stakes environment."}
           </p>
         </div>
 

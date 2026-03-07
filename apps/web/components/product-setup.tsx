@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import type { Product } from "@/lib/db";
 import { saveProduct, getAllProducts, deleteProduct } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 
 interface ProductSetupProps {
   onProductSelect?: (product: Product) => void;
@@ -29,6 +30,7 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { activeMembership } = useTeam();
 
   // Form state
   const [companyName, setCompanyName] = useState("");
@@ -65,6 +67,7 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
     const product: Product = {
       id: uuidv4(),
       userId: user?.uid || "anonymous",
+      teamId: activeMembership?.id || "personal",
       companyName,
       description,
       targetCustomer,
@@ -90,13 +93,13 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="size-8 border-2 border-emerald-glow/30 border-t-emerald-glow rounded-full animate-spin" />
+        <div className="border-emerald-glow/30 border-t-emerald-glow size-8 animate-spin rounded-full border-2" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="animate-fade-up space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -126,12 +129,12 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
 
       {/* Form */}
       {showForm && (
-        <Card className="p-6 glass animate-fade-up">
+        <Card className="glass animate-fade-up p-6">
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <Building2 className="size-4 text-emerald-glow" />
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <Building2 className="text-emerald-glow size-4" />
                   Company Name
                 </label>
                 <Input
@@ -142,8 +145,8 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <Target className="size-4 text-blue-glow" />
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <Target className="text-blue-glow size-4" />
                   Industry
                 </label>
                 <Input
@@ -156,8 +159,8 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <FileText className="size-4 text-amber-glow" />
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <FileText className="text-amber-glow size-4" />
                 Product Description
               </label>
               <Textarea
@@ -170,8 +173,8 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Target className="size-4 text-violet-glow" />
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <Target className="text-violet-glow size-4" />
                 Target Customer
               </label>
               <Input
@@ -183,8 +186,8 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <AlertTriangle className="size-4 text-rose-glow" />
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <AlertTriangle className="text-rose-glow size-4" />
                 Common Objections
               </label>
               <div className="flex gap-2">
@@ -210,17 +213,17 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
                 </Button>
               </div>
               {objections.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   {objections.map((obj, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-rose-glow/10 text-rose-glow border border-rose-glow/20"
+                      className="bg-rose-glow/10 text-rose-glow border-rose-glow/20 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
                     >
                       {obj}
                       <button
                         type="button"
                         onClick={() => handleRemoveObjection(i)}
-                        className="hover:text-white transition-colors"
+                        className="transition-colors hover:text-white"
                       >
                         <X className="size-3" />
                       </button>
@@ -239,12 +242,12 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
 
       {/* Product List */}
       {products.length === 0 && !showForm ? (
-        <Card className="p-12 flex flex-col items-center justify-center text-center glass">
-          <div className="size-16 rounded-2xl bg-emerald-glow/10 flex items-center justify-center mb-4">
-            <Package className="size-8 text-emerald-glow/60" />
+        <Card className="glass flex flex-col items-center justify-center p-12 text-center">
+          <div className="bg-emerald-glow/10 mb-4 flex size-16 items-center justify-center rounded-2xl">
+            <Package className="text-emerald-glow/60 size-8" />
           </div>
-          <h3 className="text-lg font-semibold mb-1">No products yet</h3>
-          <p className="text-muted-foreground text-sm max-w-sm">
+          <h3 className="mb-1 text-lg font-semibold">No products yet</h3>
+          <p className="text-muted-foreground max-w-sm text-sm">
             Add your first product to start generating buyer personas and
             running roleplay sessions.
           </p>
@@ -254,40 +257,40 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
           {products.map((product, i) => (
             <Card
               key={product.id}
-              className="p-5 glass hover:border-emerald-glow/20 transition-all duration-300 cursor-pointer group"
+              className="glass hover:border-emerald-glow/20 group cursor-pointer p-5 transition-all duration-300"
               style={{ animationDelay: `${i * 100}ms` }}
               onClick={() => onProductSelect?.(product)}
             >
               <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-glow/15 to-emerald-glow/5 border border-emerald-glow/15 flex items-center justify-center shrink-0">
-                      <Building2 className="size-5 text-emerald-glow" />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex items-center gap-3">
+                    <div className="from-emerald-glow/15 to-emerald-glow/5 border-emerald-glow/15 flex size-10 shrink-0 items-center justify-center rounded-xl border bg-gradient-to-br">
+                      <Building2 className="text-emerald-glow size-5" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-base group-hover:text-emerald-glow transition-colors">
+                      <h3 className="group-hover:text-emerald-glow text-base font-semibold transition-colors">
                         {product.companyName}
                       </h3>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         {product.industry}
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2 ml-[52px]">
+                  <p className="text-muted-foreground ml-[52px] line-clamp-2 text-sm">
                     {product.description}
                   </p>
                   {product.objections.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3 ml-[52px]">
+                    <div className="mt-3 ml-[52px] flex flex-wrap gap-1.5">
                       {product.objections.slice(0, 3).map((obj, j) => (
                         <span
                           key={j}
-                          className="px-2 py-0.5 rounded-md text-[11px] bg-secondary text-muted-foreground"
+                          className="bg-secondary text-muted-foreground rounded-md px-2 py-0.5 text-[11px]"
                         >
                           {obj}
                         </span>
                       ))}
                       {product.objections.length > 3 && (
-                        <span className="px-2 py-0.5 rounded-md text-[11px] text-muted-foreground">
+                        <span className="text-muted-foreground rounded-md px-2 py-0.5 text-[11px]">
                           +{product.objections.length - 3} more
                         </span>
                       )}
@@ -297,7 +300,7 @@ export function ProductSetup({ onProductSelect }: ProductSetupProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                  className="text-muted-foreground hover:text-destructive opacity-0 transition-all group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDelete(product.id);

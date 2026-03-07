@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { Check, Copy, ExternalLink, Mail } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,8 @@ export function InviteMemberModal({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "member">("member");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [invitationLink, setInvitationLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,70 +49,111 @@ export function InviteMemberModal({
 
     setIsSubmitting(true);
     try {
-      await createInvitation(activeMembership.id, email, user.uid, role);
-      toast.success(`Invitation sent to ${email}`);
-      setEmail("");
-      setRole("member");
+      const invite = await createInvitation(
+        activeMembership.id,
+        email,
+        user.uid,
+        role,
+      );
+      const link = `${window.location.origin}/invite/${invite.id}`;
+      setInvitationLink(link);
+      toast.success(`Invitation created for ${email}`);
       onInviteSent?.();
-      onClose();
     } catch (error) {
       console.error("Error sending invitation:", error);
-      toast.error("Failed to send invitation. Please try again.");
+      toast.error("Failed to create invitation. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const copyToClipboard = () => {
+    if (!invitationLink) return;
+    navigator.clipboard.writeText(invitationLink);
+    setCopied(true);
+    toast.success("Link copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleReset = () => {
+    setEmail("");
+    setInvitationLink(null);
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={isOpen} onOpenChange={handleReset}>
+      <DialogContent className="w-full sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invite Team Member</DialogTitle>
+          <DialogTitle className="sr-only">
+            {invitationLink ? "Invitation Link Ready" : "Invite Team Member"}
+          </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="colleague@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+
+        {invitationLink ? (
+          <div className="w-full max-w-md space-y-6 py-6">
+            <div className="flex flex-col items-center justify-center text-center">
+              <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-green-100">
+                <Check className="size-6 text-green-600" />
+              </div>
+              <h3 className="text-lg font-semibold">Invitation Created</h3>
+              <p className="text-warm-gray mt-1 text-sm">
+                Share this link with your teammate. It will expire in 3 days.
+              </p>
+            </div>
+
+            <div className="grid w-full grid-cols-6 items-center gap-2">
+              <div className="bg-border/10 col-span-5 flex-1 truncate rounded-lg border p-3 font-mono text-sm">
+                {invitationLink}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={copyToClipboard}
+                className="col-span-1 h-full w-full shrink-0"
+              >
+                {copied ? (
+                  <Check className="size-4 text-green-600" />
+                ) : (
+                  <Copy className="size-4" />
+                )}
+              </Button>
+            </div>
+
+            {/* <DialogFooter className="w-full">
+              <Button onClick={handleReset} className="w-full">
+                Done
+              </Button>
+            </DialogFooter> */}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="role">Role</Label>
-            <Select
-              value={role}
-              onValueChange={(value: "admin" | "member") => setRole(value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="member">Member</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-warm-gray text-xs">
-              Admins can manage team members, products, and personas.
-            </p>
-          </div>
-          <DialogFooter className="pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting || !email}>
-              {isSubmitting ? "Sending..." : "Send Invitation"}
-            </Button>
-          </DialogFooter>
-        </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address (Optional reference)</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="colleague@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter className="pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting || !email}>
+                {isSubmitting ? "Creating..." : "Generate Link"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -317,6 +317,8 @@ export interface TeamMember {
   id: string; // teamId_userId
   teamId: string;
   userId: string;
+  userName?: string;
+  userAvatarUrl?: string;
   role: "admin" | "member";
   joinedAt: string;
 }

@@ -84,7 +84,12 @@ export default function PersonasPage() {
   const [showCreator, setShowCreator] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [personaToDelete, setPersonaToDelete] = useState<string | null>(null);
-  const { isAdmin, memberships, loading: teamLoading } = useTeam();
+  const {
+    isAdmin,
+    activeMembership,
+    memberships,
+    loading: teamLoading,
+  } = useTeam();
   const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
 
@@ -111,7 +116,9 @@ export default function PersonasPage() {
       setLoading(false);
     };
 
-    if (memberships.length > 0 && !selectedTeamId) {
+    if (activeMembership && !selectedTeamId) {
+      setSelectedTeamId(activeMembership.id);
+    } else if (memberships.length > 0 && !selectedTeamId) {
       setSelectedTeamId(memberships[0].id);
     }
 
@@ -167,7 +174,7 @@ export default function PersonasPage() {
     const persona: Persona = {
       id: uuidv4(),
       userId: user?.uid || "anonymous",
-      teamId: selectedTeamId || undefined,
+      teamId: selectedTeamId || "personal",
       productId: manualProductId,
       name: manualName,
       role: manualRole,
@@ -325,7 +332,8 @@ export default function PersonasPage() {
               <Button
                 onClick={handleGenerate}
                 disabled={!selectedProductId || isGenerating}
-                className="w-full rounded-xl"
+                className="h-12 w-full rounded-full"
+                variant={"brand"}
               >
                 {isGenerating ? (
                   <>

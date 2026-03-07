@@ -11,6 +11,15 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { getInvitation, acceptInvitation, getTeam } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
@@ -28,6 +37,15 @@ export default function InvitePage() {
     "loading" | "valid" | "invalid" | "expired" | "accepted"
   >("loading");
   const [isAccepting, setIsAccepting] = useState(false);
+  const [errorModal, setErrorModal] = useState<{
+    show: boolean;
+    title: string;
+    description: string;
+  }>({
+    show: false,
+    title: "",
+    description: "",
+  });
 
   useEffect(() => {
     const checkInvitation = async () => {
@@ -66,14 +84,22 @@ export default function InvitePage() {
     if (!user || !id) return;
     setIsAccepting(true);
     try {
-      await acceptInvitation(id, user.uid);
+      await acceptInvitation(
+        id,
+        user.uid,
+        user.displayName || undefined,
+        user.photoURL || undefined,
+      );
       await refreshMemberships();
       router.push("/dashboard");
     } catch (error) {
       console.error("Error accepting invitation:", error);
-      alert(
-        "Failed to accept invitation. It may have expired or been revoked.",
-      );
+      setErrorModal({
+        show: true,
+        title: "Invitation Error",
+        description:
+          "Failed to accept invitation. It may have expired or been revoked.",
+      });
       setIsAccepting(false);
     }
   };
@@ -145,7 +171,7 @@ export default function InvitePage() {
                     className="h-11 w-full"
                     variant="brand"
                   >
-                    Sign In to Join
+                    Sign in to join now
                   </Button>
                 </div>
               ) : (
@@ -159,7 +185,9 @@ export default function InvitePage() {
                     variant="brand"
                     disabled={isAccepting}
                   >
-                    {isAccepting ? "Joining..." : "Accept Invitation"}
+                    {isAccepting
+                      ? "Joining..."
+                      : `Join ${team?.name || "Team"}`}
                   </Button>
                 </div>
               )}
@@ -182,6 +210,31 @@ export default function InvitePage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={errorModal.show}
+        onOpenChange={(open) =>
+          setErrorModal((prev) => ({ ...prev, show: open }))
+        }
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{errorModal.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {errorModal.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() =>
+                setErrorModal((prev) => ({ ...prev, show: false }))
+              }
+            >
+              Close
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
