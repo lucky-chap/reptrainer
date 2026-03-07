@@ -195,6 +195,7 @@ function TrainPageContent() {
         <RoleplaySession
           persona={activePersona}
           product={activeProduct}
+          teamId={activePersona.teamId}
           trackId={selectedTrackId ?? undefined}
           scenarioId={selectedScenarioId ?? undefined}
           customScenario={customScenario ?? undefined}

@@ -60,6 +60,7 @@ interface RoleplaySessionProps {
   trackId?: TrainingTrackId;
   scenarioId?: string;
   customScenario?: ScenarioTemplate;
+  teamId?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -75,6 +76,7 @@ export function RoleplaySession({
   trackId,
   scenarioId,
   customScenario,
+  teamId,
 }: RoleplaySessionProps) {
   const { user } = useAuth();
   const [showResults, setShowResults] = useState(false);
@@ -544,6 +546,7 @@ ${trackPromptOverride}
         durationSeconds: duration,
         evaluation: evalResult,
         insights: insights,
+        teamId: teamId || persona.teamId || product.teamId,
         createdAt: new Date().toISOString(),
         audioUrl: audioUrl || undefined,
       };
@@ -639,6 +642,7 @@ ${trackPromptOverride}
         durationSeconds: duration,
         evaluation: null,
         insights: insights,
+        teamId: teamId || persona.teamId || product.teamId,
         createdAt: new Date().toISOString(),
       };
       await saveSession(session);

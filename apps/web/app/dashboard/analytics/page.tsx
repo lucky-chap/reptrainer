@@ -22,8 +22,10 @@ import {
   subscribeSessions,
   subscribeProducts,
   subscribePersonas,
+  subscribeTeamMembers,
+  subscribeSessionsByUserIds,
 } from "@/lib/db";
-import type { Session, Product, Persona } from "@/lib/db";
+import type { Session, Product, Persona, TeamMember } from "@/lib/db";
 import {
   Select,
   SelectContent,
@@ -47,7 +49,9 @@ import {
   calculateTeamCoverage,
   calculateCategoryScores,
   getOverallScore,
+  generateCoachingInsights,
 } from "@/lib/analytics-utils";
+import { CoachingInsights } from "@/components/analytics/coaching-insights";
 import {
   ResponsiveContainer,
   Radar,
@@ -74,8 +78,14 @@ export default function AnalyticsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
-  const { isAdmin, memberships, loading: teamLoading } = useTeam();
+  const {
+    isAdmin,
+    memberships,
+    activeMembership,
+    loading: teamLoading,
+  } = useTeam();
   const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
   const [viewMode, setViewMode] = useState<"team" | "personal">("personal");
 
@@ -95,25 +105,35 @@ export default function AnalyticsPage() {
     if (!user || teamLoading) return;
 
     const timer = setTimeout(() => setLoading(false), 100);
-    const activeTeamIds = viewMode === "team" ? teamIds : [];
 
-    const unsubSessions = subscribeSessions(
-      user.uid,
-      activeTeamIds,
-      (data) => setSessions(data),
-      (err) => console.error("Analytics sessions error:", err),
-    );
+    let unsubSessions = () => {};
+
+    if (viewMode === "team" && teamMembers.length > 0) {
+      const memberIds = teamMembers.map((m) => m.userId);
+      unsubSessions = subscribeSessionsByUserIds(
+        memberIds,
+        (data) => setSessions(data),
+        (err) => console.error("Analytics team sessions error:", err),
+      );
+    } else {
+      unsubSessions = subscribeSessions(
+        user.uid,
+        [],
+        (data) => setSessions(data),
+        (err) => console.error("Analytics personal sessions error:", err),
+      );
+    }
 
     const unsubProducts = subscribeProducts(
       user.uid,
-      teamIds, // Always fetch all accessible products for filters
+      activeMembership?.id ? [activeMembership.id] : teamIds,
       (data) => setProducts(data),
       (err) => console.error("Analytics products error:", err),
     );
 
     const unsubPersonas = subscribePersonas(
       user.uid,
-      teamIds, // Always fetch all accessible personas for filters
+      activeMembership?.id ? [activeMembership.id] : teamIds,
       (data) => setPersonas(data),
       (err) => console.error("Analytics personas error:", err),
     );
@@ -124,7 +144,21 @@ export default function AnalyticsPage() {
       unsubProducts();
       unsubPersonas();
     };
-  }, [user, teamIds, teamLoading, viewMode]);
+  }, [user, teamIds, teamLoading, viewMode, teamMembers, activeMembership?.id]);
+
+  // Subscribe to team members if in team mode
+  useEffect(() => {
+    if (viewMode !== "team" || !activeMembership?.id) {
+      setTeamMembers([]);
+      return;
+    }
+
+    return subscribeTeamMembers(
+      activeMembership.id,
+      (data) => setTeamMembers(data),
+      (err) => console.error("Analytics team members error:", err),
+    );
+  }, [viewMode, activeMembership?.id]);
 
   // Filter sessions
   const filteredSessions = useMemo(() => {
@@ -220,6 +254,14 @@ export default function AnalyticsPage() {
 
   // Unique members for filter
   const members = useMemo(() => {
+    if (viewMode === "team" && teamMembers.length > 0) {
+      return teamMembers.map((m) => ({
+        id: m.userId,
+        name: m.userName || "Unknown Member",
+      }));
+    }
+
+    // Fallback to deriving from sessions for personal view or if member list not yet loaded
     const memberMap = new Map<string, { id: string; name: string }>();
     sessions.forEach((s) => {
       if (s.userId && !memberMap.has(s.userId)) {
@@ -230,7 +272,7 @@ export default function AnalyticsPage() {
       }
     });
     return Array.from(memberMap.values());
-  }, [sessions]);
+  }, [sessions, teamMembers, viewMode]);
 
   // Removed talkRatioData as conversational dynamics is being replaced
 
@@ -251,6 +293,16 @@ export default function AnalyticsPage() {
         };
       });
   }, [filteredSessions, timeframe]);
+
+  const insights = useMemo(() => {
+    return generateCoachingInsights(
+      filteredSessions,
+      selectedMemberId !== "all"
+        ? members.find((m) => m.id === selectedMemberId)?.name || "Member"
+        : "All Members",
+      viewMode === "team" && selectedMemberId === "all",
+    );
+  }, [filteredSessions, selectedMemberId, members, viewMode]);
 
   if (loading) {
     return (
@@ -408,6 +460,9 @@ export default function AnalyticsPage() {
           )}
         </div>
       </div>
+
+      {/* Coaching Insights */}
+      <CoachingInsights insights={insights} />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">

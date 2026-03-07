@@ -272,3 +272,192 @@ export function calculateTeamCoverage(
     };
   });
 }
+
+export interface CoachingInsight {
+  type: "needs_coaching" | "improvement" | "team_weakness" | "skill_avoidance";
+  user: string;
+  title: string;
+  explanation: string;
+  recommendation: string;
+  priority: number; // 1-10, higher is more important
+}
+
+interface SkillScores {
+  discovery: number;
+  objection_handling: number;
+  positioning: number;
+  closing: number;
+  listening: number;
+}
+
+/**
+ * Extracts normalized skill scores (0-100) from a session.
+ */
+function getSkillScores(session: Session | CallSession): SkillScores {
+  const evaluation =
+    "evaluation" in session ? session.evaluation : session.legacyEvaluation;
+  const feedback = "feedbackReport" in session ? session.feedbackReport : null;
+
+  // Use feedback scores if available, otherwise scale legacy 0-10 scores
+  const obj =
+    feedback?.objection_handling_score ??
+    (evaluation?.objectionHandlingScore ?? 0) * 10;
+  const conf =
+    feedback?.confidence_score ?? (evaluation?.confidenceScore ?? 0) * 10;
+  const cls =
+    feedback?.closing_effectiveness_score ??
+    (evaluation?.confidenceScore ?? 0) * 10;
+  const clr = (evaluation?.clarityScore ?? 0) * 10;
+
+  // Derive Discovery, Positioning, Listening from available data
+  const dynamics = calculateDynamics(session);
+  const listening = dynamics.talkToListenRatio.ai; // AI talk time is rep's listen time (approx)
+
+  return {
+    objection_handling: obj,
+    closing: cls,
+    discovery: Math.max(0, Math.min(100, Math.round((obj + clr) / 2) - 5)),
+    positioning: Math.max(0, Math.min(100, Math.round((conf + clr) / 2))),
+    listening: listening,
+  };
+}
+
+/**
+ * Generates actionable coaching insights from sessions.
+ */
+export function generateCoachingInsights(
+  sessions: (Session | CallSession)[],
+  userName: string = "All Members",
+  isTeamView: boolean = false,
+): CoachingInsight[] {
+  const insights: CoachingInsight[] = [];
+  if (sessions.length < 3) return insights;
+
+  const evaluatedSessions = sessions.filter(
+    (s) =>
+      ("evaluation" in s ? s.evaluation : s.legacyEvaluation) ||
+      ("feedbackReport" in s ? s.feedbackReport : null),
+  );
+  if (evaluatedSessions.length === 0) return insights;
+
+  const recentSessions = evaluatedSessions.slice(0, 10);
+  const last5 = recentSessions.slice(0, 5);
+
+  const skills: (keyof SkillScores)[] = [
+    "discovery",
+    "objection_handling",
+    "positioning",
+    "closing",
+    "listening",
+  ];
+
+  // 1. LOW SKILL SCORE (Individual or Team)
+  skills.forEach((skill) => {
+    const avg =
+      last5.reduce((sum, s) => sum + getSkillScores(s)[skill], 0) /
+      Math.min(last5.length, 5);
+    if (avg < 60) {
+      insights.push({
+        type: isTeamView ? "team_weakness" : "needs_coaching",
+        user: isTeamView ? "Team" : sessions[0].userName || "User",
+        title: isTeamView
+          ? `Team struggling with ${skill.replace("_", " ")}`
+          : `${sessions[0].userName || "Rep"} needs coaching on ${skill.replace("_", " ")}`,
+        explanation: `Average ${skill.replace("_", " ")} score: ${Math.round(avg)} across the last ${last5.length} sessions`,
+        recommendation: `Assign ${skill.replace("_", " ")}-focused practice scenarios`,
+        priority: isTeamView ? 9 : 8,
+      });
+    }
+  });
+
+  // 2. SKILL AVOIDANCE
+  // Simplified detection: if the score is consistently 0 (not evaluated) or very low intensity
+  skills.forEach((skill) => {
+    const detectedCount = recentSessions.filter(
+      (s) => getSkillScores(s)[skill] > 20,
+    ).length;
+    if (detectedCount < recentSessions.length * 0.2) {
+      insights.push({
+        type: "skill_avoidance",
+        user: isTeamView ? "Team" : sessions[0].userName || "User",
+        title: `${isTeamView ? "Team" : sessions[0].userName || "Rep"} rarely practices ${skill.replace("_", " ")}`,
+        explanation: `${skill.replace("_", " ")} skill detected in only ${detectedCount} of the last ${recentSessions.length} sessions`,
+        recommendation: `Increase focus on ${skill.replace("_", " ")} in the next training cycle`,
+        priority: 7,
+      });
+    }
+  });
+
+  // 3. IMPROVEMENT DETECTION
+  if (evaluatedSessions.length >= 6) {
+    const recentAvg =
+      evaluatedSessions
+        .slice(0, 3)
+        .reduce(
+          (sum, s) =>
+            sum +
+            getOverallScore(
+              "evaluation" in s ? s.evaluation : s.legacyEvaluation,
+            ),
+          0,
+        ) / 3;
+    const previousAvg =
+      evaluatedSessions
+        .slice(3, 6)
+        .reduce(
+          (sum, s) =>
+            sum +
+            getOverallScore(
+              "evaluation" in s ? s.evaluation : s.legacyEvaluation,
+            ),
+          0,
+        ) / 3;
+
+    // Convert 0-10 overall score to 100 scale if needed for comparison (getOverallScore handles 0-100 too)
+    const normalizedRecent = recentAvg <= 10 ? recentAvg * 10 : recentAvg;
+    const normalizedPrevious =
+      previousAvg <= 10 ? previousAvg * 10 : previousAvg;
+
+    if (normalizedRecent - normalizedPrevious > 15) {
+      insights.push({
+        type: "improvement",
+        user: isTeamView ? sessions[0].userName || "User" : "User",
+        title: `${sessions[0].userName || "Rep"} is improving rapidly`,
+        explanation: `Score increased by +${Math.round(normalizedRecent - normalizedPrevious)} points across recent sessions`,
+        recommendation: "Keep up the momentum and try more advanced personas",
+        priority: 6,
+      });
+    }
+  }
+
+  // 4. TEAM WEAKNESS (Redundant with LOW SKILL but higher threshold if requested)
+  if (isTeamView) {
+    skills.forEach((skill) => {
+      const avg =
+        evaluatedSessions.reduce(
+          (sum, s) => sum + getSkillScores(s)[skill],
+          0,
+        ) / evaluatedSessions.length;
+      if (avg < 65) {
+        // Only add if not already added by LOW SKILL logic (prioritize recent data)
+        if (
+          !insights.some(
+            (i) => i.type === "team_weakness" && i.title.includes(skill),
+          )
+        ) {
+          insights.push({
+            type: "team_weakness",
+            user: "Team",
+            title: `Team struggling with ${skill.replace("_", " ")}`,
+            explanation: `Overall team average for ${skill.replace("_", " ")} is ${Math.round(avg)}`,
+            recommendation: "Schedule a group coaching session on this skill",
+            priority: 5,
+          });
+        }
+      }
+    });
+  }
+
+  // Final filtering and prioritization
+  return insights.sort((a, b) => b.priority - a.priority).slice(0, 6);
+}

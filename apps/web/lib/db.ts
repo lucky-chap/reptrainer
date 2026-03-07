@@ -798,6 +798,34 @@ export function subscribeSessions(
     unsubTeam();
   };
 }
+
+export function subscribeSessionsByUserIds(
+  userIds: string[],
+  onData: (sessions: Session[]) => void,
+  onError: (err: Error) => void,
+) {
+  if (!userIds || userIds.length === 0) {
+    onData([]);
+    return () => {};
+  }
+
+  // Firestore "in" query limit is 30 in some versions, 10 in others.
+  // We'll chunk if needed, but for most teams 30 is enough.
+  const q = query(
+    collection(db, "sessions"),
+    where("userId", "in", userIds.slice(0, 30)),
+    orderBy("createdAt", "desc"),
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => d.data() as Session));
+    },
+    onError,
+  );
+}
+
 // ─── Team Operations ─────────────────────────────────────────────────────
 
 export async function createTeam(
@@ -1043,6 +1071,26 @@ export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
   );
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map((doc) => doc.data() as TeamMember);
+}
+
+export function subscribeTeamMembers(
+  teamId: string,
+  onData: (members: TeamMember[]) => void,
+  onError: (err: Error) => void,
+) {
+  const q = query(
+    collection(db, "teamMembers"),
+    where("teamId", "==", teamId),
+    orderBy("joinedAt", "desc"),
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => d.data() as TeamMember));
+    },
+    onError,
+  );
 }
 
 export async function getPendingInvitations(
