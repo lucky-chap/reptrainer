@@ -7,37 +7,68 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper function to check if the user owns the document
+    // Helper function to check if the user owns the document or is anonymous (dev)
     function isOwner(userId) {
       return request.auth.uid == userId || userId == "anonymous";
     }
 
-    // Generic match for all documents to allow temporary access (testing)
+    // O(1) Team membership check using predictable doc ID: {teamId}_{userId}
+    function isTeamMember(teamId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/teamMembers/$(teamId + "_" + request.auth.uid));
+    }
+
+    // Generic match for all documents to allow temporary access (fallback/testing)
     match /{document=**} {
       allow read, write: if request.time < timestamp.date(2026, 4, 3);
     }
 
-    // Explicit callSessions match for clarity
-    match /callSessions/{sessionId} {
-      allow read, write: if request.time < timestamp.date(2026, 4, 3);
+    // Teams collection
+    match /teams/{teamId} {
+      allow read: if isTeamMember(teamId);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+    }
+
+    // Team Members collection
+    match /teamMembers/{memberId} {
+      allow read: if isTeamMember(resource.data.teamId);
+      allow create: if isAuthenticated(); // Controlled by app logic/invites
+      allow delete: if isAuthenticated() && (isOwner(resource.data.userId) || isTeamMember(resource.data.teamId));
+    }
+
+    // Invitations collection
+    match /invitations/{invitationId} {
+      allow read: if isAuthenticated() && (request.auth.token.email == resource.data.email || isTeamMember(resource.data.teamId));
+      allow create: if isTeamMember(request.resource.data.teamId);
+      allow update: if isAuthenticated() && (request.auth.token.email == resource.data.email || isTeamMember(resource.data.teamId));
     }
 
     // Products collection
     match /products/{productId} {
-      allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow read: if isOwner(resource.data.userId) || isTeamMember(resource.data.teamId);
+      allow update, delete: if isOwner(resource.data.userId) || isTeamMember(resource.data.teamId);
+      allow create: if isAuthenticated();
     }
 
     // Personas collection
     match /personas/{personaId} {
-      allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow read: if isOwner(resource.data.userId) || isTeamMember(resource.data.teamId);
+      allow update, delete: if isOwner(resource.data.userId) || isTeamMember(resource.data.teamId);
+      allow create: if isAuthenticated();
     }
 
-    // Sessions collection
+    // Sessions and CallSessions
     match /sessions/{sessionId} {
-      allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow read: if isOwner(resource.data.userId) || isTeamMember(resource.data.teamId);
+      allow update, delete: if isOwner(resource.data.userId) || isTeamMember(resource.data.teamId);
+      allow create: if isAuthenticated();
+    }
+
+    match /callSessions/{sessionId} {
+      allow read: if isOwner(resource.data.userId) || isTeamMember(resource.data.teamId);
+      allow update, delete: if isOwner(resource.data.userId) || isTeamMember(resource.data.teamId);
+      allow create: if isAuthenticated();
     }
 
     // UserMetrics collection

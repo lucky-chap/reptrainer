@@ -1,6 +1,13 @@
 "use client";
 
-import { Gauge, Siren, Trash2, Building2, ChevronRight } from "lucide-react";
+import {
+  Gauge,
+  Siren,
+  Trash2,
+  Building2,
+  ChevronRight,
+  Users,
+} from "lucide-react";
 import type { Persona, Product } from "@/lib/db";
 import {
   Card,
@@ -13,6 +20,14 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const intensityLabels = [
   "Friendly Skeptic",
@@ -25,6 +40,8 @@ interface PersonaCardProps {
   product?: Product;
   index: number;
   onDelete: (id: string) => void;
+  teams?: any[];
+  onMoveToTeam?: (personaId: string, teamId: string) => void;
 }
 
 export function PersonaCard({
@@ -32,6 +49,8 @@ export function PersonaCard({
   product,
   index,
   onDelete,
+  teams = [],
+  onMoveToTeam,
 }: PersonaCardProps) {
   return (
     <Card
@@ -64,17 +83,47 @@ export function PersonaCard({
               </CardDescription>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(persona.id);
-            }}
-            className="text-warm-gray/30 -mr-2 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600"
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {!persona.teamId && teams.length > 0 && onMoveToTeam && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-warm-gray/30 hover:bg-cream-dark hover:text-charcoal -mr-1 transition-opacity group-hover:opacity-100"
+                  >
+                    <Users className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                  <DropdownMenuLabel className="text-[10px] font-bold tracking-widest uppercase">
+                    Move to Team
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {teams.map((team) => (
+                    <DropdownMenuItem
+                      key={team.id}
+                      onClick={() => onMoveToTeam(persona.id, team.id)}
+                      className="cursor-pointer text-xs font-medium"
+                    >
+                      {team.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(persona.id);
+              }}
+              className="text-warm-gray/30 -mr-2 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex-1 space-y-4">

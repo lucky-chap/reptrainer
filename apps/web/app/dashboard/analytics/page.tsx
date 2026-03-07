@@ -17,6 +17,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import {
   subscribeSessions,
   subscribeProducts,
@@ -42,8 +43,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import {
   calculateCompetencies,
-  calculateDynamics,
-  aggregateDynamics,
+  calculateTeamCoverage,
   calculateCategoryScores,
   getOverallScore,
 } from "@/lib/analytics-utils";
@@ -74,31 +74,42 @@ export default function AnalyticsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
+  const { isAdmin, memberships, loading: teamLoading } = useTeam();
+  const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
 
   // Filters
   const [timeframe, setTimeframe] = useState<string>("all");
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>("all");
   const [selectedProductId, setSelectedProductId] = useState<string>("all");
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || teamLoading) return;
+
+    if (!isAdmin) {
+      window.location.href = "/dashboard";
+      return;
+    }
 
     const timer = setTimeout(() => setLoading(false), 100);
 
     const unsubSessions = subscribeSessions(
       user.uid,
+      teamIds,
       (data) => setSessions(data),
       (err) => console.error("Analytics sessions error:", err),
     );
 
     const unsubProducts = subscribeProducts(
       user.uid,
+      teamIds,
       (data) => setProducts(data),
       (err) => console.error("Analytics products error:", err),
     );
 
     const unsubPersonas = subscribePersonas(
       user.uid,
+      teamIds,
       (data) => setPersonas(data),
       (err) => console.error("Analytics personas error:", err),
     );
@@ -109,7 +120,7 @@ export default function AnalyticsPage() {
       unsubProducts();
       unsubPersonas();
     };
-  }, [user]);
+  }, [user, teamIds, teamLoading, isAdmin]);
 
   // Filter sessions
   const filteredSessions = useMemo(() => {
@@ -123,19 +134,30 @@ export default function AnalyticsPage() {
         if (sessionDate < cutoff) return false;
       }
 
-      // Persona filter
-      if (selectedPersonaId !== "all" && s.personaId !== selectedPersonaId) {
-        return false;
-      }
-
       // Product filter
       if (selectedProductId !== "all" && s.productId !== selectedProductId) {
         return false;
       }
 
+      // Persona filter
+      if (selectedPersonaId !== "all" && s.personaId !== selectedPersonaId) {
+        return false;
+      }
+
+      // Member filter
+      if (selectedMemberId !== "all" && s.userId !== selectedMemberId) {
+        return false;
+      }
+
       return true;
     });
-  }, [sessions, timeframe, selectedPersonaId, selectedProductId]);
+  }, [
+    sessions,
+    timeframe,
+    selectedPersonaId,
+    selectedProductId,
+    selectedMemberId,
+  ]);
 
   // Compute Analytics based on filtered sessions
   const evaluatedSessions = useMemo(
@@ -179,9 +201,9 @@ export default function AnalyticsPage() {
     () => calculateCompetencies(filteredSessions),
     [filteredSessions],
   );
-  const dynamics = useMemo(
-    () => aggregateDynamics(filteredSessions),
-    [filteredSessions],
+  const coverageData = useMemo(
+    () => calculateTeamCoverage(filteredSessions, products, personas),
+    [filteredSessions, products, personas],
   );
   const personaScores = useMemo(
     () => calculateCategoryScores(filteredSessions, "persona"),
@@ -192,10 +214,21 @@ export default function AnalyticsPage() {
     [filteredSessions],
   );
 
-  const talkRatioData = [
-    { name: "You", value: dynamics.talkToListenRatio.user, color: "#1A1A1A" },
-    { name: "Persona", value: dynamics.talkToListenRatio.ai, color: "#9CA3AF" },
-  ];
+  // Unique members for filter
+  const members = useMemo(() => {
+    const memberMap = new Map<string, { id: string; name: string }>();
+    sessions.forEach((s) => {
+      if (s.userId && !memberMap.has(s.userId)) {
+        memberMap.set(s.userId, {
+          id: s.userId,
+          name: s.userName || "Unknown Member",
+        });
+      }
+    });
+    return Array.from(memberMap.values());
+  }, [sessions]);
+
+  // Removed talkRatioData as conversational dynamics is being replaced
 
   // Trend data
   const trendData = useMemo(() => {
@@ -242,11 +275,11 @@ export default function AnalyticsPage() {
             Deep Insights
           </span>
           <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
-            Performance <em>Analytics.</em>
+            Team <em>Performance.</em>
           </h1>
           <p className="text-warm-gray mt-2 max-w-2xl text-base">
-            Track your journey from pitch to close. See how your skills have
-            evolved across every roleplay session.
+            Track the team's journey from pitch to close. See how collective
+            skills have evolved across every roleplay session.
           </p>
         </div>
       </div>
@@ -309,9 +342,25 @@ export default function AnalyticsPage() {
             </SelectContent>
           </Select>
 
+          {/* Member Filter */}
+          <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+            <SelectTrigger className="bg-cream/20 w-[180px] font-medium">
+              <SelectValue placeholder="Select Member" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Members</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {(timeframe !== "all" ||
             selectedPersonaId !== "all" ||
-            selectedProductId !== "all") && (
+            selectedProductId !== "all" ||
+            selectedMemberId !== "all") && (
             <Button
               variant="ghost"
               size="sm"
@@ -319,6 +368,7 @@ export default function AnalyticsPage() {
                 setTimeframe("all");
                 setSelectedPersonaId("all");
                 setSelectedProductId("all");
+                setSelectedMemberId("all");
               }}
               className="text-warm-gray hover:text-charcoal text-xs"
             >
@@ -331,10 +381,10 @@ export default function AnalyticsPage() {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <MetricCard
-          label="Overall Mastery"
+          label="Team Mastery"
           value={`${avgScores.overall}/10`}
           icon={Award}
-          description="Average across all evaluated sessions"
+          description="Average across all team evaluated sessions"
         />
         <MetricCard
           label="Training Intensity"
@@ -443,7 +493,7 @@ export default function AnalyticsPage() {
               <div className="border-border/40 flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed">
                 <BarChart3 className="text-warm-gray/30 size-8" />
                 <p className="text-warm-gray text-sm italic">
-                  Not enough data to graph your progress yet.
+                  Not enough data to graph the team's progress yet.
                 </p>
               </div>
             )}
@@ -457,9 +507,11 @@ export default function AnalyticsPage() {
         {/* Competency Radar */}
         <Card className="border-border/60 bg-white shadow-none">
           <CardHeader>
-            <CardTitle className="text-base font-bold">Skill Radar</CardTitle>
+            <CardTitle className="text-base font-bold">
+              Team Skill Radar
+            </CardTitle>
             <CardDescription className="text-xs">
-              Holistic view of your sales competencies
+              Holistic view of collective team sales competencies
             </CardDescription>
           </CardHeader>
           <CardContent className="flex h-[300px] items-center justify-center pt-4">
@@ -494,9 +546,163 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             ) : (
               <p className="text-warm-gray text-xs italic">
-                Complete evaluated sessions to see your radar.
+                Not enough data to reveal team radar.
               </p>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Conversational Dynamics & Performance History */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Conversational Dynamics */}
+        {/* Team Training Coverage */}
+        <Card className="border-border/60 bg-white shadow-none">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-bold">
+                  Team Training Coverage
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Practice depth across products
+                </CardDescription>
+              </div>
+              <Activity className="text-warm-gray size-4" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6 pt-2">
+            <div className="space-y-4">
+              {coverageData.length > 0 ? (
+                coverageData.map((item) => (
+                  <div key={item.productName} className="space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-bold tracking-widest uppercase">
+                      <span className="text-charcoal truncate pr-2">
+                        {item.productName}
+                      </span>
+                      <span className="text-warm-gray shrink-0">
+                        {item.practicedPersonas}/{item.totalPersonas} Personas
+                      </span>
+                    </div>
+                    <div className="group relative">
+                      <Progress value={item.coverage} className="h-1.5" />
+                      <div className="text-warm-gray invisible absolute -top-4 right-0 block text-[8px] font-bold group-hover:visible">
+                        {item.coverage}%
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-warm-gray text-xs italic">
+                  No product mapping data available.
+                </p>
+              )}
+            </div>
+
+            <div className="border-border/20 mt-6 border-t pt-6">
+              <div className="flex items-center gap-4">
+                <div className="bg-charcoal/5 flex flex-1 flex-col items-center rounded-xl p-3">
+                  <span className="text-charcoal text-lg font-bold">
+                    {Math.round(
+                      coverageData.reduce(
+                        (acc, curr) => acc + curr.coverage,
+                        0,
+                      ) / (coverageData.length || 1),
+                    )}
+                    %
+                  </span>
+                  <span className="text-warm-gray/60 text-[8px] font-bold tracking-widest uppercase">
+                    Total Coverage
+                  </span>
+                </div>
+                <div className="bg-charcoal/5 flex flex-1 flex-col items-center rounded-xl p-3">
+                  <span className="text-charcoal text-lg font-bold">
+                    {coverageData.reduce(
+                      (acc, curr) => acc + curr.practicedPersonas,
+                      0,
+                    )}
+                  </span>
+                  <span className="text-warm-gray/60 text-[8px] font-bold tracking-widest uppercase">
+                    Mastered Scenarios
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Performance History */}
+        <Card className="border-border/60 bg-white shadow-none lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base font-bold">
+              Team Activity Feed
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Recent roleplay sessions across the team
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-border/40 border-b">
+                    <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
+                      Date
+                    </th>
+                    <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
+                      Activity
+                    </th>
+                    <th className="text-warm-gray/60 px-2 pb-4 text-right text-[10px] font-bold tracking-widest uppercase">
+                      Score
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-border/20 divide-y">
+                  {sessions.slice(0, 5).map((session) => (
+                    <tr
+                      key={session.id}
+                      className="group hover:bg-cream/10 transition-colors"
+                    >
+                      <td className="text-charcoal px-2 py-4 text-sm font-medium">
+                        {new Date(session.createdAt).toLocaleDateString(
+                          undefined,
+                          { month: "short", day: "numeric" },
+                        )}
+                      </td>
+                      <td className="px-2 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-charcoal text-xs font-semibold">
+                            {session.userName || "Team Member"}
+                          </span>
+                          <span className="text-warm-gray text-[10px]">
+                            vs. {session.personaName} ({session.personaRole})
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-4 text-right">
+                        <span
+                          className={cn(
+                            "inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold",
+                            session.evaluation
+                              ? "bg-charcoal text-cream"
+                              : "bg-cream-dark text-warm-gray",
+                          )}
+                        >
+                          {session.evaluation
+                            ? Math.round(
+                                (session.evaluation.objectionHandlingScore +
+                                  session.evaluation.confidenceScore +
+                                  session.evaluation.clarityScore) /
+                                  3,
+                              )
+                            : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -580,182 +786,6 @@ export default function AnalyticsPage() {
                 No product data available.
               </p>
             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Conversational Dynamics & Performance History */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Conversational Dynamics */}
-        <Card className="border-border/60 bg-white shadow-none">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-bold">
-                  Conversational Dynamics
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Behavioral patterns
-                </CardDescription>
-              </div>
-              <Mic2 className="text-warm-gray size-4" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-2">
-            {/* Talk/Listen Pie Chart */}
-            <div className="flex items-center gap-6">
-              <div className="h-32 w-32 shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={talkRatioData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={30}
-                      outerRadius={45}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {talkRatioData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="space-y-2">
-                <p className="text-warm-gray text-[10px] font-bold tracking-widest uppercase">
-                  Talk-to-Listen %
-                </p>
-                <div className="flex items-center gap-4">
-                  <div>
-                    <span className="text-charcoal block text-lg font-bold">
-                      {dynamics.talkToListenRatio.user}%
-                    </span>
-                    <span className="text-warm-gray text-[10px]">You</span>
-                  </div>
-                  <div>
-                    <span className="text-warm-gray-light block text-lg font-bold">
-                      {dynamics.talkToListenRatio.ai}%
-                    </span>
-                    <span className="text-warm-gray text-[10px]">Persona</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 border-t pt-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                  <Timer className="size-3" />
-                  AVG PACE
-                </div>
-                <p className="text-charcoal text-xl font-bold">
-                  {dynamics.paceWPM}{" "}
-                  <span className="text-xs font-normal text-gray-400">WPM</span>
-                </p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                  <Ghost className="size-3" />
-                  FILLERS
-                </div>
-                <p className="text-charcoal text-xl font-bold">
-                  {dynamics.fillerWords}{" "}
-                  <span className="text-xs font-normal text-gray-400">
-                    /min
-                  </span>
-                </p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                  <ShieldAlert className="size-3" />
-                  INTERRUPTS
-                </div>
-                <p className="text-charcoal text-xl font-bold">
-                  {dynamics.interruptions}{" "}
-                  <span className="text-xs font-normal text-gray-400">
-                    /call
-                  </span>
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Performance History */}
-        <Card className="border-border/60 bg-white shadow-none lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base font-bold">
-              Performance History
-            </CardTitle>
-            <CardDescription className="text-xs">
-              A detailed look at your last few sessions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-border/40 border-b">
-                    <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
-                      Date
-                    </th>
-                    <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
-                      Context
-                    </th>
-                    <th className="text-warm-gray/60 px-2 pb-4 text-right text-[10px] font-bold tracking-widest uppercase">
-                      Score
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-border/20 divide-y">
-                  {sessions.slice(0, 5).map((session) => (
-                    <tr
-                      key={session.id}
-                      className="group hover:bg-cream/10 transition-colors"
-                    >
-                      <td className="text-charcoal px-2 py-4 text-sm font-medium">
-                        {new Date(session.createdAt).toLocaleDateString(
-                          undefined,
-                          { month: "short", day: "numeric" },
-                        )}
-                      </td>
-                      <td className="px-2 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-charcoal text-xs font-medium">
-                            {session.personaName}
-                          </span>
-                          <span className="text-warm-gray text-[10px] italic">
-                            {session.evaluation?.strengths[0]?.slice(0, 30)}...
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-4 text-right">
-                        <span
-                          className={cn(
-                            "inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold",
-                            session.evaluation
-                              ? "bg-charcoal text-cream"
-                              : "bg-cream-dark text-warm-gray",
-                          )}
-                        >
-                          {session.evaluation
-                            ? Math.round(
-                                (session.evaluation.objectionHandlingScore +
-                                  session.evaluation.confidenceScore +
-                                  session.evaluation.clarityScore) /
-                                  3,
-                              )
-                            : "—"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </CardContent>
         </Card>
       </div>

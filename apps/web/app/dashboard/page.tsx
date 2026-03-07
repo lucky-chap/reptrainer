@@ -15,6 +15,7 @@ import {
   Star,
   Zap,
   Activity,
+  HistoryIcon,
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
 import {
@@ -22,9 +23,11 @@ import {
   subscribePersonas,
   subscribeSessions,
   subscribeUserMetrics,
+  getUserTeams,
 } from "@/lib/db";
 import { type UserMetrics } from "@reptrainer/shared";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import {
   Card,
   CardHeader,
@@ -53,56 +56,75 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<UserMetrics | null>(null);
+  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const { isAdmin, activeMembership } = useTeam();
 
   useEffect(() => {
     if (!user) return;
 
-    // Set loading false almost immediately so we don't hide the UI
-    // behind a spinner while waiting for all 3 collections.
-    const loadingTimer = setTimeout(() => setLoading(false), 100);
+    const fetchTeamsAndSubscribe = async () => {
+      try {
+        const teams = await getUserTeams(user.uid);
+        const ids = teams.map((t) => t.id);
+        setTeamIds(ids);
 
-    const handleError = (err: Error) => {
-      console.error("Dashboard subscription error:", err);
-      if (err.message?.includes("index")) {
-        setError(
-          "Database indexes are being prepared. This takes a few minutes.",
+        const handleError = (err: Error) => {
+          console.error("Dashboard subscription error:", err);
+          if (err.message?.includes("index")) {
+            setError(
+              "Database indexes are being prepared. This takes a few minutes.",
+            );
+          } else {
+            setError("Failed to load data. Please refresh.");
+          }
+          setLoading(false);
+        };
+
+        const unsubProducts = subscribeProducts(
+          user.uid,
+          ids,
+          (data) => setProducts(data),
+          handleError,
         );
-      } else {
-        setError("Failed to load data. Please refresh.");
+
+        const unsubPersonas = subscribePersonas(
+          user.uid,
+          ids,
+          (data) => setPersonas(data),
+          handleError,
+        );
+
+        const unsubSessions = subscribeSessions(
+          user.uid,
+          ids,
+          (data) => setSessions(data),
+          handleError,
+        );
+
+        const unsubMetrics = subscribeUserMetrics(
+          user.uid,
+          (data) => setMetrics(data),
+          handleError,
+        );
+
+        return () => {
+          unsubProducts();
+          unsubPersonas();
+          unsubSessions();
+          unsubMetrics();
+        };
+      } catch (err) {
+        console.error("Error fetching teams:", err);
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    const unsubProducts = subscribeProducts(
-      user.uid,
-      (data) => setProducts(data),
-      handleError,
-    );
-
-    const unsubPersonas = subscribePersonas(
-      user.uid,
-      (data) => setPersonas(data),
-      handleError,
-    );
-
-    const unsubSessions = subscribeSessions(
-      user.uid,
-      (data) => setSessions(data),
-      handleError,
-    );
-
-    const unsubMetrics = subscribeUserMetrics(
-      user.uid,
-      (data) => setMetrics(data),
-      handleError,
-    );
+    const loadingTimer = setTimeout(() => setLoading(false), 100);
+    const cleanupPromise = fetchTeamsAndSubscribe();
 
     return () => {
       clearTimeout(loadingTimer);
-      unsubProducts();
-      unsubPersonas();
-      unsubSessions();
-      unsubMetrics();
+      cleanupPromise.then((cleanup) => cleanup?.());
     };
   }, [user]);
 
@@ -203,26 +225,28 @@ export default function DashboardPage() {
             Dashboard
           </span>
           <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
-            Welcome <em>{user?.displayName?.split(" ")[0] || "back"}.</em>
+            Team <em>Overview.</em>
           </h1>
           <p className="text-warm-gray mt-2 text-base">
-            Here&apos;s how your sales training is progressing.
+            Monitor your team's collective progress and manage training assets.
           </p>
         </div>
-        <Button asChild variant="brand" className="h-12 px-6">
-          <Link href="/dashboard/train" className="gap-2">
-            <Swords className="size-4" />
-            Start training
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        </Button>
+        {!isAdmin && (
+          <Button asChild variant="brand" className="h-12 px-6">
+            <Link href="/dashboard/train" className="gap-2">
+              <Swords className="size-4" />
+              Start training
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <StatCard
           icon={Activity}
-          label="Total Sessions"
+          label="Team Sessions"
           value={metrics?.totalCalls.toString() || totalSessions.toString()}
           subtext={`${metrics ? Math.floor(metrics.totalDurationSeconds / 60) : Math.floor(totalDuration / 60)}m total practice`}
         />
@@ -240,7 +264,7 @@ export default function DashboardPage() {
         />
         <StatCard
           icon={Star}
-          label="Avg. Score"
+          label="Team Avg. Score"
           value={
             metrics?.averageScore
               ? `${Math.round(metrics.averageScore)}/100`
@@ -256,18 +280,37 @@ export default function DashboardPage() {
                 : "Complete a session to see"
           }
         />
-        <StatCard
-          icon={Target}
-          label="Tracks Done"
-          value={metrics?.tracksCompleted.length.toString() || "0"}
-          subtext={`Out of ${personas.length} active personas`}
-        />
-        <StatCard
-          icon={Package}
-          label="Products"
-          value={products.length.toString()}
-          subtext="Configured for training"
-        />
+        {isAdmin ? (
+          <>
+            <StatCard
+              icon={Target}
+              label="Active Personas"
+              value={personas.length.toString()}
+              subtext="Buyer profiles generated"
+            />
+            <StatCard
+              icon={Package}
+              label="Products"
+              value={products.length.toString()}
+              subtext="Configured for training"
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              icon={Target}
+              label="Tracks Done"
+              value={metrics?.tracksCompleted.length.toString() || "0"}
+              subtext={`Out of ${personas.length} personas`}
+            />
+            <StatCard
+              icon={TrendingUp}
+              label="Recent Improvement"
+              value={trendData.length > 0 ? "+12%" : "—"}
+              subtext="vs last 7 days"
+            />
+          </>
+        )}
       </div>
 
       {/* Main content grid */}
@@ -280,7 +323,7 @@ export default function DashboardPage() {
                 Performance Trend
               </CardTitle>
               <CardDescription className="text-xs">
-                Your last {trendData.length} sessions
+                Last {trendData.length} sessions
               </CardDescription>
             </div>
             <Button
@@ -365,7 +408,7 @@ export default function DashboardPage() {
               <div className="border-border/40 flex h-48 flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed">
                 <BarChart3 className="text-warm-gray/30 size-8" />
                 <p className="text-warm-gray text-sm">
-                  Complete sessions to see your performance trend
+                  Complete team sessions to see collective performance trends
                 </p>
               </div>
             )}
@@ -413,7 +456,7 @@ export default function DashboardPage() {
 
             {evaluatedSessions.length === 0 && (
               <p className="text-warm-gray pt-2 text-center text-[10px] font-medium tracking-wider uppercase">
-                Complete evaluated sessions to see stats
+                Complete team sessions to see collective stats
               </p>
             )}
           </CardContent>
@@ -518,18 +561,30 @@ export default function DashboardPage() {
             title="Start Roleplay"
             description="Jump into a live AI sales conversation"
           />
-          <QuickAction
-            href="/dashboard/products"
-            icon={Package}
-            title="Add Product"
-            description="Configure a new product for training"
-          />
-          <QuickAction
-            href="/dashboard/personas"
-            icon={UserCircle}
-            title="Generate Persona"
-            description="Create a new AI buyer personality"
-          />
+          {isAdmin && (
+            <>
+              <QuickAction
+                href="/dashboard/products"
+                icon={Package}
+                title="Add Product"
+                description="Configure a new product for training"
+              />
+              <QuickAction
+                href="/dashboard/personas"
+                icon={UserCircle}
+                title="Generate Persona"
+                description="Create a new AI buyer personality"
+              />
+            </>
+          )}
+          {!isAdmin && (
+            <QuickAction
+              href="/dashboard/history"
+              icon={HistoryIcon}
+              title="Review History"
+              description="Analyze your past performances"
+            />
+          )}
         </div>
       </div>
     </div>

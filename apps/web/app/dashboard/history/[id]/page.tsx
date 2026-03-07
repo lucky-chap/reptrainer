@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import {
   subscribeSessions,
   subscribePersonas,
@@ -18,7 +19,10 @@ interface SessionDetailPageProps {
 export default function SessionDetailPage({ params }: SessionDetailPageProps) {
   const { id } = use(params);
   const { user } = useAuth();
+  const { memberships } = useTeam();
   const router = useRouter();
+
+  const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
 
   const [session, setSession] = useState<Session | null>(null);
   const [persona, setPersona] = useState<Persona | null>(null);
@@ -36,6 +40,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
     // Subscribing to sessions to find the one matching the ID
     const unsubSessions = subscribeSessions(
       user.uid,
+      teamIds,
       (sessions) => {
         const found = sessions.find((s) => s.id === id);
         if (found) {
@@ -51,6 +56,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
 
     const unsubPersonas = subscribePersonas(
       user.uid,
+      teamIds,
       (personas) => {
         // We'll update the persona whenever it changes
         if (session?.personaId) {
@@ -63,6 +69,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
 
     const unsubProducts = subscribeProducts(
       user.uid,
+      teamIds,
       (products) => {
         if (session?.productId) {
           const pr = products.find((pr) => pr.id === session.productId);
@@ -77,7 +84,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
       unsubPersonas();
       unsubProducts();
     };
-  }, [user, id, session?.personaId, session?.productId]);
+  }, [user, id, teamIds, session?.personaId, session?.productId]);
 
   if (loading) {
     return (

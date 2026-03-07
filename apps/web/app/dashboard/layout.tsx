@@ -12,9 +12,11 @@ import {
   History,
   ArrowLeft,
   LogOut,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -43,16 +45,24 @@ const navItems = [
     label: "Products",
     href: "/dashboard/products",
     icon: Package,
+    adminOnly: true,
   },
   {
     label: "Personas",
     href: "/dashboard/personas",
     icon: UserCircle,
+    adminOnly: true,
   },
   {
     label: "History",
     href: "/dashboard/history",
     icon: History,
+  },
+  {
+    label: "Team",
+    href: "/dashboard/team",
+    icon: Users,
+    adminOnly: true,
   },
 ];
 
@@ -74,11 +84,31 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loginWithGoogle, logout, loading } = useAuth();
 
+  const {
+    memberships,
+    activeMembership,
+    isAdmin,
+    loading: teamLoading,
+  } = useTeam();
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth/signin");
+    } else if (!loading && user && !teamLoading) {
+      if (memberships.length === 0) {
+        router.push("/onboarding/team");
+      } else {
+        // Simple access control for admin-only routes
+        const currentNavItem = navItems.find(
+          (item) =>
+            item.href !== "/dashboard" && pathname.startsWith(item.href),
+        );
+        if (currentNavItem?.adminOnly && !isAdmin) {
+          router.push("/dashboard");
+        }
+      }
     }
-  }, [user, loading, router]);
+  }, [user, loading, memberships, teamLoading, router, pathname, isAdmin]);
 
   if (loading || !user) {
     return (
@@ -115,27 +145,29 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
           {/* Center: Nav */}
           <nav className="hidden items-center gap-1 md:flex">
-            {navItems.map((item) => {
-              const isActive =
-                item.href === "/dashboard"
-                  ? pathname === "/dashboard"
-                  : pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "bg-charcoal text-cream"
-                      : "text-warm-gray hover:text-charcoal hover:bg-charcoal/5",
-                  )}
-                >
-                  <item.icon className="size-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
+            {navItems
+              .filter((item) => !item.adminOnly || isAdmin)
+              .map((item) => {
+                const isActive =
+                  item.href === "/dashboard"
+                    ? pathname === "/dashboard"
+                    : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
+                      isActive
+                        ? "bg-charcoal text-cream"
+                        : "text-warm-gray hover:text-charcoal hover:bg-charcoal/5",
+                    )}
+                  >
+                    <item.icon className="size-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
           </nav>
 
           {/* Right: User */}
@@ -228,25 +260,27 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       {/* Mobile Nav */}
       <nav className="bg-cream/90 border-border/40 fixed right-0 bottom-0 left-0 z-50 border-t px-2 py-2 backdrop-blur-md md:hidden">
         <div className="flex items-center justify-around">
-          {navItems.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200",
-                  isActive ? "text-charcoal" : "text-warm-gray",
-                )}
-              >
-                <item.icon className="size-5" />
-                {item.label}
-              </Link>
-            );
-          })}
+          {navItems
+            .filter((item) => !item.adminOnly || isAdmin)
+            .map((item) => {
+              const isActive =
+                item.href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200",
+                    isActive ? "text-charcoal" : "text-warm-gray",
+                  )}
+                >
+                  <item.icon className="size-5" />
+                  {item.label}
+                </Link>
+              );
+            })}
         </div>
       </nav>
 

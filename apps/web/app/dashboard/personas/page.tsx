@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -15,6 +15,7 @@ import {
   Building2,
   X,
   Target,
+  Users,
 } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
 import {
@@ -22,8 +23,12 @@ import {
   subscribePersonas,
   deletePersona,
   savePersona,
+  getUserTeams,
 } from "@/lib/db";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import { PersonaCard } from "@/components/persona-card";
 import { cn } from "@/lib/utils";
@@ -79,6 +84,9 @@ export default function PersonasPage() {
   const [showCreator, setShowCreator] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [personaToDelete, setPersonaToDelete] = useState<string | null>(null);
+  const { isAdmin, memberships, loading: teamLoading } = useTeam();
+  const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
 
   // Manual Form State
   const [manualName, setManualName] = useState("");
@@ -91,33 +99,44 @@ export default function PersonasPage() {
     useBackgroundGeneration();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || teamLoading) return;
 
-    const timer = setTimeout(() => setLoading(false), 100);
+    if (!isAdmin) {
+      window.location.href = "/dashboard";
+      return;
+    }
 
     const handleError = (err: Error) => {
       console.error("Personas page subscription error:", err);
       setLoading(false);
     };
 
+    if (memberships.length > 0 && !selectedTeamId) {
+      setSelectedTeamId(memberships[0].id);
+    }
+
     const unsubProducts = subscribeProducts(
       user.uid,
+      teamIds,
       (data) => setProducts(data),
       handleError,
     );
 
     const unsubPersonas = subscribePersonas(
       user.uid,
+      teamIds,
       (data) => setPersonas(data),
       handleError,
     );
+
+    const timer = setTimeout(() => setLoading(false), 100);
 
     return () => {
       clearTimeout(timer);
       unsubProducts();
       unsubPersonas();
     };
-  }, [user]);
+  }, [user, teamIds, teamLoading, isAdmin, memberships]);
 
   const handleGenerate = () => {
     if (!selectedProductId) return;
@@ -139,6 +158,8 @@ export default function PersonasPage() {
     }
   };
 
+  // Removed handleMoveToTeam as personas are now team-centric by default
+
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualProductId) return;
@@ -146,6 +167,7 @@ export default function PersonasPage() {
     const persona: Persona = {
       id: uuidv4(),
       userId: user?.uid || "anonymous",
+      teamId: selectedTeamId || undefined,
       productId: manualProductId,
       name: manualName,
       role: manualRole,
@@ -185,10 +207,10 @@ export default function PersonasPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <span className="text-warm-gray mb-2 block text-[10px] font-bold tracking-[0.15em] uppercase">
-            AI Personas
+            Team Assets
           </span>
           <h1 className="heading-serif text-charcoal text-3xl md:text-5xl">
-            Buyer <em>Personas.</em>
+            Team <em>Personas.</em>
           </h1>
           <p className="text-warm-gray/70 mt-2 text-sm font-medium md:text-base">
             Generate AI-powered buyer personas for realistic sales roleplay.
@@ -510,6 +532,7 @@ export default function PersonasPage() {
               product={products.find((p) => p.id === persona.productId)}
               index={i}
               onDelete={handleDelete}
+              // Removed team-specific props as everything is team-centric now
             />
           ))}
         </div>

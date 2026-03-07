@@ -12,6 +12,7 @@ import {
   Sparkles,
   Loader2,
   Zap,
+  Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -23,9 +24,18 @@ import {
   subscribeProducts,
   saveSession,
   updateCallSession,
+  getUserTeams,
 } from "@/lib/db";
 import { generateCoachDebrief } from "@/app/actions/api";
 import { SessionResults } from "@/components/session-results";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/context/auth-context";
 import {
   Card,
@@ -47,9 +57,51 @@ export default function HistoryPage() {
   const [generatingDebriefId, setGeneratingDebriefId] = useState<string | null>(
     null,
   );
+  const [teams, setTeams] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
+
+    const fetchTeamsAndSubscribe = async () => {
+      const userTeams = await getUserTeams(user.uid);
+      setTeams(userTeams);
+      const teamIds = userTeams.map((t) => t.id);
+
+      const unsubSessions = subscribeSessions(
+        user.uid,
+        teamIds,
+        (data) => setSessions(data),
+        handleError,
+      );
+
+      const unsubPersonas = subscribePersonas(
+        user.uid,
+        teamIds,
+        (data) => {
+          const personaMap: Record<string, Persona> = {};
+          data.forEach((p) => (personaMap[p.id] = p));
+          setPersonas(personaMap);
+        },
+        handleError,
+      );
+
+      const unsubProducts = subscribeProducts(
+        user.uid,
+        teamIds,
+        (data) => {
+          const productMap: Record<string, Product> = {};
+          data.forEach((p) => (productMap[p.id] = p));
+          setProducts(productMap);
+        },
+        handleError,
+      );
+
+      return () => {
+        unsubSessions();
+        unsubPersonas();
+        unsubProducts();
+      };
+    };
 
     const timer = setTimeout(() => setLoading(false), 100);
 
@@ -58,42 +110,36 @@ export default function HistoryPage() {
       setLoading(false);
     };
 
-    const unsubSessions = subscribeSessions(
-      user.uid,
-      (data) => setSessions(data),
-      handleError,
-    );
-
-    const unsubPersonas = subscribePersonas(
-      user.uid,
-      (data) => {
-        const personaMap: Record<string, Persona> = {};
-        data.forEach((p) => (personaMap[p.id] = p));
-        setPersonas(personaMap);
-      },
-      handleError,
-    );
-
-    const unsubProducts = subscribeProducts(
-      user.uid,
-      (data) => {
-        const productMap: Record<string, Product> = {};
-        data.forEach((p) => (productMap[p.id] = p));
-        setProducts(productMap);
-      },
-      handleError,
-    );
+    const cleanupPromise = fetchTeamsAndSubscribe();
 
     return () => {
       clearTimeout(timer);
-      unsubSessions();
-      unsubPersonas();
-      unsubProducts();
+      cleanupPromise.then((cleanup) => cleanup?.());
     };
   }, [user]);
 
   const handleDelete = async (id: string) => {
     await deleteSession(id);
+  };
+
+  const handleMoveToTeam = async (sessionId: string, teamId: string) => {
+    try {
+      // Both session and callSession might need update depending on how they are used
+      // But usually 'sessions' collection is the source of truth for history
+      const { db, updateDoc } = await import("@/lib/db");
+      const { doc } = await import("firebase/firestore");
+      const sessionRef = doc(db, "sessions", sessionId);
+      await updateDoc(sessionRef, {
+        teamId: teamId,
+      });
+      // Also update callSessions for consistency
+      const callSessionRef = doc(db, "callSessions", sessionId);
+      await updateDoc(callSessionRef, {
+        teamId: teamId,
+      }).catch(() => {}); // ignore if doesn't exist
+    } catch (err) {
+      console.error("Error sharing session with team:", err);
+    }
   };
 
   const handleGenerateDebrief = async (
@@ -142,10 +188,11 @@ export default function HistoryPage() {
           Past Sessions
         </span>
         <h1 className="heading-serif text-charcoal mb-2 text-3xl md:text-4xl lg:text-5xl">
-          Session <em>History.</em>
+          Team <em>History.</em>
         </h1>
         <p className="text-warm-gray text-base">
-          Review past roleplay sessions and track your improvement.
+          Review your team's past roleplay sessions and track collective
+          improvement.
         </p>
       </div>
 
@@ -158,7 +205,7 @@ export default function HistoryPage() {
             No sessions yet
           </CardTitle>
           <CardDescription className="text-warm-gray max-w-sm text-sm">
-            Complete your first roleplay session to see results here.
+            Complete your team's first roleplay session to see results here.
           </CardDescription>
         </Card>
       ) : (
@@ -271,6 +318,39 @@ export default function HistoryPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {!session.teamId && teams.length > 0 && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-warm-gray-light hover:text-charcoal p-2 opacity-0 transition-all group-hover:opacity-100"
+                          >
+                            <Users className="size-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-48 rounded-xl"
+                        >
+                          <DropdownMenuLabel className="text-[10px] font-bold tracking-widest uppercase">
+                            Share with Team
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {teams.map((team) => (
+                            <DropdownMenuItem
+                              key={team.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveToTeam(session.id, team.id);
+                              }}
+                              className="cursor-pointer text-xs font-medium"
+                            >
+                              {team.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

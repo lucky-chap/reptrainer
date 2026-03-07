@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -15,10 +15,20 @@ import {
   Sparkles,
   Loader2,
   ArrowRight,
+  Users,
 } from "lucide-react";
 import type { Product } from "@/lib/db";
-import { saveProduct, subscribeProducts, deleteProduct } from "@/lib/db";
+import {
+  saveProduct,
+  subscribeProducts,
+  deleteProduct,
+  getUserTeams,
+  updateDoc,
+  db,
+} from "@/lib/db";
+import { doc } from "firebase/firestore";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -50,6 +60,9 @@ export default function ProductsPage() {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const { isAdmin, memberships, loading: teamLoading } = useTeam();
+  const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
 
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
@@ -62,24 +75,37 @@ export default function ProductsPage() {
     useBackgroundGeneration();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || teamLoading) return;
 
-    const timer = setTimeout(() => setLoading(false), 100);
+    if (!isAdmin) {
+      window.location.href = "/dashboard";
+      return;
+    }
+
+    if (memberships.length > 0 && !selectedTeamId) {
+      setSelectedTeamId(memberships[0].id);
+    }
 
     const unsub = subscribeProducts(
       user.uid,
-      (data) => setProducts(data),
+      teamIds,
+      (data) => {
+        setProducts(data);
+        setLoading(false);
+      },
       (err) => {
         console.error("Products subscription error:", err);
         setLoading(false);
       },
     );
 
+    const timer = setTimeout(() => setLoading(false), 100);
+
     return () => {
       clearTimeout(timer);
       unsub();
     };
-  }, [user]);
+  }, [user, teamIds, teamLoading, isAdmin, memberships]);
 
   const handleAddObjection = () => {
     if (objectionInput.trim()) {
@@ -97,6 +123,7 @@ export default function ProductsPage() {
     const product: Product = {
       id: uuidv4(),
       userId: user?.uid || "anonymous",
+      teamId: selectedTeamId || undefined,
       companyName,
       description,
       targetCustomer,
@@ -140,7 +167,7 @@ export default function ProductsPage() {
             Configuration
           </span>
           <h1 className="heading-serif text-charcoal text-3xl md:text-5xl">
-            Your <em>Products.</em>
+            Team <em>Products.</em>
           </h1>
           <p className="text-warm-gray/70 mt-2 text-sm font-medium md:text-base">
             Set up the products your reps will sell during roleplay sessions.
@@ -511,6 +538,8 @@ export default function ProductsPage() {
                     </section>
                   </div>
                 </div>
+
+                {/* Removed Move to Team Alert as everything is team-centric now */}
               </div>
 
               <DialogFooter className="border-border/40 bg-cream/5 flex items-center justify-between border-t px-10 py-6">

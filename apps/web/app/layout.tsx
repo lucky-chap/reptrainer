@@ -7,6 +7,7 @@ import {
 } from "next/font/google";
 import localFont from "next/font/local";
 import { AuthProvider } from "@/context/auth-context";
+import { TeamProvider } from "@/context/team-context";
 import "./globals.css";
 
 const inter = Inter({
@@ -83,8 +84,10 @@ export default function RootLayout({
       lang="en"
       className={`${bdoGrotesk.variable} ${inter.variable} ${playfair.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="antialiased min-h-screen bg-background font-sans">
-        <AuthProvider>{children}</AuthProvider>
+      <body className="bg-background min-h-screen font-sans antialiased">
+        <AuthProvider>
+          <TeamProvider>{children}</TeamProvider>
+        </AuthProvider>
       </body>
     </html>
   );

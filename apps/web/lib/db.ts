@@ -9,9 +9,11 @@ import {
   orderBy,
   deleteDoc,
   onSnapshot,
-  updateDoc,
+  updateDoc as firestoreUpdateDoc,
   Timestamp,
 } from "firebase/firestore";
+
+export const updateDoc = firestoreUpdateDoc;
 import {
   ref,
   uploadBytes,
@@ -19,7 +21,8 @@ import {
   uploadString,
   deleteObject,
 } from "firebase/storage";
-import { db, storage } from "./firebase";
+import { db as firestoreDb, storage } from "./firebase";
+export const db = firestoreDb;
 import { v4 as uuidv4 } from "uuid";
 import type {
   CallSession,
@@ -31,6 +34,9 @@ import type {
   UserMetrics,
   ProgressReport,
   PersonalityType,
+  Team,
+  TeamMember,
+  Invitation,
 } from "@reptrainer/shared";
 
 // ─── Data Models ───────────────────────────────────────────────────────────
@@ -38,6 +44,7 @@ import type {
 export interface Product {
   id: string;
   userId: string;
+  teamId?: string;
   companyName: string;
   description: string;
   targetCustomer: string;
@@ -49,6 +56,7 @@ export interface Product {
 export interface Persona {
   id: string;
   userId: string;
+  teamId?: string;
   productId: string;
   name: string;
   role: string;
@@ -79,6 +87,7 @@ export interface Session {
   id: string;
   userId: string;
   personaId: string;
+  teamId?: string;
   userName?: string;
   productId: string;
   personaName?: string;
@@ -108,12 +117,32 @@ export async function getProduct(id: string): Promise<Product | undefined> {
   return docSnap.exists() ? (docSnap.data() as Product) : undefined;
 }
 
-export async function getAllProducts(userId: string): Promise<Product[]> {
-  const q = query(
-    collection(db, "products"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+export async function getAllProducts(
+  userId: string,
+  teamIds: string[] = [],
+): Promise<Product[]> {
+  const constraints = [orderBy("createdAt", "desc")];
+
+  // If we have teams, we want products owned by user OR in those teams
+  // Firestore doesn't support OR across multiple fields easily with complex filters
+  // For now, we'll implement a simple version: user's products OR team products if teamIds provided
+
+  let q;
+  if (teamIds.length > 0) {
+    // In a real app, we might perform two queries and merge, or use a complex composite index
+    // For this MVP, we'll fetch team products if teamIds is provided
+    q = query(
+      collection(db, "products"),
+      where("teamId", "in", teamIds),
+      ...constraints,
+    );
+  } else {
+    q = query(
+      collection(db, "products"),
+      where("userId", "==", userId),
+      ...constraints,
+    );
+  }
 
   const querySnapshot = await getDocs(q);
   const products: Product[] = [];
@@ -186,12 +215,24 @@ export async function getPersonasByProduct(
   return querySnapshot.docs.map((doc) => doc.data() as Persona);
 }
 
-export async function getAllPersonas(userId: string): Promise<Persona[]> {
-  const q = query(
-    collection(db, "personas"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+export async function getAllPersonas(
+  userId: string,
+  teamIds: string[] = [],
+): Promise<Persona[]> {
+  let q;
+  if (teamIds.length > 0) {
+    q = query(
+      collection(db, "personas"),
+      where("teamId", "in", teamIds),
+      orderBy("createdAt", "desc"),
+    );
+  } else {
+    q = query(
+      collection(db, "personas"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+    );
+  }
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map((doc) => doc.data() as Persona);
 }
@@ -274,12 +315,24 @@ export async function getSessionsByPersona(
   return querySnapshot.docs.map((doc) => doc.data() as Session);
 }
 
-export async function getAllSessions(userId: string): Promise<Session[]> {
-  const q = query(
-    collection(db, "sessions"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+export async function getAllSessions(
+  userId: string,
+  teamIds: string[] = [],
+): Promise<Session[]> {
+  let q;
+  if (teamIds.length > 0) {
+    q = query(
+      collection(db, "sessions"),
+      where("teamId", "in", teamIds),
+      orderBy("createdAt", "desc"),
+    );
+  } else {
+    q = query(
+      collection(db, "sessions"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+    );
+  }
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map((doc) => doc.data() as Session);
 }
@@ -346,12 +399,22 @@ export async function getCallSession(
  */
 export async function getAllCallSessions(
   userId: string,
+  teamIds: string[] = [],
 ): Promise<CallSession[]> {
-  const q = query(
-    collection(db, "callSessions"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+  let q;
+  if (teamIds.length > 0) {
+    q = query(
+      collection(db, "callSessions"),
+      where("teamId", "in", teamIds),
+      orderBy("createdAt", "desc"),
+    );
+  } else {
+    q = query(
+      collection(db, "callSessions"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+    );
+  }
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map((doc) => doc.data() as CallSession);
 }
@@ -361,14 +424,24 @@ export async function getAllCallSessions(
  */
 export function subscribeCallSessions(
   userId: string,
+  teamIds: string[] = [],
   onData: (sessions: CallSession[]) => void,
   onError: (err: Error) => void,
 ) {
-  const q = query(
-    collection(db, "callSessions"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+  let q;
+  if (teamIds.length > 0) {
+    q = query(
+      collection(db, "callSessions"),
+      where("teamId", "in", teamIds),
+      orderBy("createdAt", "desc"),
+    );
+  } else {
+    q = query(
+      collection(db, "callSessions"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+    );
+  }
   return onSnapshot(
     q,
     (snap) => {
@@ -490,14 +563,24 @@ export async function uploadPersonaAvatar(
 
 export function subscribeProducts(
   userId: string,
+  teamIds: string[] = [],
   onData: (products: Product[]) => void,
   onError: (err: Error) => void,
 ) {
-  const q = query(
-    collection(db, "products"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+  let q;
+  if (Array.isArray(teamIds) && teamIds.length > 0) {
+    q = query(
+      collection(db, "products"),
+      where("teamId", "in", teamIds),
+      orderBy("createdAt", "desc"),
+    );
+  } else {
+    q = query(
+      collection(db, "products"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+    );
+  }
   return onSnapshot(
     q,
     (snap) => {
@@ -509,14 +592,24 @@ export function subscribeProducts(
 
 export function subscribePersonas(
   userId: string,
+  teamIds: string[] = [],
   onData: (personas: Persona[]) => void,
   onError: (err: Error) => void,
 ) {
-  const q = query(
-    collection(db, "personas"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+  let q;
+  if (Array.isArray(teamIds) && teamIds.length > 0) {
+    q = query(
+      collection(db, "personas"),
+      where("teamId", "in", teamIds),
+      orderBy("createdAt", "desc"),
+    );
+  } else {
+    q = query(
+      collection(db, "personas"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+    );
+  }
   return onSnapshot(
     q,
     (snap) => {
@@ -528,14 +621,24 @@ export function subscribePersonas(
 
 export function subscribeSessions(
   userId: string,
+  teamIds: string[] = [],
   onData: (sessions: Session[]) => void,
   onError: (err: Error) => void,
 ) {
-  const q = query(
-    collection(db, "sessions"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+  let q;
+  if (Array.isArray(teamIds) && teamIds.length > 0) {
+    q = query(
+      collection(db, "sessions"),
+      where("teamId", "in", teamIds),
+      orderBy("createdAt", "desc"),
+    );
+  } else {
+    q = query(
+      collection(db, "sessions"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+    );
+  }
   return onSnapshot(
     q,
     (snap) => {
@@ -543,4 +646,246 @@ export function subscribeSessions(
     },
     onError,
   );
+}
+// ─── Team Operations ─────────────────────────────────────────────────────
+
+export async function createTeam(name: string, ownerId: string): Promise<Team> {
+  const team: Team = {
+    id: uuidv4(),
+    name,
+    ownerId,
+    createdAt: new Date().toISOString(),
+  };
+  await setDoc(doc(db, "teams", team.id), team);
+
+  // Add creator as admin member
+  await addTeamMember(team.id, ownerId, "admin");
+
+  return team;
+}
+
+export async function getTeam(id: string): Promise<Team | undefined> {
+  const docRef = doc(db, "teams", id);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? (docSnap.data() as Team) : undefined;
+}
+
+export async function updateTeam(
+  id: string,
+  updates: Partial<Team>,
+): Promise<void> {
+  await updateDoc(doc(db, "teams", id), updates);
+}
+
+export type TeamWithRole = Team & { role: "admin" | "member" };
+
+export async function getUserMemberships(
+  userId: string,
+): Promise<TeamWithRole[]> {
+  const q = query(collection(db, "teamMembers"), where("userId", "==", userId));
+  const querySnapshot = await getDocs(q);
+
+  const memberships = querySnapshot.docs.map((doc) => doc.data() as TeamMember);
+
+  if (memberships.length === 0) return [];
+
+  const teamIds = memberships.map((m) => m.teamId);
+  const roleMap: Record<string, "admin" | "member"> = {};
+  memberships.forEach((m) => (roleMap[m.teamId] = m.role));
+
+  const teams: TeamWithRole[] = [];
+  // Firestore 'in' query has a limit of 10
+  const teamsQuery = query(collection(db, "teams"), where("id", "in", teamIds));
+  const teamsSnapshot = await getDocs(teamsQuery);
+
+  teamsSnapshot.forEach((doc) => {
+    const team = doc.data() as Team;
+    teams.push({
+      ...team,
+      role: roleMap[team.id],
+    });
+  });
+
+  return teams;
+}
+
+export async function getUserTeams(userId: string): Promise<Team[]> {
+  const q = query(collection(db, "teamMembers"), where("userId", "==", userId));
+  const querySnapshot = await getDocs(q);
+  const teamIds = querySnapshot.docs.map(
+    (doc) => (doc.data() as TeamMember).teamId,
+  );
+
+  if (teamIds.length === 0) return [];
+
+  const teams: Team[] = [];
+  // Firestore 'in' query has a limit of 10, but good enough for now
+  const teamsQuery = query(collection(db, "teams"), where("id", "in", teamIds));
+  const teamsSnapshot = await getDocs(teamsQuery);
+  teamsSnapshot.forEach((doc) => {
+    teams.push(doc.data() as Team);
+  });
+
+  return teams;
+}
+
+/**
+ * Real-time subscription for combined team and membership data.
+ */
+export function subscribeUserMemberships(
+  userId: string,
+  onData: (data: TeamWithRole[]) => void,
+  onError: (err: Error) => void,
+) {
+  const q = query(collection(db, "teamMembers"), where("userId", "==", userId));
+
+  return onSnapshot(
+    q,
+    async (snap) => {
+      const memberships = snap.docs.map((d) => d.data() as TeamMember);
+      if (memberships.length === 0) {
+        onData([]);
+        return;
+      }
+
+      const teamIds = memberships.map((m) => m.teamId);
+      const roleMap: Record<string, "admin" | "member"> = {};
+      memberships.forEach((m) => (roleMap[m.teamId] = m.role));
+
+      try {
+        const teamsQuery = query(
+          collection(db, "teams"),
+          where("id", "in", teamIds),
+        );
+        const teamsSnap = await getDocs(teamsQuery);
+
+        const teamsWithRoles = teamsSnap.docs.map((d) => {
+          const team = d.data() as Team;
+          return {
+            ...team,
+            role: roleMap[team.id],
+          };
+        });
+
+        onData(teamsWithRoles);
+      } catch (err) {
+        onError(err as Error);
+      }
+    },
+    onError,
+  );
+}
+
+export function subscribeUserTeams(
+  userId: string,
+  onData: (teams: Team[]) => void,
+  onError: (err: Error) => void,
+) {
+  const q = query(collection(db, "teamMembers"), where("userId", "==", userId));
+  return onSnapshot(
+    q,
+    async (snap) => {
+      const teamIds = snap.docs.map((d) => (d.data() as TeamMember).teamId);
+      if (teamIds.length === 0) {
+        onData([]);
+        return;
+      }
+      const teamsQuery = query(
+        collection(db, "teams"),
+        where("id", "in", teamIds),
+      );
+      const teamsSnap = await getDocs(teamsQuery);
+      onData(teamsSnap.docs.map((d) => d.data() as Team));
+    },
+    onError,
+  );
+}
+
+// ─── Membership Operations ────────────────────────────────────────────────
+
+export async function addTeamMember(
+  teamId: string,
+  userId: string,
+  role: "admin" | "member" = "member",
+): Promise<void> {
+  const member: TeamMember = {
+    id: `${teamId}_${userId}`,
+    teamId,
+    userId,
+    role,
+    joinedAt: new Date().toISOString(),
+  };
+  await setDoc(doc(db, "teamMembers", member.id), member);
+}
+
+export async function removeTeamMember(
+  teamId: string,
+  userId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "teamMembers", `${teamId}_${userId}`));
+}
+
+// ─── Invitation Operations ────────────────────────────────────────────────
+
+export async function createInvitation(
+  teamId: string,
+  email: string,
+  invitedBy: string,
+  role: "admin" | "member" = "member",
+): Promise<Invitation> {
+  const invitation: Invitation = {
+    id: uuidv4(), // token
+    teamId,
+    email,
+    role,
+    status: "pending",
+    invitedBy,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+  };
+  await setDoc(doc(db, "invitations", invitation.id), invitation);
+  return invitation;
+}
+
+export async function getInvitation(
+  tokenId: string,
+): Promise<Invitation | undefined> {
+  const docRef = doc(db, "invitations", tokenId);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? (docSnap.data() as Invitation) : undefined;
+}
+
+export async function acceptInvitation(
+  tokenId: string,
+  userId: string,
+): Promise<void> {
+  const invitation = await getInvitation(tokenId);
+  if (!invitation || invitation.status !== "pending") {
+    throw new Error("Invalid or expired invitation");
+  }
+
+  await addTeamMember(invitation.teamId, userId, invitation.role);
+  await updateDoc(doc(db, "invitations", tokenId), { status: "accepted" });
+}
+
+export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
+  const q = query(
+    collection(db, "teamMembers"),
+    where("teamId", "==", teamId),
+    orderBy("joinedAt", "desc"),
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => doc.data() as TeamMember);
+}
+
+export async function getPendingInvitations(
+  teamId: string,
+): Promise<Invitation[]> {
+  const q = query(
+    collection(db, "invitations"),
+    where("teamId", "==", teamId),
+    where("status", "==", "pending"),
+    orderBy("expiresAt", "desc"),
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => doc.data() as Invitation);
 }

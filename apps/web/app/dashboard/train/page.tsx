@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Sparkles,
@@ -16,6 +16,7 @@ import {
 import type { Product, Persona } from "@/lib/db";
 import { subscribeProducts, subscribePersonas, deletePersona } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import { RoleplaySession } from "@/components/roleplay-session";
 import { TrainingTrackSelector } from "@/components/training-track-selector";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
@@ -63,9 +64,11 @@ function TrainPageContent() {
   );
 
   const { tasks, isGenerating, dismissTask } = useBackgroundGeneration();
+  const { memberships, loading: teamLoading } = useTeam();
+  const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || teamLoading) return;
 
     // Immediately show UI; data will quickly populate from cache
     const timer = setTimeout(() => setLoading(false), 100);
@@ -77,12 +80,14 @@ function TrainPageContent() {
 
     const unsubProducts = subscribeProducts(
       user.uid,
+      teamIds,
       (data) => setProducts(data),
       handleError,
     );
 
     const unsubPersonas = subscribePersonas(
       user.uid,
+      teamIds,
       (data) => {
         setPersonas(data);
 
@@ -107,7 +112,14 @@ function TrainPageContent() {
       unsubProducts();
       unsubPersonas();
     };
-  }, [user, searchParams, selectedPersonaId, selectedProductId]);
+  }, [
+    user,
+    searchParams,
+    selectedPersonaId,
+    selectedProductId,
+    teamIds,
+    teamLoading,
+  ]);
 
   const handleStartRoleplay = () => {
     if (!selectedPersonaId || !selectedProductId) return;
@@ -191,11 +203,12 @@ function TrainPageContent() {
             Training
           </span>
           <h1 className="heading-serif text-charcoal mb-2 text-3xl md:text-4xl lg:text-5xl">
-            Start a <em>Roleplay.</em>
+            Team <em>Training.</em>
           </h1>
           <p className="text-warm-gray max-w-xl text-base">
-            Generate an AI buyer persona and jump into a live voice
-            conversation. Practice objection handling, closing, and more.
+            Train yourself or your team with AI buyer personas. Practice
+            objection handling, closing, and more to drive collective
+            performance.
           </p>
         </div>
 

@@ -2,6 +2,8 @@
 
 export interface Product {
   id: string;
+  userId: string;
+  teamId?: string;
   companyName: string;
   description: string;
   targetCustomer: string;
@@ -43,6 +45,8 @@ export interface ProspectPersonalityTemplate {
 export interface Persona {
   id: string;
   productId: string;
+  userId: string;
+  teamId?: string;
   name: string;
   role: string;
   personalityPrompt: string;
@@ -125,6 +129,7 @@ export interface Session {
   id: string;
   personaId: string;
   productId: string;
+  teamId?: string;
   personaName?: string;
   personaRole?: string;
   personaAvatarUrl?: string;
@@ -142,6 +147,7 @@ export type CallStatus = "pending" | "active" | "ended";
 export interface CallSession {
   id: string;
   userId: string;
+  teamId?: string;
   personaId: string;
   productId: string;
   userName: string;
@@ -296,4 +302,31 @@ export interface CoachDebriefResponse {
   visualBase64?: string[]; // AI-generated infographics as base64
   audioUrls?: string[]; // Remote URLs stored in Firebase Storage
   visualUrls?: string[]; // Remote URLs for AI-generated infographics
+}
+
+// ─── Team & Membership Types ────────────────────────────────────────────────
+
+export interface Team {
+  id: string;
+  name: string;
+  ownerId: string;
+  createdAt: string;
+}
+
+export interface TeamMember {
+  id: string; // teamId_userId
+  teamId: string;
+  userId: string;
+  role: "admin" | "member";
+  joinedAt: string;
+}
+
+export interface Invitation {
+  id: string; // token
+  teamId: string;
+  email: string;
+  role: "admin" | "member";
+  status: "pending" | "accepted" | "expired";
+  invitedBy: string; // userId
+  expiresAt: string;
 }
