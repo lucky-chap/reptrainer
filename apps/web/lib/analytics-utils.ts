@@ -191,6 +191,7 @@ export function aggregateDynamics(
 export function calculateCategoryScores(
   sessions: (Session | CallSession)[],
   category: "product" | "persona",
+  products?: Product[],
 ): { name: string; score: number }[] {
   const scores: Record<string, { total: number; count: number }> = {};
 
@@ -200,7 +201,9 @@ export function calculateCategoryScores(
 
     let name = "Unknown";
     if (category === "product") {
-      name = "productId" in s ? s.productId : "Default Product";
+      const productId = "productId" in s ? s.productId : "default";
+      const product = products?.find((p) => p.id === productId);
+      name = product?.companyName || productId;
       if (name === "default") name = "Standard Drill";
     } else {
       name = s.personaName || "Default Persona";

@@ -143,15 +143,16 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             <div className="flex flex-1 items-center justify-between">
               <nav className="text-warm-gray flex items-center gap-1.5 text-sm font-medium">
                 <Link
-                  href="/"
+                  href="/dashboard"
                   className="hover:text-charcoal transition-colors"
                 >
-                  Home
+                  Dashboard
                 </Link>
                 <ChevronRight className="size-3 opacity-40" />
                 <span className="text-charcoal capitalize">
-                  {pathname.split("/").filter(Boolean).slice(-1)[0] ||
-                    "Overview"}
+                  {pathname === "/dashboard"
+                    ? "Overview"
+                    : pathname.split("/").filter(Boolean).slice(-1)[0]}
                 </span>
               </nav>
               <div className="flex items-center gap-4">

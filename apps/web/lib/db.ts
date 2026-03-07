@@ -103,8 +103,21 @@ export interface Session {
   debrief?: CoachDebriefResponse | null;
 }
 
-// Re-export the shared CallSession type for convenience
-export type { CallSession, FeedbackReport, TranscriptMessage };
+// Re-export shared types for convenience
+export type {
+  CallSession,
+  CallStatus,
+  FeedbackReport,
+  TranscriptMessage,
+  UserMetrics,
+  TrainingTrackId,
+  Team,
+  TeamMember,
+  Invitation,
+  ProgressReport,
+  PersonalityType,
+  CoachDebriefResponse,
+};
 
 // ─── Product Operations ───────────────────────────────────────────────────
 

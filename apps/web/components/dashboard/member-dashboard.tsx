@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { Session, Persona } from "@/lib/db";
 import { type UserMetrics } from "@reptrainer/shared";
+import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import {
   Card,
@@ -47,6 +48,7 @@ export function MemberDashboard({
   personas,
   metrics,
 }: MemberDashboardProps) {
+  const { user } = useAuth();
   const { activeMembership } = useTeam();
 
   // Compute stats
@@ -101,9 +103,13 @@ export function MemberDashboard({
     return sessions
       .slice(0, 7)
       .reverse()
-      .map((s, i) => {
+      .map((s) => {
+        const date = new Date(s.createdAt);
         return {
-          name: i + 1,
+          name: date.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          }),
           score: getOverallScore(s.evaluation),
           confidence: s.evaluation?.confidenceScore || 0,
         };
@@ -350,7 +356,15 @@ export function MemberDashboard({
                         </div>
                         <div className="min-w-0">
                           <p className="text-charcoal truncate text-sm font-bold">
-                            {persona?.name || session.personaName || "Unknown"}
+                            {session.userId === user?.uid
+                              ? "You"
+                              : session.userName || "Unknown"}{" "}
+                            <span className="text-warm-gray/60 font-medium">
+                              practiced with{" "}
+                              {persona?.name ||
+                                session.personaName ||
+                                "Unknown"}
+                            </span>
                           </p>
                           <p className="text-warm-gray/60 mt-0.5 text-[10px] font-bold tracking-wider uppercase">
                             {new Date(session.createdAt).toLocaleDateString()}

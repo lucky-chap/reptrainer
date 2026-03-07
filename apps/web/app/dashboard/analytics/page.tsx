@@ -214,8 +214,8 @@ export default function AnalyticsPage() {
     [filteredSessions],
   );
   const productScores = useMemo(
-    () => calculateCategoryScores(filteredSessions, "product"),
-    [filteredSessions],
+    () => calculateCategoryScores(filteredSessions, "product", products),
+    [filteredSessions, products],
   );
 
   // Unique members for filter

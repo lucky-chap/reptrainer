@@ -102,7 +102,10 @@ export default function TeamPage() {
             Team Management
           </h1>
           <p className="text-warm-gray mt-1">
-            Manage your team members and invitations.
+            Manage members and invitations for{" "}
+            <span className="text-charcoal font-semibold">
+              {activeMembership.name}
+            </span>
           </p>
         </div>
         <Button

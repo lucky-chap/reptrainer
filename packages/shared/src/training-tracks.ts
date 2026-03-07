@@ -267,4 +267,12 @@ You were READY TO BUY but now you're pulling back at the last minute.
       },
     ],
   },
+  {
+    id: "adaptive",
+    name: "Adaptive Strategy",
+    description:
+      "AI-driven training tailored to your performance. We analyze your past sessions to create scenarios that target your specific growth areas.",
+    icon: "Zap",
+    scenarios: [], // Custom scenarios are generated on-the-fly via API
+  },
 ];

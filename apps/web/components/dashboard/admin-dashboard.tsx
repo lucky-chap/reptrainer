@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
 import { type UserMetrics } from "@reptrainer/shared";
+import { useAuth } from "@/context/auth-context";
 import {
   Card,
   CardHeader,
@@ -49,6 +50,7 @@ export function AdminDashboard({
   products,
   metrics,
 }: AdminDashboardProps) {
+  const { user } = useAuth();
   // Compute stats
   const totalSessions = sessions.length;
   const totalDuration = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
@@ -101,9 +103,13 @@ export function AdminDashboard({
     return sessions
       .slice(0, 7)
       .reverse()
-      .map((s, i) => {
+      .map((s) => {
+        const date = new Date(s.createdAt);
         return {
-          name: i + 1,
+          name: date.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          }),
           score: getOverallScore(s.evaluation),
           confidence: s.evaluation?.confidenceScore || 0,
         };
@@ -353,7 +359,15 @@ export function AdminDashboard({
                         </div>
                         <div className="min-w-0">
                           <p className="text-charcoal truncate text-sm font-bold">
-                            {persona?.name || session.personaName || "Unknown"}
+                            {session.userId === user?.uid
+                              ? "You"
+                              : session.userName || "Unknown"}{" "}
+                            <span className="text-warm-gray/60 font-medium">
+                              practiced with{" "}
+                              {persona?.name ||
+                                session.personaName ||
+                                "Unknown"}
+                            </span>
                           </p>
                           <p className="text-warm-gray/60 mt-0.5 text-[10px] font-bold tracking-wider uppercase">
                             {new Date(session.createdAt).toLocaleDateString()}

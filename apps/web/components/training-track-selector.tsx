@@ -11,6 +11,7 @@ import {
   Zap,
   Target,
   Star,
+  Lock,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ const TRACK_ICONS: Record<string, React.ReactNode> = {
   Shield: <Shield className="size-6" />,
   Building2: <Building2 className="size-6" />,
   Trophy: <Trophy className="size-6" />,
+  Zap: <Zap className="size-6" />,
 };
 
 const DIFFICULTY_LABELS = ["Easy", "Medium", "Hard"];
@@ -43,11 +45,13 @@ interface TrainingTrackSelectorProps {
     customScenario?: ScenarioTemplate,
   ) => void;
   onSkip: () => void;
+  totalSessions: number;
 }
 
 export function TrainingTrackSelector({
   onSelectScenario,
   onSkip,
+  totalSessions,
 }: TrainingTrackSelectorProps) {
   const [selectedTrack, setSelectedTrack] = useState<TrainingTrack | null>(
     null,
@@ -220,35 +224,66 @@ export function TrainingTrackSelector({
       </div>
 
       <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
-        {TRAINING_TRACKS.map((track) => (
-          <button
-            key={track.id}
-            onClick={() => setSelectedTrack(track)}
-            className="group text-left"
-          >
-            <Card className="border-border/60 hover:border-charcoal/30 h-full rounded-2xl border bg-white p-6 transition-all duration-300 hover:shadow-lg">
-              <div className="flex items-start gap-4">
-                <div className="bg-cream text-charcoal group-hover:bg-charcoal group-hover:text-cream flex size-12 shrink-0 items-center justify-center rounded-2xl transition-colors duration-300">
-                  {TRACK_ICONS[track.icon]}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-charcoal mb-1 text-lg font-semibold">
-                    {track.name}
-                  </h3>
-                  <p className="text-warm-gray mb-3 text-xs leading-relaxed">
-                    {track.description}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-cream/80 text-charcoal/60 border-border/20 rounded-full border px-2 py-1 text-[10px] font-semibold">
-                      {track.scenarios.length} scenarios
+        {TRAINING_TRACKS.map((track) => {
+          const isAdaptive = track.id === "adaptive";
+          const isLocked = isAdaptive && totalSessions < 3;
+
+          return (
+            <button
+              key={track.id}
+              onClick={() => !isLocked && setSelectedTrack(track)}
+              disabled={isLocked}
+              className={`group text-left ${isLocked ? "cursor-not-allowed opacity-80" : ""}`}
+            >
+              <Card
+                className={`border-border/60 relative h-full overflow-hidden rounded-2xl border bg-white p-6 transition-all duration-300 ${isLocked ? "" : "hover:border-charcoal/30 hover:shadow-lg"}`}
+              >
+                {isLocked && (
+                  <div className="bg-charcoal/5 absolute inset-0 z-10 flex flex-col items-center justify-center backdrop-blur-[1px]">
+                    <div className="mb-2 flex size-10 items-center justify-center rounded-full bg-white/90 shadow-sm">
+                      <Lock className="text-charcoal/40 size-5" />
+                    </div>
+                    <span className="text-charcoal/60 text-[10px] font-bold tracking-wider uppercase">
+                      Locked
                     </span>
-                    <ChevronRight className="text-warm-gray size-4 transition-transform group-hover:translate-x-1" />
+                  </div>
+                )}
+
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`bg-cream text-charcoal flex size-12 shrink-0 items-center justify-center rounded-2xl transition-colors duration-300 ${isLocked ? "" : "group-hover:bg-charcoal group-hover:text-cream"}`}
+                  >
+                    {TRACK_ICONS[track.icon]}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-charcoal mb-1 text-lg font-semibold">
+                      {track.name}
+                    </h3>
+                    <p className="text-warm-gray mb-3 text-xs leading-relaxed">
+                      {track.description}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {isLocked ? (
+                        <span className="text-[10px] font-bold tracking-tight text-rose-600/70">
+                          Complete 3 sessions to unlock
+                        </span>
+                      ) : (
+                        <>
+                          <span className="bg-cream/80 text-charcoal/60 border-border/20 rounded-full border px-2 py-1 text-[10px] font-semibold">
+                            {isAdaptive
+                              ? "AI Tailored"
+                              : `${track.scenarios.length} scenarios`}
+                          </span>
+                          <ChevronRight className="text-warm-gray size-4 transition-transform group-hover:translate-x-1" />
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Card>
-          </button>
-        ))}
+              </Card>
+            </button>
+          );
+        })}
       </div>
 
       <div className="pt-4 text-center">

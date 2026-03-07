@@ -14,7 +14,13 @@ import {
   Target,
 } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
-import { subscribeProducts, subscribePersonas, deletePersona } from "@/lib/db";
+import {
+  subscribeProducts,
+  subscribePersonas,
+  deletePersona,
+  subscribeUserMetrics,
+  type UserMetrics,
+} from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import { RoleplaySession } from "@/components/roleplay-session";
@@ -53,6 +59,7 @@ function TrainPageContent() {
   );
   const [activePersona, setActivePersona] = useState<Persona | null>(null);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [metrics, setMetrics] = useState<UserMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Training track state
@@ -70,6 +77,7 @@ function TrainPageContent() {
   const { memberships, isAdmin, loading: teamLoading } = useTeam();
   const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
 
+  // 1. Data Subscriptions (Only depends on User and Team IDs)
   useEffect(() => {
     if (!user || teamLoading) return;
 
@@ -91,22 +99,13 @@ function TrainPageContent() {
     const unsubPersonas = subscribePersonas(
       user.uid,
       teamIds,
-      (data) => {
-        setPersonas(data);
+      (data) => setPersonas(data),
+      handleError,
+    );
 
-        // Pre-select persona if personaId is in query params
-        const queryPersonaId = searchParams.get("personaId");
-        if (queryPersonaId && !selectedPersonaId) {
-          const persona = data.find((p) => p.id === queryPersonaId);
-          if (persona) {
-            setSelectedPersonaId(queryPersonaId);
-            // Also pre-select the associated product
-            if (persona.productId) {
-              setSelectedProductId(persona.productId);
-            }
-          }
-        }
-      },
+    const unsubMetrics = subscribeUserMetrics(
+      user.uid,
+      (data) => setMetrics(data),
       handleError,
     );
 
@@ -114,15 +113,26 @@ function TrainPageContent() {
       clearTimeout(timer);
       unsubProducts();
       unsubPersonas();
+      unsubMetrics();
     };
-  }, [
-    user,
-    searchParams,
-    selectedPersonaId,
-    selectedProductId,
-    teamIds,
-    teamLoading,
-  ]);
+  }, [user, teamIds, teamLoading]);
+
+  // 2. Query Parameter Pre-selection (Depends on the data being loaded)
+  useEffect(() => {
+    if (personas.length === 0) return;
+
+    const queryPersonaId = searchParams.get("personaId");
+    if (queryPersonaId && !selectedPersonaId) {
+      const persona = personas.find((p) => p.id === queryPersonaId);
+      if (persona) {
+        setSelectedPersonaId(queryPersonaId);
+        // Also pre-select the associated product
+        if (persona.productId) {
+          setSelectedProductId(persona.productId);
+        }
+      }
+    }
+  }, [searchParams, personas, selectedPersonaId]);
 
   const handleStartRoleplay = () => {
     if (!selectedPersonaId || !selectedProductId) return;
@@ -171,6 +181,7 @@ function TrainPageContent() {
           <TrainingTrackSelector
             onSelectScenario={handleTrackSelected}
             onSkip={handleSkipTrack}
+            totalSessions={metrics?.totalCalls ?? 0}
           />
         </div>
       </>
