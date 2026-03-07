@@ -8,6 +8,7 @@ import {
 import localFont from "next/font/local";
 import { AuthProvider } from "@/context/auth-context";
 import { TeamProvider } from "@/context/team-context";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const inter = Inter({
@@ -85,9 +86,11 @@ export default function RootLayout({
       className={`${bdoGrotesk.variable} ${inter.variable} ${playfair.variable} ${jetbrainsMono.variable}`}
     >
       <body className="bg-background min-h-screen font-sans antialiased">
-        <AuthProvider>
-          <TeamProvider>{children}</TeamProvider>
-        </AuthProvider>
+        <TooltipProvider>
+          <AuthProvider>
+            <TeamProvider>{children}</TeamProvider>
+          </AuthProvider>
+        </TooltipProvider>
       </body>
     </html>
   );

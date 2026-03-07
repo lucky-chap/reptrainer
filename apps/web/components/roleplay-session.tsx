@@ -50,6 +50,7 @@ import {
   type FeedbackReport,
   type TranscriptMessage,
   type CoachDebriefResponse,
+  type ScenarioTemplate,
 } from "@reptrainer/shared";
 
 interface RoleplaySessionProps {
@@ -58,6 +59,7 @@ interface RoleplaySessionProps {
   onBack: () => void;
   trackId?: TrainingTrackId;
   scenarioId?: string;
+  customScenario?: ScenarioTemplate;
 }
 
 function formatTime(seconds: number): string {
@@ -72,6 +74,7 @@ export function RoleplaySession({
   onBack,
   trackId,
   scenarioId,
+  customScenario,
 }: RoleplaySessionProps) {
   const { user } = useAuth();
   const [showResults, setShowResults] = useState(false);
@@ -107,8 +110,9 @@ export function RoleplaySession({
 
   // ─── Training Track Context ───────────────────────────────────────────
   const track = trackId ? TRAINING_TRACKS.find((t) => t.id === trackId) : null;
-  const scenario =
-    track && scenarioId
+  const scenario = customScenario
+    ? customScenario
+    : track && scenarioId
       ? track.scenarios.find((s) => s.id === scenarioId)
       : null;
 

@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardHeader,
@@ -76,6 +77,13 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const { isAdmin, memberships, loading: teamLoading } = useTeam();
   const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
+  const [viewMode, setViewMode] = useState<"team" | "personal">("personal");
+
+  useEffect(() => {
+    if (!teamLoading) {
+      setViewMode(isAdmin ? "team" : "personal");
+    }
+  }, [isAdmin, teamLoading]);
 
   // Filters
   const [timeframe, setTimeframe] = useState<string>("all");
@@ -86,30 +94,26 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (!user || teamLoading) return;
 
-    if (!isAdmin) {
-      window.location.href = "/dashboard";
-      return;
-    }
-
     const timer = setTimeout(() => setLoading(false), 100);
+    const activeTeamIds = viewMode === "team" ? teamIds : [];
 
     const unsubSessions = subscribeSessions(
       user.uid,
-      teamIds,
+      activeTeamIds,
       (data) => setSessions(data),
       (err) => console.error("Analytics sessions error:", err),
     );
 
     const unsubProducts = subscribeProducts(
       user.uid,
-      teamIds,
+      teamIds, // Always fetch all accessible products for filters
       (data) => setProducts(data),
       (err) => console.error("Analytics products error:", err),
     );
 
     const unsubPersonas = subscribePersonas(
       user.uid,
-      teamIds,
+      teamIds, // Always fetch all accessible personas for filters
       (data) => setPersonas(data),
       (err) => console.error("Analytics personas error:", err),
     );
@@ -120,7 +124,7 @@ export default function AnalyticsPage() {
       unsubProducts();
       unsubPersonas();
     };
-  }, [user, teamIds, teamLoading, isAdmin]);
+  }, [user, teamIds, teamLoading, viewMode]);
 
   // Filter sessions
   const filteredSessions = useMemo(() => {
@@ -260,26 +264,48 @@ export default function AnalyticsPage() {
     <div className="animate-fade-up space-y-8 pb-10">
       {/* Header */}
       <div className="flex flex-col gap-4">
-        <Button
-          asChild
-          variant="ghost"
-          className="text-warm-gray hover:text-charcoal -ml-4 w-fit gap-2 transition-colors"
-        >
-          <Link href="/dashboard">
-            <ArrowLeft className="size-4" />
-            Back to Dashboard
-          </Link>
-        </Button>
+        <div className="flex items-center justify-between">
+          <Button
+            asChild
+            variant="ghost"
+            className="text-warm-gray hover:text-charcoal -ml-4 w-fit gap-2 transition-colors"
+          >
+            <Link href="/dashboard">
+              <ArrowLeft className="size-4" />
+              Back to Dashboard
+            </Link>
+          </Button>
+
+          {isAdmin && (
+            <Tabs
+              value={viewMode}
+              onValueChange={(v: string) =>
+                setViewMode(v as "team" | "personal")
+              }
+            >
+              <TabsList className="bg-cream/50 border-border/40 border">
+                <TabsTrigger value="team" className="text-xs">
+                  Team
+                </TabsTrigger>
+                <TabsTrigger value="personal" className="text-xs">
+                  Personal
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+        </div>
         <div>
           <span className="text-warm-gray mb-2 block text-xs font-medium tracking-widest uppercase">
             Deep Insights
           </span>
           <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
-            Team <em>Performance.</em>
+            {viewMode === "team" ? "Team" : "Personal"} <em>Performance.</em>
           </h1>
           <p className="text-warm-gray mt-2 max-w-2xl text-base">
-            Track the team's journey from pitch to close. See how collective
-            skills have evolved across every roleplay session.
+            Track {viewMode === "team" ? "your team's" : "your"} journey from
+            pitch to close. See how{" "}
+            {viewMode === "team" ? "collective" : "your"} skills have evolved
+            across every roleplay session.
           </p>
         </div>
       </div>
@@ -343,19 +369,24 @@ export default function AnalyticsPage() {
           </Select>
 
           {/* Member Filter */}
-          <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
-            <SelectTrigger className="bg-cream/20 w-[180px] font-medium">
-              <SelectValue placeholder="Select Member" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Members</SelectItem>
-              {members.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {viewMode === "team" && (
+            <Select
+              value={selectedMemberId}
+              onValueChange={setSelectedMemberId}
+            >
+              <SelectTrigger className="bg-cream/20 w-[180px] font-medium">
+                <SelectValue placeholder="Select Member" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Members</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {(timeframe !== "all" ||
             selectedPersonaId !== "all" ||
@@ -410,8 +441,8 @@ export default function AnalyticsPage() {
       {/* Main Charts Section */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Progress Timeline */}
-        <Card className="border-border/60 overflow-hidden bg-white shadow-none lg:col-span-2">
-          <CardHeader className="border-border/40 bg-cream/20 border-b">
+        <Card className="border-border/60 min-w-0 overflow-hidden bg-white pt-0 shadow-none lg:col-span-2">
+          <CardHeader className="border-border/40 bg-cream/20 border-b pt-4">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base font-bold">
@@ -505,7 +536,7 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* Competency Radar */}
-        <Card className="border-border/60 bg-white shadow-none">
+        <Card className="border-border/60 min-w-0 bg-white shadow-none">
           <CardHeader>
             <CardTitle className="text-base font-bold">
               Team Skill Radar
@@ -709,7 +740,7 @@ export default function AnalyticsPage() {
 
       {/* Category Performance */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="border-border/60 bg-white shadow-none">
+        <Card className="border-border/60 min-w-0 bg-white shadow-none">
           <CardHeader>
             <CardTitle className="text-base font-bold">
               Persona Performance
@@ -749,7 +780,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 bg-white shadow-none">
+        <Card className="border-border/60 min-w-0 bg-white shadow-none">
           <CardHeader>
             <CardTitle className="text-base font-bold">
               Product Performance

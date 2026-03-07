@@ -124,32 +124,37 @@ export async function getAllProducts(
 ): Promise<Product[]> {
   const constraints = [orderBy("createdAt", "desc")];
 
-  // If we have teams, we want products owned by user OR in those teams
-  // Firestore doesn't support OR across multiple fields easily with complex filters
-  // For now, we'll implement a simple version: user's products OR team products if teamIds provided
+  const userQ = query(
+    collection(db, "products"),
+    where("userId", "==", userId),
+    ...constraints,
+  );
 
-  let q;
-  if (teamIds.length > 0) {
-    // In a real app, we might perform two queries and merge, or use a complex composite index
-    // For this MVP, we'll fetch team products if teamIds is provided
-    q = query(
-      collection(db, "products"),
-      where("teamId", "in", teamIds),
-      ...constraints,
-    );
-  } else {
-    q = query(
-      collection(db, "products"),
-      where("userId", "==", userId),
-      ...constraints,
-    );
-  }
+  const teamQ =
+    Array.isArray(teamIds) && teamIds.length > 0
+      ? query(
+          collection(db, "products"),
+          where("teamId", "in", teamIds),
+          ...constraints,
+        )
+      : null;
 
-  const querySnapshot = await getDocs(q);
-  const products: Product[] = [];
-  querySnapshot.forEach((doc) => {
-    products.push(doc.data() as Product);
-  });
+  const [userSnap, teamSnap] = await Promise.all([
+    getDocs(userQ),
+    teamQ ? getDocs(teamQ) : Promise.resolve({ docs: [] }),
+  ]);
+
+  const combined = [...userSnap.docs, ...teamSnap.docs].map(
+    (d) => d.data() as Product,
+  );
+  const seen = new Set<string>();
+  const products = combined
+    .filter((p) => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   // Seed demo products if empty for this user
   if (products.length === 0) {
@@ -221,22 +226,41 @@ export async function getAllPersonas(
   userId: string,
   teamIds: string[] = [],
 ): Promise<Persona[]> {
-  let q;
-  if (teamIds.length > 0) {
-    q = query(
-      collection(db, "personas"),
-      where("teamId", "in", teamIds),
-      orderBy("createdAt", "desc"),
-    );
-  } else {
-    q = query(
-      collection(db, "personas"),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
-    );
-  }
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => doc.data() as Persona);
+  const constraints = [orderBy("createdAt", "desc")];
+
+  const userQ = query(
+    collection(db, "personas"),
+    where("userId", "==", userId),
+    ...constraints,
+  );
+
+  const teamQ =
+    Array.isArray(teamIds) && teamIds.length > 0
+      ? query(
+          collection(db, "personas"),
+          where("teamId", "in", teamIds),
+          ...constraints,
+        )
+      : null;
+
+  const [userSnap, teamSnap] = await Promise.all([
+    getDocs(userQ),
+    teamQ ? getDocs(teamQ) : Promise.resolve({ docs: [] }),
+  ]);
+
+  const combined = [...userSnap.docs, ...teamSnap.docs].map(
+    (d) => d.data() as Persona,
+  );
+  const seen = new Set<string>();
+  const personas = combined
+    .filter((p) => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return personas;
 }
 
 export async function deletePersona(id: string): Promise<void> {
@@ -321,22 +345,41 @@ export async function getAllSessions(
   userId: string,
   teamIds: string[] = [],
 ): Promise<Session[]> {
-  let q;
-  if (teamIds.length > 0) {
-    q = query(
-      collection(db, "sessions"),
-      where("teamId", "in", teamIds),
-      orderBy("createdAt", "desc"),
-    );
-  } else {
-    q = query(
-      collection(db, "sessions"),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
-    );
-  }
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => doc.data() as Session);
+  const constraints = [orderBy("createdAt", "desc")];
+
+  const userQ = query(
+    collection(db, "sessions"),
+    where("userId", "==", userId),
+    ...constraints,
+  );
+
+  const teamQ =
+    Array.isArray(teamIds) && teamIds.length > 0
+      ? query(
+          collection(db, "sessions"),
+          where("teamId", "in", teamIds),
+          ...constraints,
+        )
+      : null;
+
+  const [userSnap, teamSnap] = await Promise.all([
+    getDocs(userQ),
+    teamQ ? getDocs(teamQ) : Promise.resolve({ docs: [] }),
+  ]);
+
+  const combined = [...userSnap.docs, ...teamSnap.docs].map(
+    (d) => d.data() as Session,
+  );
+  const seen = new Set<string>();
+  const sessions = combined
+    .filter((s) => {
+      if (seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return sessions;
 }
 
 export async function deleteSession(id: string): Promise<void> {
@@ -569,27 +612,58 @@ export function subscribeProducts(
   onData: (products: Product[]) => void,
   onError: (err: Error) => void,
 ) {
-  let q;
+  const userQ = query(
+    collection(db, "products"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+
+  let userProducts: Product[] = [];
+  let teamProducts: Product[] = [];
+
+  const update = () => {
+    const combined = [...userProducts, ...teamProducts];
+    const seen = new Set<string>();
+    const unique = combined
+      .filter((p) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    onData(unique);
+  };
+
+  const unsubUser = onSnapshot(
+    userQ,
+    (snap) => {
+      userProducts = snap.docs.map((d) => d.data() as Product);
+      update();
+    },
+    onError,
+  );
+
+  let unsubTeam = () => {};
   if (Array.isArray(teamIds) && teamIds.length > 0) {
-    q = query(
+    const teamQ = query(
       collection(db, "products"),
       where("teamId", "in", teamIds),
       orderBy("createdAt", "desc"),
     );
-  } else {
-    q = query(
-      collection(db, "products"),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
+    unsubTeam = onSnapshot(
+      teamQ,
+      (snap) => {
+        teamProducts = snap.docs.map((d) => d.data() as Product);
+        update();
+      },
+      onError,
     );
   }
-  return onSnapshot(
-    q,
-    (snap) => {
-      onData(snap.docs.map((d) => d.data() as Product));
-    },
-    onError,
-  );
+
+  return () => {
+    unsubUser();
+    unsubTeam();
+  };
 }
 
 export function subscribePersonas(
@@ -598,27 +672,58 @@ export function subscribePersonas(
   onData: (personas: Persona[]) => void,
   onError: (err: Error) => void,
 ) {
-  let q;
+  const userQ = query(
+    collection(db, "personas"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+
+  let userPersonas: Persona[] = [];
+  let teamPersonas: Persona[] = [];
+
+  const update = () => {
+    const combined = [...userPersonas, ...teamPersonas];
+    const seen = new Set<string>();
+    const unique = combined
+      .filter((p) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    onData(unique);
+  };
+
+  const unsubUser = onSnapshot(
+    userQ,
+    (snap) => {
+      userPersonas = snap.docs.map((d) => d.data() as Persona);
+      update();
+    },
+    onError,
+  );
+
+  let unsubTeam = () => {};
   if (Array.isArray(teamIds) && teamIds.length > 0) {
-    q = query(
+    const teamQ = query(
       collection(db, "personas"),
       where("teamId", "in", teamIds),
       orderBy("createdAt", "desc"),
     );
-  } else {
-    q = query(
-      collection(db, "personas"),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
+    unsubTeam = onSnapshot(
+      teamQ,
+      (snap) => {
+        teamPersonas = snap.docs.map((d) => d.data() as Persona);
+        update();
+      },
+      onError,
     );
   }
-  return onSnapshot(
-    q,
-    (snap) => {
-      onData(snap.docs.map((d) => d.data() as Persona));
-    },
-    onError,
-  );
+
+  return () => {
+    unsubUser();
+    unsubTeam();
+  };
 }
 
 export function subscribeSessions(
@@ -627,27 +732,58 @@ export function subscribeSessions(
   onData: (sessions: Session[]) => void,
   onError: (err: Error) => void,
 ) {
-  let q;
+  const userQ = query(
+    collection(db, "sessions"),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+  );
+
+  let userSessions: Session[] = [];
+  let teamSessions: Session[] = [];
+
+  const update = () => {
+    const combined = [...userSessions, ...teamSessions];
+    const seen = new Set<string>();
+    const unique = combined
+      .filter((s) => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    onData(unique);
+  };
+
+  const unsubUser = onSnapshot(
+    userQ,
+    (snap) => {
+      userSessions = snap.docs.map((d) => d.data() as Session);
+      update();
+    },
+    onError,
+  );
+
+  let unsubTeam = () => {};
   if (Array.isArray(teamIds) && teamIds.length > 0) {
-    q = query(
+    const teamQ = query(
       collection(db, "sessions"),
       where("teamId", "in", teamIds),
       orderBy("createdAt", "desc"),
     );
-  } else {
-    q = query(
-      collection(db, "sessions"),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
+    unsubTeam = onSnapshot(
+      teamQ,
+      (snap) => {
+        teamSessions = snap.docs.map((d) => d.data() as Session);
+        update();
+      },
+      onError,
     );
   }
-  return onSnapshot(
-    q,
-    (snap) => {
-      onData(snap.docs.map((d) => d.data() as Session));
-    },
-    onError,
-  );
+
+  return () => {
+    unsubUser();
+    unsubTeam();
+  };
 }
 // ─── Team Operations ─────────────────────────────────────────────────────
 

@@ -21,7 +21,7 @@ import { RoleplaySession } from "@/components/roleplay-session";
 import { TrainingTrackSelector } from "@/components/training-track-selector";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import Link from "next/link";
-import type { TrainingTrackId } from "@reptrainer/shared";
+import type { TrainingTrackId, ScenarioTemplate } from "@reptrainer/shared";
 
 import {
   Card,
@@ -60,6 +60,9 @@ function TrainPageContent() {
   const [selectedTrackId, setSelectedTrackId] =
     useState<TrainingTrackId | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(
+    null,
+  );
+  const [customScenario, setCustomScenario] = useState<ScenarioTemplate | null>(
     null,
   );
 
@@ -136,15 +139,18 @@ function TrainPageContent() {
   const handleTrackSelected = (
     trackId: TrainingTrackId,
     scenarioId: string,
+    passedCustomScenario?: ScenarioTemplate,
   ) => {
     setSelectedTrackId(trackId);
     setSelectedScenarioId(scenarioId);
+    setCustomScenario(passedCustomScenario || null);
     setStep("session");
   };
 
   const handleSkipTrack = () => {
     setSelectedTrackId(null);
     setSelectedScenarioId(null);
+    setCustomScenario(null);
     setStep("session");
   };
 
@@ -153,6 +159,7 @@ function TrainPageContent() {
     setActiveProduct(null);
     setSelectedTrackId(null);
     setSelectedScenarioId(null);
+    setCustomScenario(null);
     setStep("configure");
   };
 
@@ -179,6 +186,7 @@ function TrainPageContent() {
           product={activeProduct}
           trackId={selectedTrackId ?? undefined}
           scenarioId={selectedScenarioId ?? undefined}
+          customScenario={customScenario ?? undefined}
           onBack={handleBackToConfig}
         />
       </>

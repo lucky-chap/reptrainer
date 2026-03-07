@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { Session, Persona } from "@/lib/db";
 import { type UserMetrics } from "@reptrainer/shared";
+import { useTeam } from "@/context/team-context";
 import {
   Card,
   CardHeader,
@@ -46,6 +47,8 @@ export function MemberDashboard({
   personas,
   metrics,
 }: MemberDashboardProps) {
+  const { activeMembership } = useTeam();
+
   // Compute stats
   const totalSessions = sessions.length;
   const totalDuration = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
@@ -113,7 +116,8 @@ export function MemberDashboard({
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <span className="text-warm-gray mb-2 block text-xs font-medium tracking-widest uppercase">
-            Personal Performance
+            Personal Performance{" "}
+            {activeMembership?.name ? `• ${activeMembership.name}` : ""}
           </span>
           <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
             Your <em>Training.</em>

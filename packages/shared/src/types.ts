@@ -97,7 +97,8 @@ export type TrainingTrackId =
   | "beginner-sales-rep"
   | "objection-mastery"
   | "enterprise-selling"
-  | "closing-specialist";
+  | "closing-specialist"
+  | "adaptive";
 
 export interface ScenarioTemplate {
   id: string;

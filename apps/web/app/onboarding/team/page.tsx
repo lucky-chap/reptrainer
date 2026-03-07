@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { createTeam, getUserTeams } from "@/lib/db";
+import { createTeam, getUserMemberships } from "@/lib/db";
 import { useTeam } from "@/context/team-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ export default function TeamOnboardingPage() {
   const [teamName, setTeamName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [checkingTeams, setCheckingTeams] = useState(true);
+  const [loadingText, setLoadingText] = useState("Preparing your workspace...");
   const { refreshMemberships } = useTeam();
 
   useEffect(() => {
@@ -33,8 +34,14 @@ export default function TeamOnboardingPage() {
 
     if (user) {
       const checkExistingTeams = async () => {
-        const teams = await getUserTeams(user.uid);
+        const teams = await getUserMemberships(user.uid);
         if (teams.length > 0) {
+          const isAdmin = teams.some((t) => t.role === "admin");
+          setLoadingText(
+            isAdmin
+              ? "Preparing your workspace..."
+              : "Setting up your training environment...",
+          );
           router.push("/dashboard");
         } else {
           setCheckingTeams(false);
@@ -63,9 +70,7 @@ export default function TeamOnboardingPage() {
     return (
       <div className="bg-cream flex min-h-screen flex-col items-center justify-center p-6">
         <Loader2 className="text-charcoal size-8 animate-spin" />
-        <p className="text-warm-gray mt-4 text-sm font-medium">
-          Preparing your workspace...
-        </p>
+        <p className="text-warm-gray mt-4 text-sm font-medium">{loadingText}</p>
       </div>
     );
   }

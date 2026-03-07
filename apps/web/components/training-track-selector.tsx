@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
 import {
   TRAINING_TRACKS,
   type TrainingTrack,
@@ -36,7 +37,11 @@ const DIFFICULTY_COLORS = [
 ];
 
 interface TrainingTrackSelectorProps {
-  onSelectScenario: (trackId: TrainingTrackId, scenarioId: string) => void;
+  onSelectScenario: (
+    trackId: TrainingTrackId,
+    scenarioId: string,
+    customScenario?: ScenarioTemplate,
+  ) => void;
   onSkip: () => void;
 }
 
@@ -47,6 +52,8 @@ export function TrainingTrackSelector({
   const [selectedTrack, setSelectedTrack] = useState<TrainingTrack | null>(
     null,
   );
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { user } = useAuth();
 
   if (selectedTrack) {
     return (
@@ -80,70 +87,114 @@ export function TrainingTrackSelector({
         </div>
 
         <div className="mx-auto grid max-w-2xl gap-4">
-          {selectedTrack.scenarios.map((scenario) => (
-            <button
-              key={scenario.id}
-              onClick={() =>
-                onSelectScenario(
-                  selectedTrack.id as TrainingTrackId,
-                  scenario.id,
-                )
-              }
-              className="group text-left"
-            >
-              <Card className="border-border/60 hover:border-charcoal/30 rounded-2xl border bg-white p-6 transition-all duration-200 hover:shadow-md">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-2 flex items-center gap-3">
-                      <h3 className="text-charcoal text-base font-semibold">
-                        {scenario.name}
-                      </h3>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase ${DIFFICULTY_COLORS[scenario.difficulty - 1]}`}
-                      >
-                        {DIFFICULTY_LABELS[scenario.difficulty - 1]}
-                      </span>
-                    </div>
-                    <p className="text-warm-gray mb-4 text-sm leading-relaxed">
-                      {scenario.description}
-                    </p>
-
-                    {/* Skills */}
-                    <div className="flex flex-wrap gap-2">
-                      {scenario.expectedSkills.map((skill) => (
+          {selectedTrack.id === "adaptive" ? (
+            <Card className="border-border/60 relative mt-4 overflow-hidden bg-white p-8 text-center shadow-sm">
+              <div className="mx-auto flex max-w-md flex-col items-center justify-center space-y-4">
+                <div className="bg-cream mb-2 rounded-full p-4">
+                  <Star className="text-charcoal h-8 w-8" />
+                </div>
+                <h3 className="text-charcoal heading-serif text-xl font-bold">
+                  Generate Custom Scenario
+                </h3>
+                <p className="text-warm-gray mb-4 text-sm leading-relaxed">
+                  We'll analyze your past performance metrics to generate a
+                  unique roleplay scenario specifically designed to target your
+                  weaknesses and challenge your strengths.
+                </p>
+                <Button
+                  disabled={isGenerating || !user}
+                  onClick={async () => {
+                    if (!user) return;
+                    setIsGenerating(true);
+                    try {
+                      const res = await fetch("/api/scenarios/adaptive", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: user.uid }),
+                      });
+                      if (!res.ok) throw new Error("Failed to generate");
+                      const scenario: ScenarioTemplate = await res.json();
+                      onSelectScenario("adaptive", scenario.id, scenario);
+                    } catch (err) {
+                      console.error(err);
+                      // In a real app we'd show a toast here
+                    } finally {
+                      setIsGenerating(false);
+                    }
+                  }}
+                  className="h-12 w-full px-8 sm:w-auto"
+                  variant="brand"
+                >
+                  {isGenerating ? "Generating..." : "Generate Scenario"}
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            selectedTrack.scenarios.map((scenario) => (
+              <button
+                key={scenario.id}
+                onClick={() =>
+                  onSelectScenario(
+                    selectedTrack.id as TrainingTrackId,
+                    scenario.id,
+                  )
+                }
+                className="group text-left"
+              >
+                <Card className="border-border/60 hover:border-charcoal/30 rounded-2xl border bg-white p-6 transition-all duration-200 hover:shadow-md">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-2 flex items-center gap-3">
+                        <h3 className="text-charcoal text-base font-semibold">
+                          {scenario.name}
+                        </h3>
                         <span
-                          key={skill}
-                          className="bg-cream/80 text-charcoal/80 border-border/30 rounded-lg border px-2.5 py-1 text-[11px] font-medium"
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase ${DIFFICULTY_COLORS[scenario.difficulty - 1]}`}
                         >
-                          {skill}
+                          {DIFFICULTY_LABELS[scenario.difficulty - 1]}
                         </span>
-                      ))}
-                    </div>
+                      </div>
+                      <p className="text-warm-gray mb-4 text-sm leading-relaxed">
+                        {scenario.description}
+                      </p>
 
-                    {/* Evaluation Weights */}
-                    <div className="mt-4 flex items-center gap-3">
-                      <span className="text-warm-gray-light text-[10px] font-semibold tracking-wider uppercase">
-                        Focus:
-                      </span>
-                      {Object.entries(scenario.evaluationWeighting)
-                        .sort(([, a], [, b]) => b - a)
-                        .slice(0, 3)
-                        .map(([key, weight]) => (
+                      {/* Skills */}
+                      <div className="flex flex-wrap gap-2">
+                        {scenario.expectedSkills.map((skill) => (
                           <span
-                            key={key}
-                            className="text-warm-gray text-[10px] font-medium"
+                            key={skill}
+                            className="bg-cream/80 text-charcoal/80 border-border/30 rounded-lg border px-2.5 py-1 text-[11px] font-medium"
                           >
-                            {key.replace(/_/g, " ")} ({weight}%)
+                            {skill}
                           </span>
                         ))}
-                    </div>
-                  </div>
+                      </div>
 
-                  <ChevronRight className="text-warm-gray group-hover:text-charcoal mt-1 size-5 shrink-0 transition-colors" />
-                </div>
-              </Card>
-            </button>
-          ))}
+                      {/* Evaluation Weights */}
+                      <div className="mt-4 flex items-center gap-3">
+                        <span className="text-warm-gray-light text-[10px] font-semibold tracking-wider uppercase">
+                          Focus:
+                        </span>
+                        {Object.entries(scenario.evaluationWeighting)
+                          .sort(([, a], [, b]) => b - a)
+                          .slice(0, 3)
+                          .map(([key, weight]) => (
+                            <span
+                              key={key}
+                              className="text-warm-gray text-[10px] font-medium"
+                            >
+                              {key.replace(/_/g, " ")} ({weight}%)
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+
+                    <ChevronRight className="text-warm-gray group-hover:text-charcoal mt-1 size-5 shrink-0 transition-colors" />
+                  </div>
+                </Card>
+              </button>
+            ))
+          )}
         </div>
       </div>
     );

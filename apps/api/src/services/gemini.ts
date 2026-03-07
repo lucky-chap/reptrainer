@@ -38,12 +38,13 @@ Generate a product profile with the following JSON structure. Return ONLY valid 
   "companyName": "Generate a creative, professional, and memorable company name that fits the product description.",
   "description": "A concise, high-impact 2-3 sentence description of the product and its value proposition.",
   "targetCustomer": "A specific description of the ideal customer profile (e.g., 'Enterprise CTOs at fintech companies', 'SMB owners looking to automate marketing').",
-  "industry": "A single, broad industry category (e.g., 'SaaS', 'Healthcare', 'Cybersecurity').",
+  "industry": "A single, broad industry category (e.g., 'SaaS', 'Healthcare', 'Cybersecurity', 'Manufacturing', 'Logistics', 'Retail').",
   "objections": ["3-5 realistic sales objections this product typically faces"]
 }
 
 IMPORTANT:
 - If company name/description are not provided, be creative but stay professional and realistic.
+- DIVERSIFY the product types. While some can be AI-powered, ensure a healthy mix of traditional SaaS, hardware, professional services, and physical goods. Avoid defaulting to "AI-powered" for every generation.
 - The objections should be challenging and specific to the product's likely friction points.`;
 
   const response = await ai.models.generateContent({
