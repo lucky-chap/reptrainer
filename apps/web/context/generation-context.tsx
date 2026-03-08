@@ -14,9 +14,10 @@ import {
   generateProduct as generateProductAction,
   generatePersonaAvatar as generateAvatarAction,
 } from "@/app/actions/api";
-import type { Product, Persona } from "@/lib/db";
 import { savePersona, saveProduct, updatePersona } from "@/lib/db";
+import type { Product, Persona } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
+import { toast } from "sonner";
 
 export interface GenerationTask {
   id: string;
@@ -97,6 +98,10 @@ export function GenerationProvider({
       activeRef.current.set(taskId, true);
       setTasks((prev) => [...prev, task]);
 
+      const taskToastId = toast.loading(
+        `Generating persona for ${product.companyName}...`,
+      );
+
       try {
         // Step 1: Text Generation
         setTasks((prev) =>
@@ -116,7 +121,10 @@ export function GenerationProvider({
           competitorUrl,
         });
 
-        if (!activeRef.current.get(taskId)) return;
+        if (!activeRef.current.get(taskId)) {
+          toast.dismiss(taskToastId);
+          return;
+        }
 
         setTasks((prev) =>
           prev.map((t) =>
@@ -194,6 +202,9 @@ export function GenerationProvider({
         }
 
         if (activeRef.current.get(taskId)) {
+          toast.success(`Generated persona: ${persona.name}`, {
+            id: taskToastId,
+          });
           setTasks((prev) =>
             prev.map((t) =>
               t.id === taskId
@@ -224,6 +235,12 @@ export function GenerationProvider({
             ),
           );
         }
+        toast.error(
+          `Failed to generate persona: ${error instanceof Error ? error.message : "Unknown error"}`,
+          {
+            id: taskToastId,
+          },
+        );
       } finally {
         activeRef.current.delete(taskId);
       }
@@ -249,10 +266,15 @@ export function GenerationProvider({
       activeRef.current.set(taskId, true);
       setTasks((prev) => [...prev, task]);
 
+      const taskToastId = toast.loading("Generating product...");
+
       try {
         const generatedData = await generateProductAction(data);
 
-        if (!activeRef.current.get(taskId)) return;
+        if (!activeRef.current.get(taskId)) {
+          toast.dismiss(taskToastId);
+          return;
+        }
 
         const product: Product = {
           id: uuidv4(),
@@ -269,6 +291,9 @@ export function GenerationProvider({
         await saveProduct(product);
 
         if (activeRef.current.get(taskId)) {
+          toast.success(`Generated product: ${product.companyName}`, {
+            id: taskToastId,
+          });
           setTasks((prev) =>
             prev.map((t) =>
               t.id === taskId
@@ -299,6 +324,12 @@ export function GenerationProvider({
             ),
           );
         }
+        toast.error(
+          `Failed to generate product: ${error instanceof Error ? error.message : "Unknown error"}`,
+          {
+            id: taskToastId,
+          },
+        );
       } finally {
         activeRef.current.delete(taskId);
       }

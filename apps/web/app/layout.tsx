@@ -9,6 +9,7 @@ import localFont from "next/font/local";
 import { AuthProvider } from "@/context/auth-context";
 import { TeamProvider } from "@/context/team-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const inter = Inter({
@@ -91,6 +92,7 @@ export default function RootLayout({
             <TeamProvider>{children}</TeamProvider>
           </AuthProvider>
         </TooltipProvider>
+        <Toaster position="bottom-right" className="!z-[9999]" />
       </body>
     </html>
   );

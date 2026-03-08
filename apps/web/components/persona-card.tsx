@@ -9,6 +9,7 @@ import {
   Users,
 } from "lucide-react";
 import type { Persona, Product } from "@/lib/db";
+import { useGeneration } from "@/context/generation-context";
 import {
   Card,
   CardHeader,
@@ -52,6 +53,11 @@ export function PersonaCard({
   teams = [],
   onMoveToTeam,
 }: PersonaCardProps) {
+  const { tasks } = useGeneration();
+  const isGeneratingAvatar = tasks.some(
+    (t) => t.personaId === persona.id && t.subStatus === "generating_avatar",
+  );
+
   return (
     <Card
       key={persona.id}
@@ -161,16 +167,26 @@ export function PersonaCard({
         </p>
       </CardContent>
       <CardFooter className="px-6">
-        <Button
-          asChild
-          variant="brand"
-          className="shadow-charcoal/10 group/btn h-12 w-full rounded-full transition-all hover:shadow-lg"
-        >
-          <Link href={`/dashboard/train?personaId=${persona.id}`}>
-            Start Roleplay
-            <ChevronRight className="ml-1 size-4 transition-transform group-hover/btn:translate-x-1" />
-          </Link>
-        </Button>
+        {isGeneratingAvatar ? (
+          <Button
+            disabled
+            variant="brand"
+            className="shadow-charcoal/10 group/btn h-12 w-full rounded-full transition-all"
+          >
+            Generating Avatar...
+          </Button>
+        ) : (
+          <Button
+            asChild
+            variant="brand"
+            className="shadow-charcoal/10 group/btn h-12 w-full rounded-full transition-all hover:shadow-lg"
+          >
+            <Link href={`/dashboard/train?personaId=${persona.id}`}>
+              Start Roleplay
+              <ChevronRight className="ml-1 size-4 transition-transform group-hover/btn:translate-x-1" />
+            </Link>
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
