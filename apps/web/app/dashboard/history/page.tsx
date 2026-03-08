@@ -226,14 +226,7 @@ export default function HistoryPage() {
             const product = products[session.productId];
             const evaluation = session.evaluation;
 
-            const overallScore = evaluation
-              ? Math.round(
-                  (evaluation.objectionHandlingScore +
-                    evaluation.confidenceScore +
-                    evaluation.clarityScore) /
-                    3,
-                )
-              : null;
+            const overallScore = evaluation?.overallScore || 0;
 
             return (
               <div
@@ -283,16 +276,10 @@ export default function HistoryPage() {
                       <div className="flex items-center gap-3">
                         <div className="shrink-0 text-right">
                           <span className="text-charcoal text-xl font-bold">
-                            {Math.round(
-                              ((session.evaluation?.objectionHandlingScore ||
-                                0) +
-                                (session.evaluation?.confidenceScore || 0) +
-                                (session.evaluation?.clarityScore || 0)) /
-                                3,
-                            ) || 0}
+                            {overallScore}
                           </span>
                           <span className="text-warm-gray/60 text-[10px] font-bold">
-                            /10
+                            Points
                           </span>
                         </div>
                       </div>
@@ -302,26 +289,42 @@ export default function HistoryPage() {
                       <div className="bg-cream/30 flex items-center gap-6 rounded-xl p-3">
                         <div className="space-y-1">
                           <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
-                            Objection
+                            Disc.
                           </span>
                           <p className="text-charcoal text-sm font-bold">
-                            {evaluation.objectionHandlingScore}
+                            {evaluation.discovery.score}
                           </p>
                         </div>
                         <div className="space-y-1">
                           <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
-                            Confidence
+                            Obj.
                           </span>
                           <p className="text-charcoal text-sm font-bold">
-                            {evaluation.confidenceScore}
+                            {evaluation.objectionHandling.score}
                           </p>
                         </div>
                         <div className="space-y-1">
                           <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
-                            Clarity
+                            Pos.
                           </span>
                           <p className="text-charcoal text-sm font-bold">
-                            {evaluation.clarityScore}
+                            {evaluation.productPositioning.score}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
+                            List.
+                          </span>
+                          <p className="text-charcoal text-sm font-bold">
+                            {evaluation.activeListening.score}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
+                            Close
+                          </span>
+                          <p className="text-charcoal text-sm font-bold">
+                            {evaluation.closing.score}
                           </p>
                         </div>
                       </div>

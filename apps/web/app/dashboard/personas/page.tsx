@@ -107,6 +107,7 @@ export default function PersonasPage() {
   const [selectedGender, setSelectedGender] = useState<
     "male" | "female" | "other"
   >("other");
+  const [competitorUrl, setCompetitorUrl] = useState("");
 
   const { tasks, isGenerating, generatePersona, dismissTask } =
     useBackgroundGeneration();
@@ -161,6 +162,7 @@ export default function PersonasPage() {
         product,
         selectedPersonality || undefined,
         selectedGender,
+        competitorUrl || undefined,
       );
     }
   };
@@ -358,6 +360,21 @@ export default function PersonasPage() {
                         <SelectItem value="female">Female</SelectItem>
                       </SelectContent>
                     </Select>
+                    <div className="pt-2">
+                      <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
+                        Current Competitor Website (Optional)
+                      </Label>
+                      <Input
+                        value={competitorUrl}
+                        onChange={(e) => setCompetitorUrl(e.target.value)}
+                        placeholder="e.g., https://competitor.com"
+                        className="h-12 rounded-xl"
+                      />
+                      <p className="text-warm-gray/50 mt-1 text-[10px] font-medium">
+                        AI will research this competitor to create a more
+                        realistic buyer.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -410,8 +427,8 @@ export default function PersonasPage() {
             <CardFooter>
               <Button
                 onClick={() => setShowForm(!showForm)}
-                variant={showForm ? "brandOutline" : "brandOutline"}
-                className="w-full rounded-xl"
+                variant={"brandOutline"}
+                className="h-12 w-full rounded-full"
               >
                 {showForm ? (
                   <>

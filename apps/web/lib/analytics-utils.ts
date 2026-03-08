@@ -24,13 +24,20 @@ export function getOverallScore(
   evaluation: SessionEvaluation | FeedbackReport | null,
 ): number {
   if (!evaluation) return 0;
-  if ("overall_score" in evaluation) return evaluation.overall_score;
-  return Math.round(
-    ((evaluation.objectionHandlingScore || 0) +
-      (evaluation.confidenceScore || 0) +
-      (evaluation.clarityScore || 0)) /
-      3,
-  );
+  if ("overallScore" in evaluation) return evaluation.overallScore;
+  if ("overall_score" in evaluation) return (evaluation as any).overall_score;
+
+  // Legacy fallback for 0-10 scores
+  const legacyEval = evaluation as any;
+  if (legacyEval.objectionHandlingScore !== undefined) {
+    return Math.round(
+      ((legacyEval.objectionHandlingScore || 0) +
+        (legacyEval.confidenceScore || 0) +
+        (legacyEval.clarityScore || 0)) /
+        3,
+    );
+  }
+  return 0;
 }
 
 /**
@@ -40,52 +47,61 @@ export function calculateCompetencies(
   sessions: (Session | CallSession)[],
 ): CompetencyData[] {
   const evaluations = sessions
-    .map((s) => ("evaluation" in s ? s.evaluation : s.legacyEvaluation))
+    .map((s) =>
+      "evaluation" in s ? s.evaluation : (s as any).legacyEvaluation,
+    )
     .filter(Boolean);
 
   if (evaluations.length === 0) return [];
 
   const totals = evaluations.reduce(
     (acc, e) => {
-      acc.objection += e!.objectionHandlingScore || 0;
-      acc.confidence += e!.confidenceScore || 0;
-      acc.clarity += e!.clarityScore || 0;
-      // We can infer Discovery and Rapport if we have more detailed reports,
-      // but for now we use the core 3 and maybe some derived ones.
+      if ("discovery" in e!) {
+        acc.discovery += e.discovery.score;
+        acc.objection += e.objectionHandling.score;
+        acc.positioning += e.productPositioning.score;
+        acc.closing += e.closing.score;
+        acc.listening += e.activeListening.score;
+      } else {
+        // Legacy fallback (scale 0-10 to 0-100)
+        const le = e as any;
+        acc.objection += (le.objectionHandlingScore || 0) * 10;
+        acc.discovery += (le.confidenceScore || 0) * 10; // Mix of confidence/clarity
+        acc.positioning += (le.clarityScore || 0) * 10;
+        acc.closing += (le.confidenceScore || 0) * 8;
+        acc.listening += (le.clarityScore || 0) * 9;
+      }
       return acc;
     },
-    { objection: 0, confidence: 0, clarity: 0 },
+    { discovery: 0, objection: 0, positioning: 0, closing: 0, listening: 0 },
   );
 
   const count = evaluations.length;
   return [
     {
+      subject: "Discovery",
+      A: Math.round(totals.discovery / count),
+      fullMark: 100,
+    },
+    {
       subject: "Objection Handling",
       A: Math.round(totals.objection / count),
-      fullMark: 10,
+      fullMark: 100,
     },
     {
-      subject: "Confidence",
-      A: Math.round(totals.confidence / count),
-      fullMark: 10,
-    },
-    { subject: "Clarity", A: Math.round(totals.clarity / count), fullMark: 10 },
-    // Derived/Simulated for the demo to show a full radar
-    {
-      subject: "Rapport",
-      A: Math.min(
-        10,
-        Math.round((totals.confidence + totals.clarity) / (2 * count)) + 1,
-      ),
-      fullMark: 10,
+      subject: "Product Positioning",
+      A: Math.round(totals.positioning / count),
+      fullMark: 100,
     },
     {
-      subject: "Discovery",
-      A: Math.min(
-        10,
-        Math.round((totals.objection + totals.clarity) / (2 * count)) - 1,
-      ),
-      fullMark: 10,
+      subject: "Closing",
+      A: Math.round(totals.closing / count),
+      fullMark: 100,
+    },
+    {
+      subject: "Active Listening",
+      A: Math.round(totals.listening / count),
+      fullMark: 100,
     },
   ];
 }
@@ -295,19 +311,31 @@ interface SkillScores {
  */
 function getSkillScores(session: Session | CallSession): SkillScores {
   const evaluation =
-    "evaluation" in session ? session.evaluation : session.legacyEvaluation;
-  const feedback = "feedbackReport" in session ? session.feedbackReport : null;
+    "evaluation" in session
+      ? session.evaluation
+      : (session as any).legacyEvaluation;
+  const feedback =
+    "feedbackReport" in session ? (session as any).feedbackReport : null;
+
+  if (evaluation && "discovery" in evaluation) {
+    return {
+      discovery: evaluation.discovery.score,
+      objection_handling: evaluation.objectionHandling.score,
+      positioning: evaluation.productPositioning.score,
+      closing: evaluation.closing.score,
+      listening: evaluation.activeListening.score,
+    };
+  }
 
   // Use feedback scores if available, otherwise scale legacy 0-10 scores
+  const le = evaluation as any;
   const obj =
     feedback?.objection_handling_score ??
-    (evaluation?.objectionHandlingScore ?? 0) * 10;
-  const conf =
-    feedback?.confidence_score ?? (evaluation?.confidenceScore ?? 0) * 10;
+    (le?.objectionHandlingScore ?? 0) * 10;
+  const conf = feedback?.confidence_score ?? (le?.confidenceScore ?? 0) * 10;
   const cls =
-    feedback?.closing_effectiveness_score ??
-    (evaluation?.confidenceScore ?? 0) * 10;
-  const clr = (evaluation?.clarityScore ?? 0) * 10;
+    feedback?.closing_effectiveness_score ?? (le?.confidenceScore ?? 0) * 10;
+  const clr = (le?.clarityScore ?? 0) * 10;
 
   // Derive Discovery, Positioning, Listening from available data
   const dynamics = calculateDynamics(session);
@@ -331,17 +359,14 @@ export function generateCoachingInsights(
   isTeamView: boolean = false,
 ): CoachingInsight[] {
   const insights: CoachingInsight[] = [];
-  if (sessions.length < 3) return insights;
+  if (sessions.length === 0) return insights;
 
   const evaluatedSessions = sessions.filter(
     (s) =>
-      ("evaluation" in s ? s.evaluation : s.legacyEvaluation) ||
-      ("feedbackReport" in s ? s.feedbackReport : null),
+      ("evaluation" in s ? s.evaluation : (s as any).legacyEvaluation) ||
+      ("feedbackReport" in s ? (s as any).feedbackReport : null),
   );
   if (evaluatedSessions.length === 0) return insights;
-
-  const recentSessions = evaluatedSessions.slice(0, 10);
-  const last5 = recentSessions.slice(0, 5);
 
   const skills: (keyof SkillScores)[] = [
     "discovery",
@@ -351,113 +376,121 @@ export function generateCoachingInsights(
     "listening",
   ];
 
-  // 1. LOW SKILL SCORE (Individual or Team)
-  skills.forEach((skill) => {
-    const avg =
-      last5.reduce((sum, s) => sum + getSkillScores(s)[skill], 0) /
-      Math.min(last5.length, 5);
-    if (avg < 60) {
-      insights.push({
-        type: isTeamView ? "team_weakness" : "needs_coaching",
-        user: isTeamView ? "Team" : sessions[0].userName || "User",
-        title: isTeamView
-          ? `Team struggling with ${skill.replace("_", " ")}`
-          : `${sessions[0].userName || "Rep"} needs coaching on ${skill.replace("_", " ")}`,
-        explanation: `Average ${skill.replace("_", " ")} score: ${Math.round(avg)} across the last ${last5.length} sessions`,
-        recommendation: `Assign ${skill.replace("_", " ")}-focused practice scenarios`,
-        priority: isTeamView ? 9 : 8,
-      });
+  // Helper to group sessions by user
+  const sessionsByUser = new Map<string, (Session | CallSession)[]>();
+  evaluatedSessions.forEach((s) => {
+    const uid = "userId" in s ? s.userId : "unknown";
+    if (!sessionsByUser.has(uid)) {
+      sessionsByUser.set(uid, []);
     }
+    sessionsByUser.get(uid)!.push(s);
   });
 
-  // 2. SKILL AVOIDANCE
-  // Simplified detection: if the score is consistently 0 (not evaluated) or very low intensity
-  skills.forEach((skill) => {
-    const detectedCount = recentSessions.filter(
-      (s) => getSkillScores(s)[skill] > 20,
-    ).length;
-    if (detectedCount < recentSessions.length * 0.2) {
-      insights.push({
-        type: "skill_avoidance",
-        user: isTeamView ? "Team" : sessions[0].userName || "User",
-        title: `${isTeamView ? "Team" : sessions[0].userName || "Rep"} rarely practices ${skill.replace("_", " ")}`,
-        explanation: `${skill.replace("_", " ")} skill detected in only ${detectedCount} of the last ${recentSessions.length} sessions`,
-        recommendation: `Increase focus on ${skill.replace("_", " ")} in the next training cycle`,
-        priority: 7,
-      });
-    }
-  });
+  // 1. INDIVIDUAL REP ANALYSIS (Low Scores & Improvement)
+  // We analyze each user separately if we have enough data for them
+  sessionsByUser.forEach((userSessions, userId) => {
+    const repName = userSessions[0].userName || "Representative";
+    const last5 = userSessions.slice(0, 5);
 
-  // 3. IMPROVEMENT DETECTION
-  if (evaluatedSessions.length >= 6) {
-    const recentAvg =
-      evaluatedSessions
-        .slice(0, 3)
-        .reduce(
-          (sum, s) =>
-            sum +
-            getOverallScore(
-              "evaluation" in s ? s.evaluation : s.legacyEvaluation,
-            ),
-          0,
-        ) / 3;
-    const previousAvg =
-      evaluatedSessions
-        .slice(3, 6)
-        .reduce(
-          (sum, s) =>
-            sum +
-            getOverallScore(
-              "evaluation" in s ? s.evaluation : s.legacyEvaluation,
-            ),
-          0,
-        ) / 3;
+    // Skip individual analysis if we don't have enough recent context (min 3 sessions)
+    if (userSessions.length < 3) return;
 
-    // Convert 0-10 overall score to 100 scale if needed for comparison (getOverallScore handles 0-100 too)
-    const normalizedRecent = recentAvg <= 10 ? recentAvg * 10 : recentAvg;
-    const normalizedPrevious =
-      previousAvg <= 10 ? previousAvg * 10 : previousAvg;
-
-    if (normalizedRecent - normalizedPrevious > 15) {
-      insights.push({
-        type: "improvement",
-        user: isTeamView ? sessions[0].userName || "User" : "User",
-        title: `${sessions[0].userName || "Rep"} is improving rapidly`,
-        explanation: `Score increased by +${Math.round(normalizedRecent - normalizedPrevious)} points across recent sessions`,
-        recommendation: "Keep up the momentum and try more advanced personas",
-        priority: 6,
-      });
-    }
-  }
-
-  // 4. TEAM WEAKNESS (Redundant with LOW SKILL but higher threshold if requested)
-  if (isTeamView) {
+    // A. Individual Low Skill Scores
     skills.forEach((skill) => {
       const avg =
+        last5.reduce((sum, s) => sum + getSkillScores(s)[skill], 0) /
+        last5.length;
+      if (avg < 60) {
+        insights.push({
+          type: "needs_coaching",
+          user: repName,
+          title: `${repName} needs coaching on ${skill.replace("_", " ")}`,
+          explanation: `Average ${skill.replace("_", " ")} score: ${Math.round(avg)} across their last ${last5.length} sessions.`,
+          recommendation: `Assign ${repName} ${skill.replace("_", " ")}-focused practice scenarios.`,
+          priority: 8,
+        });
+      }
+    });
+
+    // B. Individual Improvement
+    if (userSessions.length >= 6) {
+      const recentAvg =
+        userSessions.slice(0, 3).reduce((sum, s) => {
+          const evalObj =
+            "evaluation" in s ? s.evaluation : (s as any).legacyEvaluation;
+          return sum + getOverallScore(evalObj);
+        }, 0) / 3;
+      const previousAvg =
+        userSessions.slice(3, 6).reduce((sum, s) => {
+          const evalObj =
+            "evaluation" in s ? s.evaluation : (s as any).legacyEvaluation;
+          return sum + getOverallScore(evalObj);
+        }, 0) / 3;
+
+      const normRecent = recentAvg <= 10 ? recentAvg * 10 : recentAvg;
+      const normPrevious = previousAvg <= 10 ? previousAvg * 10 : previousAvg;
+
+      if (normRecent - normPrevious > 12) {
+        insights.push({
+          type: "improvement",
+          user: repName,
+          title: `${repName} is showing significant progress`,
+          explanation: `Overall performance increased by +${Math.round(normRecent - normPrevious)} points in their last 6 sessions.`,
+          recommendation: `Acknowledge ${repName}'s growth and introduce more complex buyer personas.`,
+          priority: 6,
+        });
+      }
+    }
+
+    // C. Skill Avoidance (Individual)
+    skills.forEach((skill) => {
+      const detectedCount = userSessions
+        .slice(0, 10)
+        .filter((s) => getSkillScores(s)[skill] > 20).length;
+      const totalAnalyzed = Math.min(10, userSessions.length);
+      if (totalAnalyzed >= 5 && detectedCount < totalAnalyzed * 0.25) {
+        insights.push({
+          type: "skill_avoidance",
+          user: repName,
+          title: `${repName} is avoiding ${skill.replace("_", " ")}`,
+          explanation: `${skill.replace("_", " ")} was properly demonstrated in only ${detectedCount} of their last ${totalAnalyzed} sessions.`,
+          recommendation: `Direct ${repName} to scenarios explicitly requiring ${skill.replace("_", " ")}.`,
+          priority: 7,
+        });
+      }
+    });
+  });
+
+  // 2. TEAM WIDE ANALYSIS
+  if (isTeamView && sessionsByUser.size > 1) {
+    skills.forEach((skill) => {
+      const teamAvg =
         evaluatedSessions.reduce(
           (sum, s) => sum + getSkillScores(s)[skill],
           0,
         ) / evaluatedSessions.length;
-      if (avg < 65) {
-        // Only add if not already added by LOW SKILL logic (prioritize recent data)
-        if (
-          !insights.some(
-            (i) => i.type === "team_weakness" && i.title.includes(skill),
-          )
-        ) {
-          insights.push({
-            type: "team_weakness",
-            user: "Team",
-            title: `Team struggling with ${skill.replace("_", " ")}`,
-            explanation: `Overall team average for ${skill.replace("_", " ")} is ${Math.round(avg)}`,
-            recommendation: "Schedule a group coaching session on this skill",
-            priority: 5,
-          });
-        }
+      if (teamAvg < 65) {
+        insights.push({
+          type: "team_weakness",
+          user: "Team",
+          title: `Broad team weakness in ${skill.replace("_", " ")}`,
+          explanation: `The overall team average for ${skill.replace("_", " ")} is currently ${Math.round(teamAvg)}.`,
+          recommendation: `Organize a group workshop focusing on ${skill.replace("_", " ")} strategies.`,
+          priority: 9,
+        });
       }
     });
   }
 
-  // Final filtering and prioritization
-  return insights.sort((a, b) => b.priority - a.priority).slice(0, 6);
+  // Final sorting and Deduplication/Filtering
+  // Sort by priority (desc)
+  const sortedInsights = insights.sort((a, b) => b.priority - a.priority);
+
+  // If specific member filter is active, only show their insights or relevant team ones
+  const finalInsights = isTeamView
+    ? sortedInsights // Leaders see everything (individual + team)
+    : sortedInsights.filter((i) => i.user !== "Team"); // Members only see their own (passed userName should match i.user)
+
+  // Limit to most relevant 6
+  return finalInsights.slice(0, 6);
 }

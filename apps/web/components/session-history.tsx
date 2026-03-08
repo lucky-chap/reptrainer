@@ -152,12 +152,9 @@ export function SessionHistory() {
             const evaluation = session.evaluation;
 
             const overallScore = evaluation
-              ? Math.round(
-                  (evaluation.objectionHandlingScore +
-                    evaluation.confidenceScore +
-                    evaluation.clarityScore) /
-                    3,
-                )
+              ? (evaluation as any).overallScore !== undefined
+                ? (evaluation as any).overallScore
+                : Math.round((evaluation as any).overall_score / 10)
               : null;
 
             return (
@@ -214,15 +211,15 @@ export function SessionHistory() {
                       <div className="hidden items-center gap-3 text-xs sm:flex">
                         <span className="text-emerald-glow flex items-center gap-1">
                           <Target className="size-3" />
-                          {evaluation.objectionHandlingScore}
+                          {(evaluation as any).objectionHandling
+                            ? (evaluation as any).objectionHandling.score
+                            : (evaluation as any).objection_handling_score}
                         </span>
                         <span className="text-blue-glow flex items-center gap-1">
                           <Shield className="size-3" />
-                          {evaluation.confidenceScore}
-                        </span>
-                        <span className="text-amber-glow flex items-center gap-1">
-                          <Eye className="size-3" />
-                          {evaluation.clarityScore}
+                          {(evaluation as any).closing
+                            ? (evaluation as any).closing.score
+                            : (evaluation as any).closing_effectiveness_score}
                         </span>
                       </div>
                     )}

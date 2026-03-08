@@ -17,25 +17,37 @@ export async function updateUserMetrics(
 
   const score =
     "overall_score" in evaluation
-      ? evaluation.overall_score
-      : ((evaluation.objectionHandlingScore +
-          evaluation.confidenceScore +
-          evaluation.clarityScore) /
-          3) *
-        10;
+      ? (evaluation as any).overall_score
+      : "overallScore" in evaluation
+        ? (evaluation as any).overallScore
+        : (((evaluation as any).objectionHandling.score +
+            (evaluation as any).productPositioning.score +
+            (evaluation as any).closing.score) /
+            3) *
+          10;
 
+  const discoveryScore =
+    (evaluation as any).discovery?.score ??
+    ((evaluation as any).confidence_score ||
+      (evaluation as any).overallScore ||
+      0);
   const objectionScore =
     "objection_handling_score" in evaluation
-      ? evaluation.objection_handling_score
-      : evaluation.objectionHandlingScore * 10;
+      ? (evaluation as any).objection_handling_score
+      : ((evaluation as any).objectionHandling?.score ?? 0);
+  const positioningScore =
+    (evaluation as any).productPositioning?.score ??
+    ((evaluation as any).confidence_score || 0);
   const closingScore =
     "closing_effectiveness_score" in evaluation
-      ? evaluation.closing_effectiveness_score
-      : evaluation.confidenceScore * 10; // Fallback
+      ? (evaluation as any).closing_effectiveness_score
+      : ((evaluation as any).closing?.score ?? 0);
+  const listeningScore = (evaluation as any).activeListening?.score ?? 0;
+
   const confidenceScore =
     "confidence_score" in evaluation
-      ? evaluation.confidence_score
-      : evaluation.confidenceScore * 10;
+      ? (evaluation as any).confidence_score
+      : positioningScore;
 
   // Calculate talk-time ratio from transcript
   const userChars = session.transcriptMessages
@@ -78,10 +90,27 @@ export async function updateUserMetrics(
     averageScore:
       (currentMetrics.averageScore * currentMetrics.totalCalls + score) /
       newTotalCalls,
+    discoveryAverage:
+      (currentMetrics.discoveryAverage * currentMetrics.totalCalls +
+        discoveryScore) /
+      newTotalCalls,
     objectionHandlingAverage:
       (currentMetrics.objectionHandlingAverage * currentMetrics.totalCalls +
         objectionScore) /
       newTotalCalls,
+    productPositioningAverage:
+      (currentMetrics.productPositioningAverage * currentMetrics.totalCalls +
+        positioningScore) /
+      newTotalCalls,
+    closingAverage:
+      (currentMetrics.closingAverage * currentMetrics.totalCalls +
+        closingScore) /
+      newTotalCalls,
+    activeListeningAverage:
+      (currentMetrics.activeListeningAverage * currentMetrics.totalCalls +
+        listeningScore) /
+      newTotalCalls,
+    // legacy support
     closingSuccessAverage:
       (currentMetrics.closingSuccessAverage * currentMetrics.totalCalls +
         closingScore) /
@@ -120,7 +149,11 @@ function createInitialMetrics(userId: string): UserMetrics {
     averageScore: 0,
     practiceStreak: 0,
     lastPracticeDate: null,
+    discoveryAverage: 0,
     objectionHandlingAverage: 0,
+    productPositioningAverage: 0,
+    closingAverage: 0,
+    activeListeningAverage: 0,
     closingSuccessAverage: 0,
     confidenceAverage: 0,
     talkTimeRatioAverage: 0,

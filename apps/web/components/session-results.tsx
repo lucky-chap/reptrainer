@@ -17,6 +17,9 @@ import {
   Zap,
   Loader2,
   Sparkles,
+  Search,
+  Handshake,
+  Ear,
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
 import {
@@ -65,19 +68,19 @@ interface SessionResultsProps {
 function ScoreIndicator({
   score,
   label,
+  explanation,
   icon: Icon,
-  variant = "default",
 }: {
   score: number;
   label: string;
+  explanation?: string;
   icon: React.ElementType;
-  variant?: "default" | "secondary" | "outline";
 }) {
   return (
-    <div className="flex flex-col items-center gap-4 text-center">
+    <div className="flex flex-col items-center gap-3 text-center">
       <div className="relative flex items-center justify-center">
         {/* Simple Progress Circle */}
-        <svg className="size-24 -rotate-90" viewBox="0 0 100 100">
+        <svg className="size-20 -rotate-90" viewBox="0 0 100 100">
           <circle
             cx="50"
             cy="50"
@@ -96,27 +99,36 @@ function ScoreIndicator({
             strokeWidth="8"
             strokeLinecap="round"
             strokeDasharray={264}
-            strokeDashoffset={264 - (264 * score) / 10}
+            strokeDashoffset={264 - (264 * score) / 100}
             className={cn(
               "transition-all duration-1000 ease-out",
-              score >= 7
+              score >= 70
                 ? "text-charcoal"
-                : score >= 4
+                : score >= 40
                   ? "text-warm-gray"
                   : "text-warm-gray-light",
             )}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center pt-1">
-          <span className="text-charcoal text-2xl font-bold">{score}</span>
-          <span className="text-warm-gray text-[10px] font-medium tracking-tighter uppercase">
-            out of 10
+          <span className="text-charcoal text-xl font-bold">{score}</span>
+          <span className="text-warm-gray text-[8px] font-medium tracking-tighter uppercase">
+            Points
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <Icon className="text-warm-gray size-4" />
-        <span className="text-charcoal text-sm font-semibold">{label}</span>
+      <div className="space-y-1">
+        <div className="flex items-center justify-center gap-1.5">
+          <Icon className="text-warm-gray size-3.5" />
+          <span className="text-charcoal text-xs leading-tight font-bold">
+            {label}
+          </span>
+        </div>
+        {explanation && (
+          <p className="text-warm-gray/60 mx-auto max-w-[120px] text-[10px] leading-relaxed">
+            {explanation}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -246,14 +258,7 @@ export function SessionResults({
 
   const evaluation = session.evaluation;
 
-  const overallScore = evaluation
-    ? Math.round(
-        (evaluation.objectionHandlingScore +
-          evaluation.confidenceScore +
-          evaluation.clarityScore) /
-          3,
-      )
-    : 0;
+  const overallScore = evaluation?.overallScore || 0;
 
   const [audioUrl, setAudioUrl] = useState<string | null>(
     session.audioUrl || null,
@@ -360,21 +365,36 @@ export function SessionResults({
             </div>
 
             <CardContent className="-mt-6 rounded-t-3xl bg-white p-8">
-              <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:flex sm:flex-wrap sm:justify-between">
                 <ScoreIndicator
-                  score={evaluation?.objectionHandlingScore || 0}
-                  label="Objection Handling"
-                  icon={Target}
+                  score={evaluation?.discovery.score || 0}
+                  label="Discovery"
+                  explanation={evaluation?.discovery.explanation}
+                  icon={Search}
                 />
                 <ScoreIndicator
-                  score={evaluation?.confidenceScore || 0}
-                  label="Confidence"
+                  score={evaluation?.objectionHandling.score || 0}
+                  label="Objections"
+                  explanation={evaluation?.objectionHandling.explanation}
                   icon={Shield}
                 />
                 <ScoreIndicator
-                  score={evaluation?.clarityScore || 0}
-                  label="Clarity"
-                  icon={Eye}
+                  score={evaluation?.productPositioning.score || 0}
+                  label="Positioning"
+                  explanation={evaluation?.productPositioning.explanation}
+                  icon={Target}
+                />
+                <ScoreIndicator
+                  score={evaluation?.activeListening.score || 0}
+                  label="Listening"
+                  explanation={evaluation?.activeListening.explanation}
+                  icon={Ear}
+                />
+                <ScoreIndicator
+                  score={evaluation?.closing.score || 0}
+                  label="Closing"
+                  explanation={evaluation?.closing.explanation}
+                  icon={Handshake}
                 />
               </div>
             </CardContent>

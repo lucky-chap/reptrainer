@@ -14,6 +14,9 @@ import {
   Star,
   Zap,
   Activity,
+  Search,
+  CheckCircle2,
+  MessageSquare,
 } from "lucide-react";
 import type { Session, Persona, Product } from "@/lib/db";
 import { type UserMetrics } from "@reptrainer/shared";
@@ -65,34 +68,76 @@ export function AdminDashboard({
     );
   }, [evaluatedSessions]);
 
+  const avgDiscovery =
+    evaluatedSessions.length > 0
+      ? Math.round(
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.discovery?.score ??
+                (e.confidenceScore !== undefined ? e.confidenceScore * 10 : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
+      : 0;
+
   const avgObjection =
     evaluatedSessions.length > 0
       ? Math.round(
-          evaluatedSessions.reduce(
-            (sum, s) => sum + s.evaluation!.objectionHandlingScore,
-            0,
-          ) / evaluatedSessions.length,
-        )
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.objectionHandling?.score ??
+                (e.objectionHandlingScore !== undefined
+                  ? e.objectionHandlingScore * 10
+                  : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
       : 0;
 
-  const avgConfidence =
+  const avgPositioning =
     evaluatedSessions.length > 0
       ? Math.round(
-          evaluatedSessions.reduce(
-            (sum, s) => sum + s.evaluation!.confidenceScore,
-            0,
-          ) / evaluatedSessions.length,
-        )
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.productPositioning?.score ??
+                (e.confidenceScore !== undefined ? e.confidenceScore * 10 : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
       : 0;
 
-  const avgClarity =
+  const avgClosing =
     evaluatedSessions.length > 0
       ? Math.round(
-          evaluatedSessions.reduce(
-            (sum, s) => sum + s.evaluation!.clarityScore,
-            0,
-          ) / evaluatedSessions.length,
-        )
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.closing?.score ??
+                (e.confidenceScore !== undefined ? e.confidenceScore * 8 : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
+      : 0;
+
+  const avgListening =
+    evaluatedSessions.length > 0
+      ? Math.round(
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.activeListening?.score ??
+                (e.clarityScore !== undefined ? e.clarityScore * 10 : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
       : 0;
 
   // Recent sessions (last 7)
@@ -105,13 +150,16 @@ export function AdminDashboard({
       .reverse()
       .map((s) => {
         const date = new Date(s.createdAt);
+        const e = s.evaluation as any;
         return {
           name: date.toLocaleDateString(undefined, {
             month: "short",
             day: "numeric",
           }),
           score: getOverallScore(s.evaluation),
-          confidence: s.evaluation?.confidenceScore || 0,
+          confidence:
+            e?.productPositioning?.score ??
+            (e?.confidenceScore !== undefined ? e.confidenceScore * 10 : 0),
         };
       });
   }, [sessions]);
@@ -131,6 +179,15 @@ export function AdminDashboard({
             Monitor your team's collective progress and manage training assets.
           </p>
         </div>
+        <Button
+          asChild
+          className="bg-charcoal text-cream hover:bg-charcoal/90 h-auto rounded-full px-8 py-4 text-sm font-bold shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0"
+        >
+          <Link href="/dashboard/analytics" className="flex items-center gap-2">
+            View Deep Insights
+            <TrendingUp className="size-4" />
+          </Link>
+        </Button>
       </div>
 
       {/* Stats Grid */}
@@ -198,19 +255,6 @@ export function AdminDashboard({
                 Last {trendData.length} sessions
               </CardDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="text-warm-gray hover:text-charcoal h-8 gap-1.5 px-3"
-            >
-              <Link href="/dashboard/analytics">
-                <span className="text-[10px] font-bold tracking-widest uppercase">
-                  View full Analytics
-                </span>
-                <ArrowRight className="size-3" />
-              </Link>
-            </Button>
           </CardHeader>
           <CardContent>
             {trendData.length > 1 ? (
@@ -284,6 +328,15 @@ export function AdminDashboard({
           </CardHeader>
           <CardContent className="space-y-6">
             <SkillBar
+              icon={Search}
+              label="Discovery"
+              score={
+                metrics
+                  ? Math.round(metrics.discoveryAverage / 10)
+                  : avgDiscovery
+              }
+            />
+            <SkillBar
               icon={Target}
               label="Objection Handling"
               score={
@@ -294,20 +347,27 @@ export function AdminDashboard({
             />
             <SkillBar
               icon={Zap}
-              label="Confidence"
+              label="Product Positioning"
               score={
                 metrics
-                  ? Math.round(metrics.confidenceAverage / 10)
-                  : avgConfidence
+                  ? Math.round(metrics.productPositioningAverage / 10)
+                  : avgPositioning
               }
             />
             <SkillBar
-              icon={TrendingUp}
+              icon={CheckCircle2}
               label="Closing Success"
               score={
+                metrics ? Math.round(metrics.closingAverage / 10) : avgClosing
+              }
+            />
+            <SkillBar
+              icon={MessageSquare}
+              label="Active Listening"
+              score={
                 metrics
-                  ? Math.round(metrics.closingSuccessAverage / 10)
-                  : avgClarity
+                  ? Math.round(metrics.activeListeningAverage / 10)
+                  : avgListening
               }
             />
           </CardContent>
@@ -421,8 +481,6 @@ export function AdminDashboard({
     </div>
   );
 }
-
-/* ─── Helpers ───────────────────────────────────────────── */
 
 function StatCard({ icon: Icon, label, value, subtext }: any) {
   return (

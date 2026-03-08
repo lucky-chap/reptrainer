@@ -13,6 +13,10 @@ import {
   Zap,
   Activity,
   History as HistoryIcon,
+  MessageSquare,
+  Search,
+  CheckCircle2,
+  ChevronRight,
 } from "lucide-react";
 import type { Session, Persona } from "@/lib/db";
 import { type UserMetrics } from "@reptrainer/shared";
@@ -65,34 +69,76 @@ export function MemberDashboard({
     );
   }, [evaluatedSessions]);
 
+  const avgDiscovery =
+    evaluatedSessions.length > 0
+      ? Math.round(
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.discovery?.score ??
+                (e.confidenceScore !== undefined ? e.confidenceScore * 10 : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
+      : 0;
+
   const avgObjection =
     evaluatedSessions.length > 0
       ? Math.round(
-          evaluatedSessions.reduce(
-            (sum, s) => sum + s.evaluation!.objectionHandlingScore,
-            0,
-          ) / evaluatedSessions.length,
-        )
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.objectionHandling?.score ??
+                (e.objectionHandlingScore !== undefined
+                  ? e.objectionHandlingScore * 10
+                  : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
       : 0;
 
-  const avgConfidence =
+  const avgPositioning =
     evaluatedSessions.length > 0
       ? Math.round(
-          evaluatedSessions.reduce(
-            (sum, s) => sum + s.evaluation!.confidenceScore,
-            0,
-          ) / evaluatedSessions.length,
-        )
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.productPositioning?.score ??
+                (e.confidenceScore !== undefined ? e.confidenceScore * 10 : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
       : 0;
 
-  const avgClarity =
+  const avgClosing =
     evaluatedSessions.length > 0
       ? Math.round(
-          evaluatedSessions.reduce(
-            (sum, s) => sum + s.evaluation!.clarityScore,
-            0,
-          ) / evaluatedSessions.length,
-        )
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.closing?.score ??
+                (e.confidenceScore !== undefined ? e.confidenceScore * 8 : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
+      : 0;
+
+  const avgListening =
+    evaluatedSessions.length > 0
+      ? Math.round(
+          evaluatedSessions.reduce((sum, s) => {
+            const e = s.evaluation as any;
+            return (
+              sum +
+              (e.activeListening?.score ??
+                (e.clarityScore !== undefined ? e.clarityScore * 10 : 0))
+            );
+          }, 0) / evaluatedSessions.length,
+        ) / 10
       : 0;
 
   // Recent sessions (last 7)
@@ -105,13 +151,16 @@ export function MemberDashboard({
       .reverse()
       .map((s) => {
         const date = new Date(s.createdAt);
+        const e = s.evaluation as any;
         return {
           name: date.toLocaleDateString(undefined, {
             month: "short",
             day: "numeric",
           }),
           score: getOverallScore(s.evaluation),
-          confidence: s.evaluation?.confidenceScore || 0,
+          confidence:
+            e?.productPositioning?.score ??
+            (e?.confidenceScore !== undefined ? e.confidenceScore * 10 : 0),
         };
       });
   }, [sessions]);
@@ -281,6 +330,15 @@ export function MemberDashboard({
           </CardHeader>
           <CardContent className="space-y-6">
             <SkillBar
+              icon={Search}
+              label="Discovery"
+              score={
+                metrics
+                  ? Math.round(metrics.discoveryAverage / 10)
+                  : avgDiscovery
+              }
+            />
+            <SkillBar
               icon={Target}
               label="Objection Handling"
               score={
@@ -291,20 +349,27 @@ export function MemberDashboard({
             />
             <SkillBar
               icon={Zap}
-              label="Confidence"
+              label="Product Positioning"
               score={
                 metrics
-                  ? Math.round(metrics.confidenceAverage / 10)
-                  : avgConfidence
+                  ? Math.round(metrics.productPositioningAverage / 10)
+                  : avgPositioning
               }
             />
             <SkillBar
-              icon={TrendingUp}
+              icon={CheckCircle2}
               label="Closing Success"
               score={
+                metrics ? Math.round(metrics.closingAverage / 10) : avgClosing
+              }
+            />
+            <SkillBar
+              icon={MessageSquare}
+              label="Active Listening"
+              score={
                 metrics
-                  ? Math.round(metrics.closingSuccessAverage / 10)
-                  : avgClarity
+                  ? Math.round(metrics.activeListeningAverage / 10)
+                  : avgListening
               }
             />
           </CardContent>

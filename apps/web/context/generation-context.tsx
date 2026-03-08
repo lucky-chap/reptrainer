@@ -43,6 +43,7 @@ export interface GenerationContextType {
     product: Product,
     personalityType?: string,
     gender?: "male" | "female" | "other",
+    competitorUrl?: string,
   ) => Promise<void>;
   generateProduct: (data: {
     companyName?: string;
@@ -85,6 +86,7 @@ export function GenerationProvider({
       product: Product,
       personalityType?: string,
       gender?: "male" | "female" | "other",
+      competitorUrl?: string,
     ) => {
       const taskId = uuidv4();
 
@@ -116,15 +118,14 @@ export function GenerationProvider({
           objections: product.objections,
           personalityType,
           gender,
+          competitorUrl,
         });
 
         if (!activeRef.current.get(taskId)) return;
 
         setTasks((prev) =>
           prev.map((t) =>
-            t.id === taskId
-              ? { ...t, personaId, subStatus: "creating_traits" }
-              : t,
+            t.id === taskId ? { ...t, subStatus: "creating_traits" } : t,
           ),
         );
 
@@ -140,8 +141,29 @@ export function GenerationProvider({
           intensityLevel: data.intensityLevel,
           objectionStrategy: data.objectionStrategy,
           gender: data.gender || gender || "female",
+          voiceName: data.voiceName || "Zephyr",
           personalityType: data.personalityType,
-          traits: data.traits,
+          traits: data.traits || {
+            aggressiveness: data.intensityLevel * 3,
+            interruptionFrequency: "low",
+            objectionStyle: "analytical",
+          },
+          // Rich Persona Fields
+          companyType: data.companyType,
+          industry: data.industry,
+          seniorityLevel: data.seniorityLevel,
+          personalityTraits: data.personalityTraits,
+          motivations: data.motivations,
+          objections: data.objections,
+          speakingStyle: data.speakingStyle,
+          accent: data.accent,
+          communicationStyle: data.communicationStyle,
+          emotionalState: data.emotionalState,
+          environmentContext: data.environmentContext,
+          timePressure: data.timePressure,
+          conversationBehavior: data.conversationBehavior,
+          buyingAttitude: data.buyingAttitude,
+          difficultyLevel: data.difficultyLevel,
           createdAt: new Date().toISOString(),
         };
 

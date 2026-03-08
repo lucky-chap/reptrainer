@@ -15,6 +15,9 @@ import {
   Timer,
   Ghost,
   ShieldAlert,
+  Search,
+  MessageSquare,
+  CheckCircle2,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
@@ -207,31 +210,77 @@ export default function AnalyticsPage() {
   const avgScores = useMemo(() => {
     return evaluatedSessions.length > 0
       ? {
-          overall: Math.round(
-            evaluatedSessions.reduce((sum, s) => {
-              return sum + getOverallScore(s.evaluation);
-            }, 0) / evaluatedSessions.length,
-          ),
-          objection: Math.round(
-            evaluatedSessions.reduce(
-              (sum, s) => sum + s.evaluation!.objectionHandlingScore,
-              0,
-            ) / evaluatedSessions.length,
-          ),
-          confidence: Math.round(
-            evaluatedSessions.reduce(
-              (sum, s) => sum + s.evaluation!.confidenceScore,
-              0,
-            ) / evaluatedSessions.length,
-          ),
-          clarity: Math.round(
-            evaluatedSessions.reduce(
-              (sum, s) => sum + s.evaluation!.clarityScore,
-              0,
-            ) / evaluatedSessions.length,
-          ),
+          overall:
+            Math.round(
+              evaluatedSessions.reduce((sum, s) => {
+                return sum + getOverallScore(s.evaluation);
+              }, 0) / evaluatedSessions.length,
+            ) / 10,
+          discovery:
+            Math.round(
+              evaluatedSessions.reduce((sum, s) => {
+                const e = s.evaluation as any;
+                const score =
+                  e.discovery?.score ??
+                  (e.confidenceScore !== undefined
+                    ? e.confidenceScore * 10
+                    : 0);
+                return sum + score;
+              }, 0) / evaluatedSessions.length,
+            ) / 10,
+          objection:
+            Math.round(
+              evaluatedSessions.reduce((sum, s) => {
+                const e = s.evaluation as any;
+                const score =
+                  e.objectionHandling?.score ??
+                  (e.objectionHandlingScore !== undefined
+                    ? e.objectionHandlingScore * 10
+                    : 0);
+                return sum + score;
+              }, 0) / evaluatedSessions.length,
+            ) / 10,
+          positioning:
+            Math.round(
+              evaluatedSessions.reduce((sum, s) => {
+                const e = s.evaluation as any;
+                const score =
+                  e.productPositioning?.score ??
+                  (e.confidenceScore !== undefined
+                    ? e.confidenceScore * 10
+                    : 0);
+                return sum + score;
+              }, 0) / evaluatedSessions.length,
+            ) / 10,
+          closing:
+            Math.round(
+              evaluatedSessions.reduce((sum, s) => {
+                const e = s.evaluation as any;
+                const score =
+                  e.closing?.score ??
+                  (e.confidenceScore !== undefined ? e.confidenceScore * 8 : 0);
+                return sum + score;
+              }, 0) / evaluatedSessions.length,
+            ) / 10,
+          listening:
+            Math.round(
+              evaluatedSessions.reduce((sum, s) => {
+                const e = s.evaluation as any;
+                const score =
+                  e.activeListening?.score ??
+                  (e.clarityScore !== undefined ? e.clarityScore * 10 : 0);
+                return sum + score;
+              }, 0) / evaluatedSessions.length,
+            ) / 10,
         }
-      : { overall: 0, objection: 0, confidence: 0, clarity: 0 };
+      : {
+          overall: 0,
+          discovery: 0,
+          objection: 0,
+          positioning: 0,
+          closing: 0,
+          listening: 0,
+        };
   }, [evaluatedSessions]);
 
   // Advanced Analytics Data
@@ -257,7 +306,11 @@ export default function AnalyticsPage() {
     if (viewMode === "team" && teamMembers.length > 0) {
       return teamMembers.map((m) => ({
         id: m.userId,
-        name: m.userName || "Unknown Member",
+        name:
+          m.userName ||
+          (m.userId === user?.uid
+            ? user.displayName || "You"
+            : "Unknown Member"),
       }));
     }
 
@@ -267,14 +320,16 @@ export default function AnalyticsPage() {
       if (s.userId && !memberMap.has(s.userId)) {
         memberMap.set(s.userId, {
           id: s.userId,
-          name: s.userName || "Unknown Member",
+          name:
+            s.userName ||
+            (s.userId === user?.uid
+              ? user.displayName || "You"
+              : "Unknown Member"),
         });
       }
     });
     return Array.from(memberMap.values());
   }, [sessions, teamMembers, viewMode]);
-
-  // Removed talkRatioData as conversational dynamics is being replaced
 
   // Trend data
   const trendData = useMemo(() => {
@@ -285,11 +340,18 @@ export default function AnalyticsPage() {
       .slice(0, limit)
       .reverse()
       .map((s, i) => {
+        const e = s.evaluation as any;
         return {
           name: i + 1,
-          score: getOverallScore(s.evaluation),
-          confidence: s.evaluation?.confidenceScore || 0,
-          clarity: s.evaluation?.clarityScore || 0,
+          score: getOverallScore(s.evaluation) / 10,
+          objection:
+            e?.objectionHandling?.score !== undefined
+              ? e.objectionHandling.score / 10
+              : (e?.objectionHandlingScore ?? 0),
+          listening:
+            e?.activeListening?.score !== undefined
+              ? e.activeListening.score / 10
+              : (e?.clarityScore ?? 0),
         };
       });
   }, [filteredSessions, timeframe]);
@@ -480,16 +542,20 @@ export default function AnalyticsPage() {
         />
         <MetricCard
           label="Recent Consistency"
-          value={sessions
-            .filter((s) => {
+          value={(() => {
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            const recentSessions = filteredSessions.filter((s) => {
               const sessionDate = new Date(s.createdAt);
-              const weekAgo = new Date();
-              weekAgo.setDate(weekAgo.getDate() - 7);
               return sessionDate > weekAgo;
-            })
-            .length.toString()}
+            });
+            const uniqueDays = new Set(
+              recentSessions.map((s) => new Date(s.createdAt).toDateString()),
+            ).size;
+            return uniqueDays.toString();
+          })()}
           icon={Calendar}
-          description="Sessions in the last 7 days"
+          description="Days practiced (last 7 days)"
         />
       </div>
 
@@ -566,7 +632,7 @@ export default function AnalyticsPage() {
                     />
                     <Line
                       type="monotone"
-                      dataKey="confidence"
+                      dataKey="objection"
                       stroke="#9CA3AF"
                       strokeWidth={2}
                       strokeDasharray="5 5"
@@ -638,6 +704,47 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Skill Breakdown */}
+      <Card className="border-border/60 mt-8 bg-white shadow-none">
+        <CardHeader>
+          <CardTitle className="text-base font-bold">Skill Breakdown</CardTitle>
+          <CardDescription className="text-xs">
+            Detailed view of collective team sales skills
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-x-12 gap-y-8 md:grid-cols-2">
+            <SkillBar
+              icon={Search}
+              label="Discovery"
+              score={avgScores.discovery}
+            />
+            <SkillBar
+              icon={ShieldAlert}
+              label="Objection Handling"
+              score={avgScores.objection}
+            />
+            <SkillBar
+              icon={MessageSquare}
+              label="Product Positioning"
+              score={avgScores.positioning}
+            />
+            <SkillBar
+              icon={CheckCircle2}
+              label="Closing"
+              score={avgScores.closing}
+            />
+            <div className="md:col-span-1">
+              <SkillBar
+                icon={Mic2}
+                label="Active Listening"
+                score={avgScores.listening}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Conversational Dynamics & Performance History */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -775,12 +882,7 @@ export default function AnalyticsPage() {
                           )}
                         >
                           {session.evaluation
-                            ? Math.round(
-                                (session.evaluation.objectionHandlingScore +
-                                  session.evaluation.confidenceScore +
-                                  session.evaluation.clarityScore) /
-                                  3,
-                              )
+                            ? getOverallScore(session.evaluation)
                             : "—"}
                         </span>
                       </td>
@@ -875,6 +977,23 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function SkillBar({ icon: Icon, label, score }: any) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-charcoal flex items-center gap-2.5 text-xs font-bold tracking-wider uppercase">
+          <Icon className="text-warm-gray size-3.5" />
+          {label}
+        </span>
+        <span className="text-charcoal text-xs font-bold">
+          {score > 0 ? `${score}/10` : "—"}
+        </span>
+      </div>
+      <Progress value={score * 10} className="h-1.5" />
     </div>
   );
 }

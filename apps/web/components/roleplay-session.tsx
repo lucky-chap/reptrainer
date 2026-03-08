@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
   Phone,
@@ -51,6 +51,7 @@ import {
   type TranscriptMessage,
   type CoachDebriefResponse,
   type ScenarioTemplate,
+  PersonaEngine,
 } from "@reptrainer/shared";
 
 interface RoleplaySessionProps {
@@ -118,21 +119,18 @@ export function RoleplaySession({
       ? track.scenarios.find((s) => s.id === scenarioId)
       : null;
 
-  // Build system prompt
-  const intensityLabel = [
-    "friendly skeptic",
-    "tough negotiator",
-    "hostile gatekeeper",
-  ][persona.intensityLevel - 1];
-
   const displayName = userName.trim() || "Sales Rep";
 
-  // Inject training track context into the system prompt
-  const trackPromptOverride = scenario?.systemPromptOverride
-    ? `\n\n─── TRAINING TRACK: ${track?.name?.toUpperCase()} ───\n${scenario.systemPromptOverride}`
-    : "";
+  // Build system prompt using the PersonaEngine
+  const systemPrompt = useMemo(() => {
+    return PersonaEngine.generatePrompt(persona as any, product as any, {
+      scenario: scenario || undefined,
+      userName: userName.trim() || undefined,
+    });
+  }, [persona, product, scenario, userName]);
 
-  const systemPrompt = `You are an enterprise-level buyer named "${persona.name}", a ${persona.role}.
+  /*
+  const systemPromptLegacy = `You are an enterprise-level buyer named "${persona.name}", a ${persona.role}.
 
 ${persona.personalityPrompt}
 
@@ -217,7 +215,7 @@ ${trackPromptOverride}
    a) FIRST: Speak your full closing/goodbye phrase out loud naturally and completely. Do NOT cut yourself off.
    b) THEN: Only AFTER you have fully finished speaking your goodbye, call the "end_roleplay" tool. Never call this tool mid-sentence or before your spoken goodbye is complete.
 
-**CRITICAL**: Never mention "tools", "logging", or being an AI. Stay 100% in your persona as ${persona.name}.`;
+**CRITICAL**: Never mention "tools", "logging", or being an AI.   */
 
   // Map persona gender to a matching Gemini voice
   const FEMALE_VOICES = [

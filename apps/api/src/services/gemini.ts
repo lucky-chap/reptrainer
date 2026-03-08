@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { GEMINI_TEXT_MODEL } from "@reptrainer/shared";
 import { env } from "../config/env.js";
+import { researchCompetitor } from "./vertex.js";
 import {
   type GeneratePersonaRequest,
   type GeneratePersonaResponse,
@@ -10,6 +11,7 @@ import {
   type GenerateProductResponse,
   PROSPECT_PERSONALITY_TEMPLATES,
   type ProspectPersonalityTemplate,
+  type CompetitorContext,
 } from "@reptrainer/shared";
 
 const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
@@ -80,7 +82,18 @@ export async function generatePersona(
     objections,
     personalityType,
     gender: preferredGender,
+    competitorUrl,
   } = input;
+
+  let competitorContext: CompetitorContext | undefined;
+  if (competitorUrl) {
+    try {
+      competitorContext = await researchCompetitor(competitorUrl);
+    } catch (e) {
+      console.error("Failed to research competitor:", e);
+      // Continue without competitor context if research fails
+    }
+  }
 
   // Handle gender randomization if "other" is chosen
   const finalGender =
@@ -117,22 +130,55 @@ Context:
 - Target Customer: ${targetCustomer}
 - Industry: ${industry}
 - Common Objections: ${objections.join(", ")}${personalityContext}
+${
+  competitorContext
+    ? `
+─── CURRENT SOLUTION INFORMATION (COMPETITOR) ───
+This persona currently uses: ${competitorContext.website}
+Competitor Product: ${competitorContext.productDescription}
+Pricing/Positioning: ${competitorContext.pricingPositioning}
+Pain Points with Current Solution: ${competitorContext.painPoints.join(", ")}
+Complaints: ${competitorContext.complaints.join(", ")}
+
+The persona should be a current user of this competitor and should naturally reference it during the pitch.
+`
+    : ""
+}
 ${finalGender ? `- Preferred Gender: ${finalGender}` : ""}
 
 Generate a buyer persona with the following JSON structure. Return ONLY valid JSON, no markdown:
 {
-  "name": "A realistic, memorable full name${finalGender ? ` for a ${finalGender} executive` : ""}. Use culturally diverse names — mix ethnicities and backgrounds. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. Avoid generic names like 'John Smith' or 'Jane Doe'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
-  "role": "A specific, realistic job title (e.g., 'SVP of Revenue Operations', 'Chief Data Officer', 'Director of IT Infrastructure'). Avoid generic titles like 'Manager'.",
+  "name": "A realistic, memorable full name${finalGender ? ` for a ${finalGender} executive` : ""}. Use culturally diverse names. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
+  "role": "A specific, realistic job title (e.g., 'SVP of Revenue Operations', 'Chief Data Officer', 'Director of IT Infrastructure').",
   "gender": "${finalGender || '"male" or "female"'} (must match the name)",
-  "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. ${template ? `IT MUST INCORPORATE THE BEHAVIORAL PROFILE, TONE, AND TRIGGERS FROM THE ${template.name} TEMPLATE.` : "Include: their communication style (direct, analytical, impatient, etc.), what triggers their skepticism, specific pet peeves in sales pitches (e.g., 'hates buzzwords', 'demands ROI before features'), their decision-making approach (consensus-driven, data-driven, gut-feel), and what would make them end a meeting early."} Make the persona feel like a real, specific person with strong opinions.",
+  "companyType": "A realistic description of their company (e.g., 'Fortune 500 Fintech', 'Seed-stage AI startup', 'Mid-market manufacturing giant')",
+  "industry": "${industry || "General Industry"}",
+  "seniorityLevel": "e.g., Senior Executive, C-suite, VP-level decision maker",
+  "personalityTraits": ["3-4 specific personality traits"],
   "personalityType": "${personalityType || "custom"}",
-  "intensityLevel": 1-3 (1=friendly skeptic, 2=tough negotiator, 3=hostile gatekeeper),
-  "objectionStrategy": "A specific 2-3 sentence strategy this persona uses to push back. E.g., 'Opens with budget concerns, then escalates to questioning whether the product solves a real problem. Will demand competitive comparisons and walk if the rep can't provide them.'",
+  "motivations": ["2-3 core business motivations for this person"],
+  "objections": ["3-5 specific objections this person would raise during a pitch"],
   "traits": {
-    "aggressiveness": 1-3,
-    "interruptionFrequency": "low" | "medium" | "high",
-    "objectionStyle": "analytical" | "emotional" | "authority-based" | "budget-focused"
-  }
+    "aggressiveness": "Number 1-10 reflecting how aggressive they are",
+    "interruptionFrequency": "low, medium, or high",
+    "objectionStyle": "analytical, emotional, authority-based, or budget-focused"
+  },
+  "speakingStyle": "Describe their verbal pattern (e.g., 'fast-paced and data-driven', 'slow, skeptical and deliberate')",
+  "accent": "Specify a natural regional accent (e.g., 'British', 'New York', 'Indian', 'Neutral American')",
+  "voiceName": "Choose a suitable name from 'Zephyr', 'Nova', 'Atlas', 'Vela', 'Phoebe', 'Dax'",
+  "communicationStyle": "professional",
+  "emotionalState": "e.g., Skeptical, Busy, Curiously optimistic, Guarded",
+  "environmentContext": "Where they are (e.g., noisy open office, quiet executive suite, airport lounge)",
+  "timePressure": "e.g., 'Hurry, has 5 mins', 'Calm, has 30 mins but hates fluff'",
+  "conversationBehavior": ["2-3 specific conversational patterns/habits"],
+  "buyingAttitude": "e.g., Skeptical but open if high value, Tech-first early adopter, Highly price-sensitive",
+  "difficultyLevel": "medium",
+  "intensityLevel": 2,
+  "patience": "medium",
+  "verbosity": "medium",
+  "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. ${template ? `IT MUST INCORPORATE THE BEHAVIORAL PROFILE, TONE, AND TRIGGERS FROM THE ${template.name} TEMPLATE.` : "Include communication style, skepticism triggers, pet peeves, and decision-making approach."}",
+  "objectionStrategy": "A specific strategy this persona uses to push back (2-3 sentences).",
+  "competitorContext": ${competitorContext ? JSON.stringify(competitorContext, null, 2) : "null"}
 }
 
 IMPORTANT:
@@ -185,21 +231,27 @@ Persona Context:
 Transcript:
 ${transcript}
 
-Evaluate the sales rep's performance on these criteria:
-1. **Objection Handling** (1-10): Did the rep directly address objections? Did they acknowledge concerns before responding? Did they handle pushback confidently?
-2. **Confidence** (1-10): Did the rep speak with authority? Did they avoid hedging or being overly apologetic? Did they maintain composure under pressure?
-3. **Clarity** (1-10): Was the rep concise? Did they quantify value? Did they avoid rambling or going off-topic?
+Evaluate the sales rep's performance on these 5 specific skills (Score 0-100):
+1. **Discovery Questions**: Did the rep ask open-ended questions to uncover pain points, budget, and decision-making processes?
+2. **Objection Handling**: Did the rep effectively acknowledge concerns and provide persuasive rebuttals to pushback?
+3. **Product Positioning**: Did the rep align product features with the buyer's specifically mentioned needs and value drivers? 
+4. **Closing**: Did the rep clearly define next steps or ask for the business at the appropriate time?
+5. **Active Listening**: Did the rep demonstrate understanding by summarizing, mirroring, or reacting appropriately to the buyer's cues?
 
 Also identify:
 - 3-5 specific strengths (things the rep did well)
 - 3-5 specific weaknesses (areas for improvement)
 - 3-5 actionable improvement tips (specific, practical advice)
+- An overall score (0-100) based on weighted performance.
 
 Return ONLY valid JSON in this exact format, no markdown:
 {
-  "objectionHandlingScore": <number 1-10>,
-  "confidenceScore": <number 1-10>,
-  "clarityScore": <number 1-10>,
+  "discovery": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "objectionHandling": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "productPositioning": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "closing": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "activeListening": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "overallScore": <0-100>,
   "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
   "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
   "improvementTips": ["<tip 1>", "<tip 2>", "<tip 3>"]

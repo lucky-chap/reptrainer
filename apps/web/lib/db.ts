@@ -37,6 +37,8 @@ import type {
   Team,
   TeamMember,
   Invitation,
+  SkillEvaluation,
+  DifficultyLevel,
 } from "@reptrainer/shared";
 
 // ─── Data Models ───────────────────────────────────────────────────────────
@@ -73,12 +75,32 @@ export interface Persona {
     objectionStyle: string;
   };
   createdAt: string;
+
+  // Rich Persona Fields
+  companyType?: string;
+  industry?: string;
+  seniorityLevel?: string;
+  personalityTraits?: string[];
+  motivations?: string[];
+  objections?: string[];
+  speakingStyle?: string;
+  accent?: string;
+  communicationStyle?: string;
+  emotionalState?: string;
+  environmentContext?: string;
+  timePressure?: string;
+  conversationBehavior?: string[];
+  buyingAttitude?: string;
+  difficultyLevel?: DifficultyLevel;
 }
 
 export interface SessionEvaluation {
-  objectionHandlingScore: number;
-  confidenceScore: number;
-  clarityScore: number;
+  discovery: SkillEvaluation;
+  objectionHandling: SkillEvaluation;
+  productPositioning: SkillEvaluation;
+  closing: SkillEvaluation;
+  activeListening: SkillEvaluation;
+  overallScore: number;
   strengths: string[];
   weaknesses: string[];
   improvementTips: string[];

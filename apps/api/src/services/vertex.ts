@@ -14,6 +14,7 @@ import {
   GEMINI_EVALUATION_MODEL,
   GEMINI_LIVE_MODEL,
   GEMINI_IMAGE_MODEL,
+  type CompetitorContext,
 } from "@reptrainer/shared";
 
 // Initialize Vertex AI
@@ -67,6 +68,49 @@ const MALE_VOICES = [
 function extractJson(text: string): string | null {
   const match = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
   return match ? match[0] : null;
+}
+
+/**
+ * Researches a competitor based on their website URL using Google Search grounding.
+ */
+export async function researchCompetitor(
+  url: string,
+): Promise<CompetitorContext> {
+  const model = vertexAI.getGenerativeModel({
+    model: TEXT_MODEL,
+    tools: [{ googleSearchRetrieval: {} }] as any,
+  });
+
+  const prompt = `Research the competitor at this website: ${url}
+  Identify their:
+  1. Product description and core value proposition.
+  2. Target customer segments.
+  3. Pricing positioning (enterprise, budget, mid-market).
+  4. Common customer pain points or limitations.
+  5. Frequent customer complaints from review sites.
+
+  Generate a competitor analysis with the following JSON structure. Return ONLY valid JSON:
+  {
+    "website": "${url}",
+    "productDescription": "...",
+    "targetCustomer": "...",
+    "pricingPositioning": "...",
+    "painPoints": ["..."],
+    "complaints": ["..."]
+  }`;
+
+  const response = await model.generateContent(prompt);
+  const text = response.response.candidates?.[0].content.parts?.[0].text ?? "";
+  const match = text.match(/\{[\s\S]*\}/);
+  const jsonStr = match ? match[0] : null;
+
+  if (!jsonStr) {
+    throw new Error(
+      "Failed to research competitor using Vertex Search. Invalid research data.",
+    );
+  }
+
+  return JSON.parse(jsonStr) as CompetitorContext;
 }
 
 /**
@@ -169,21 +213,27 @@ Persona Context:
 Transcript:
 ${transcript}
 
-Evaluate the sales rep's performance on these criteria:
-1. **Objection Handling** (1-10): Did the rep directly address objections? Did they acknowledge concerns before responding? Did they handle pushback confidently?
-2. **Confidence** (1-10): Did the rep speak with authority? Did they avoid hedging or being overly apologetic? Did they maintain composure under pressure?
-3. **Clarity** (1-10): Was the rep concise? Did they quantify value? Did they avoid rambling or going off-topic?
+Evaluate the sales rep's performance on these 5 specific skills (Score 0-100):
+1. **Discovery Questions**: Did the rep ask open-ended questions to uncover pain points, budget, and decision-making processes?
+2. **Objection Handling**: Did the rep effectively acknowledge concerns and provide persuasive rebuttals to pushback?
+3. **Product Positioning**: Did the rep align product features with the buyer's specifically mentioned needs and value drivers? 
+4. **Closing**: Did the rep clearly define next steps or ask for the business at the appropriate time?
+5. **Active Listening**: Did the rep demonstrate understanding by summarizing, mirroring, or reacting appropriately to the buyer's cues?
 
 Also identify:
 - 3-5 specific strengths
 - 3-5 specific weaknesses
 - 3-5 actionable improvement tips
+- An overall score (0-100) based on weighted performance.
 
 Return ONLY valid JSON in this format:
 {
-  "objectionHandlingScore": <number 1-10>,
-  "confidenceScore": <number 1-10>,
-  "clarityScore": <number 1-10>,
+  "discovery": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "objectionHandling": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "productPositioning": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "closing": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "activeListening": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },
+  "overallScore": <0-100>,
   "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
   "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
   "improvementTips": ["<tip 1>", "<tip 2>", "<tip 3>"]

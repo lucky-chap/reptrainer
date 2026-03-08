@@ -42,6 +42,17 @@ export interface ProspectPersonalityTemplate {
   emotionalTriggers: string[];
 }
 
+export interface CompetitorContext {
+  website: string;
+  productDescription: string;
+  targetCustomer: string;
+  pricingPositioning: string;
+  painPoints: string[];
+  complaints: string[];
+}
+
+export type DifficultyLevel = "easy" | "medium" | "hard";
+
 export interface Persona {
   id: string;
   productId: string;
@@ -49,12 +60,33 @@ export interface Persona {
   teamId?: string;
   name: string;
   role: string;
+
+  // Rich Persona Fields
+  companyType?: string;
+  industry?: string;
+  seniorityLevel?: string;
+  personalityTraits?: string[];
+  motivations?: string[];
+  objections?: string[];
+  speakingStyle?: string;
+  accent?: string;
+  communicationStyle?: string;
+  emotionalState?: string;
+  environmentContext?: string;
+  timePressure?: string;
+  conversationBehavior?: string[];
+  buyingAttitude?: string;
+  difficultyLevel?: DifficultyLevel;
+  competitorContext?: CompetitorContext;
+
+  // Legacy/Behavioral fields
   personalityPrompt: string;
   personalityType?: PersonalityType;
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female";
   voiceName?: string;
+  avatarUrl?: string; // Added avatarUrl as it's used in RoleplaySession
   traits: PersonaTraits;
   createdAt: string;
 }
@@ -67,6 +99,11 @@ export interface TranscriptMessage {
   role: "user" | "model" | "system";
   text: string;
   timestamp: number; // seconds since call start
+}
+
+export interface SkillEvaluation {
+  score: number;
+  explanation: string;
 }
 
 // ─── Feedback Report Types ──────────────────────────────────────────────────
@@ -83,9 +120,12 @@ export interface FeedbackReport {
 }
 
 export interface SessionEvaluation {
-  objectionHandlingScore: number;
-  confidenceScore: number;
-  clarityScore: number;
+  discovery: SkillEvaluation;
+  objectionHandling: SkillEvaluation;
+  productPositioning: SkillEvaluation;
+  closing: SkillEvaluation;
+  activeListening: SkillEvaluation;
+  overallScore: number;
   strengths: string[];
   weaknesses: string[];
   improvementTips: string[];
@@ -197,8 +237,12 @@ export interface UserMetrics {
   practiceStreak: number;
   lastPracticeDate: string | null; // ISO Date
   objectionHandlingAverage: number;
-  closingSuccessAverage: number;
-  confidenceAverage: number;
+  closingSuccessAverage: number; // legacy
+  confidenceAverage: number; // legacy
+  discoveryAverage: number;
+  productPositioningAverage: number;
+  closingAverage: number;
+  activeListeningAverage: number;
   talkTimeRatioAverage: number; // 0-100
   tracksCompleted: TrainingTrackId[];
   updatedAt: string;
@@ -220,6 +264,7 @@ export interface GeneratePersonaRequest {
   objections: string[];
   personalityType?: PersonalityType;
   gender?: "male" | "female" | "other";
+  competitorUrl?: string;
 }
 
 export interface GeneratePersonaResponse {
@@ -232,6 +277,23 @@ export interface GeneratePersonaResponse {
   intensityLevel: number;
   objectionStrategy: string;
   traits: PersonaTraits;
+
+  // Rich Persona Fields
+  companyType: string;
+  industry: string;
+  seniorityLevel: string;
+  personalityTraits: string[];
+  motivations: string[];
+  objections: string[];
+  speakingStyle: string;
+  accent: string;
+  communicationStyle: string;
+  emotionalState: string;
+  environmentContext: string;
+  timePressure: string;
+  conversationBehavior: string[];
+  buyingAttitude: string;
+  difficultyLevel: DifficultyLevel;
 }
 
 export interface EvaluateSessionRequest {
@@ -244,14 +306,7 @@ export interface EvaluateSessionRequest {
   scenarioId?: string;
 }
 
-export interface EvaluateSessionResponse {
-  objectionHandlingScore: number;
-  confidenceScore: number;
-  clarityScore: number;
-  strengths: string[];
-  weaknesses: string[];
-  improvementTips: string[];
-}
+export interface EvaluateSessionResponse extends SessionEvaluation {}
 
 export interface FeedbackReportRequest {
   transcript: string;

@@ -276,7 +276,7 @@ export default function ProductsPage() {
               <Button
                 onClick={() => setShowForm(!showForm)}
                 variant={showForm ? "brandOutline" : "brandOutline"}
-                className="w-full rounded-xl"
+                className="h-12 w-full rounded-full"
               >
                 {showForm ? (
                   <>
