@@ -184,10 +184,15 @@ export default function PersonasPage() {
     e.preventDefault();
     if (!manualProductId) return;
 
+    if (!selectedTeamId) {
+      alert("Please select a team before saving a persona.");
+      return;
+    }
+
     const persona: Persona = {
       id: uuidv4(),
       userId: user?.uid || "anonymous",
-      teamId: selectedTeamId || "personal",
+      teamId: selectedTeamId,
       productId: manualProductId,
       name: manualName,
       role: manualRole,
@@ -585,7 +590,7 @@ export default function PersonasPage() {
               <Button
                 type="submit"
                 variant="brand"
-                disabled={!manualProductId}
+                disabled={!manualProductId || !selectedTeamId}
                 className="h-12 w-full rounded-xl text-sm font-bold tracking-widest uppercase"
               >
                 Save Persona

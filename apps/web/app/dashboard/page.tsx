@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
         const unsubSessions = subscribeSessions(
           user.uid,
-          ids,
+          isAdmin ? ids : [],
           (data) => setSessions(data),
           handleError,
         );
@@ -133,8 +133,10 @@ export default function DashboardPage() {
     />
   ) : (
     <MemberDashboard
+      user={user}
       sessions={sessions}
       personas={personas}
+      products={products}
       metrics={metrics}
     />
   );

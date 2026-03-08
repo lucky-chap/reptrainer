@@ -14,7 +14,7 @@ export const GEMINI_VOICE_MODEL = "gemini-2.5-flash-preview-tts";
 export const GEMINI_VOICE_NAME = "Zephyr";
 
 /** Gemini model used for avatar generation */
-export const GEMINI_IMAGE_MODEL = "imagen-4.0-generate-001";
+export const GEMINI_IMAGE_MODEL = "imagen-3.0-generate-001";
 
 /** Scoring range */
 export const MIN_SCORE = 1;

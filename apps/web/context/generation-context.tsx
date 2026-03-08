@@ -15,12 +15,7 @@ import {
   generatePersonaAvatar as generateAvatarAction,
 } from "@/app/actions/api";
 import type { Product, Persona } from "@/lib/db";
-import {
-  savePersona,
-  saveProduct,
-  updatePersona,
-  uploadPersonaAvatar,
-} from "@/lib/db";
+import { savePersona, saveProduct, updatePersona } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 
 export interface GenerationTask {
@@ -129,11 +124,17 @@ export function GenerationProvider({
           ),
         );
 
+        if (!product.teamId) {
+          throw new Error(
+            "Product is missing a team association. Cannot generate persona.",
+          );
+        }
+
         const personaId = uuidv4();
         const persona: Persona = {
           id: personaId,
           userId: user?.uid || "anonymous",
-          teamId: product.teamId || "personal",
+          teamId: product.teamId,
           productId: product.id,
           name: data.name,
           role: data.role,
@@ -183,15 +184,9 @@ export function GenerationProvider({
           });
 
           if (activeRef.current.get(taskId) && avatarData.avatarDataUrl) {
-            // Upload to Storage instead of storing base64 in Firestore
-            const storageUrl = await uploadPersonaAvatar(
-              user?.uid || "anonymous",
-              personaId,
-              avatarData.avatarDataUrl,
-            );
-
+            // Use the public URL from the backend directly
             await updatePersona(personaId, {
-              avatarUrl: storageUrl,
+              avatarUrl: avatarData.avatarDataUrl,
             });
           }
         } catch (avatarError) {

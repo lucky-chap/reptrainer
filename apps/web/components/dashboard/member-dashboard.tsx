@@ -18,7 +18,8 @@ import {
   CheckCircle2,
   ChevronRight,
 } from "lucide-react";
-import type { Session, Persona } from "@/lib/db";
+import type { User } from "firebase/auth";
+import type { Session, Persona, Product } from "@/lib/db";
 import { type UserMetrics } from "@reptrainer/shared";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
@@ -42,17 +43,24 @@ import {
 } from "recharts";
 
 interface MemberDashboardProps {
+  user: User | null;
   sessions: Session[];
   personas: Persona[];
+  products: Product[];
   metrics: UserMetrics | null;
 }
 
 export function MemberDashboard({
-  sessions,
+  user,
+  sessions: allSessions,
   personas,
+  products,
   metrics,
 }: MemberDashboardProps) {
-  const { user } = useAuth();
+  // Defensive filtering: ensure we only show the user's own sessions
+  const sessions = useMemo(() => {
+    return allSessions.filter((s) => s.userId === user?.uid);
+  }, [allSessions, user?.uid]);
   const { activeMembership } = useTeam();
 
   // Compute stats

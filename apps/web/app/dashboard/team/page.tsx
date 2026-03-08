@@ -11,6 +11,8 @@ import {
   Trash2,
   Copy,
   Check,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +29,8 @@ import {
   getTeamMembers,
   getPendingInvitations,
   removeTeamMember,
+  seedDemoTeamData,
+  removeDemoTeamData,
 } from "@/lib/db";
 import { toast } from "sonner";
 import type { TeamMember, Invitation } from "@reptrainer/shared";
@@ -40,6 +44,9 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const hasDemoData = members.some((m) => m.userName === "Amara Okafor");
 
   const fetchData = async () => {
     if (!activeMembership) return;
@@ -82,6 +89,45 @@ export default function TeamPage() {
     }
   };
 
+  const handleImportDemoData = async () => {
+    if (!activeMembership || !user) return;
+
+    setIsSeeding(true);
+    const toastId = toast.loading("Seeding demo data...");
+
+    try {
+      await seedDemoTeamData(user.uid, activeMembership.id);
+      await fetchData();
+      toast.success("Demo data imported successfully", { id: toastId });
+    } catch (error) {
+      console.error("Error seeding demo data:", error);
+      toast.error("Failed to import demo data", { id: toastId });
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const handleRemoveDemoData = async () => {
+    if (!activeMembership || !user) return;
+
+    if (!confirm("Are you sure you want to remove the seeded demo data?"))
+      return;
+
+    setIsSeeding(true);
+    const toastId = toast.loading("Removing demo data...");
+
+    try {
+      await removeDemoTeamData(activeMembership.id);
+      await fetchData();
+      toast.success("Demo data removed successfully", { id: toastId });
+    } catch (error) {
+      console.error("Error removing demo data:", error);
+      toast.error("Failed to remove demo data", { id: toastId });
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   if (!activeMembership || !isAdmin) {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center text-center">
@@ -98,8 +144,8 @@ export default function TeamPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-charcoal text-3xl font-bold tracking-tight">
-            Team Management
+          <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
+            Team <em>Management.</em>
           </h1>
           <p className="text-warm-gray mt-1">
             Manage members and invitations for{" "}
@@ -108,14 +154,44 @@ export default function TeamPage() {
             </span>
           </p>
         </div>
-        <Button
-          onClick={() => setIsInviteModalOpen(true)}
-          className="flex h-12 items-center gap-2 px-4"
-          variant={"brand"}
-        >
-          <Plus className="size-4" />
-          Invite Member
-        </Button>
+        <div className="flex items-center gap-3">
+          {hasDemoData && (
+            <Button
+              onClick={handleRemoveDemoData}
+              disabled={isSeeding}
+              variant="outline"
+              className="flex h-12 items-center gap-2 border-dashed border-red-500/50 px-4 text-red-500 hover:bg-red-500/5"
+            >
+              {isSeeding ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              Remove Demo Data
+            </Button>
+          )}
+          <Button
+            onClick={handleImportDemoData}
+            disabled={isSeeding || hasDemoData || loading}
+            variant="outline"
+            className="border-brand/50 hover:bg-brand/5 flex h-12 items-center gap-2 border-dashed px-4"
+          >
+            {isSeeding && !hasDemoData ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Sparkles className="text-brand size-4" />
+            )}
+            {hasDemoData ? "Demo Data Imported" : "Import Demo Data"}
+          </Button>
+          <Button
+            onClick={() => setIsInviteModalOpen(true)}
+            className="flex h-12 items-center gap-2 px-4"
+            variant={"brand"}
+          >
+            <Plus className="size-4" />
+            Invite Member
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">

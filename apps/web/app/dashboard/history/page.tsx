@@ -71,7 +71,7 @@ export default function HistoryPage() {
 
       const unsubSessions = subscribeSessions(
         user.uid,
-        teamIds,
+        isAdmin ? teamIds : [],
         (data) => setSessions(data),
         handleError,
       );
@@ -292,7 +292,7 @@ export default function HistoryPage() {
                             Disc.
                           </span>
                           <p className="text-charcoal text-sm font-bold">
-                            {evaluation.discovery.score}
+                            {(evaluation as any).discovery?.score ?? 0}
                           </p>
                         </div>
                         <div className="space-y-1">
@@ -300,7 +300,7 @@ export default function HistoryPage() {
                             Obj.
                           </span>
                           <p className="text-charcoal text-sm font-bold">
-                            {evaluation.objectionHandling.score}
+                            {(evaluation as any).objectionHandling?.score ?? 0}
                           </p>
                         </div>
                         <div className="space-y-1">
@@ -308,7 +308,7 @@ export default function HistoryPage() {
                             Pos.
                           </span>
                           <p className="text-charcoal text-sm font-bold">
-                            {evaluation.productPositioning.score}
+                            {(evaluation as any).productPositioning?.score ?? 0}
                           </p>
                         </div>
                         <div className="space-y-1">
@@ -316,7 +316,7 @@ export default function HistoryPage() {
                             List.
                           </span>
                           <p className="text-charcoal text-sm font-bold">
-                            {evaluation.activeListening.score}
+                            {(evaluation as any).activeListening?.score ?? 0}
                           </p>
                         </div>
                         <div className="space-y-1">
@@ -324,7 +324,7 @@ export default function HistoryPage() {
                             Close
                           </span>
                           <p className="text-charcoal text-sm font-bold">
-                            {evaluation.closing.score}
+                            {(evaluation as any).closing?.score ?? 0}
                           </p>
                         </div>
                       </div>

@@ -367,33 +367,39 @@ export function SessionResults({
             <CardContent className="-mt-6 rounded-t-3xl bg-white p-8">
               <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:flex sm:flex-wrap sm:justify-between">
                 <ScoreIndicator
-                  score={evaluation?.discovery.score || 0}
+                  score={(evaluation as any)?.discovery?.score || 0}
                   label="Discovery"
-                  explanation={evaluation?.discovery.explanation}
+                  explanation={(evaluation as any)?.discovery?.explanation}
                   icon={Search}
                 />
                 <ScoreIndicator
-                  score={evaluation?.objectionHandling.score || 0}
+                  score={(evaluation as any)?.objectionHandling?.score || 0}
                   label="Objections"
-                  explanation={evaluation?.objectionHandling.explanation}
+                  explanation={
+                    (evaluation as any)?.objectionHandling?.explanation
+                  }
                   icon={Shield}
                 />
                 <ScoreIndicator
-                  score={evaluation?.productPositioning.score || 0}
+                  score={(evaluation as any)?.productPositioning?.score || 0}
                   label="Positioning"
-                  explanation={evaluation?.productPositioning.explanation}
+                  explanation={
+                    (evaluation as any)?.productPositioning?.explanation
+                  }
                   icon={Target}
                 />
                 <ScoreIndicator
-                  score={evaluation?.activeListening.score || 0}
+                  score={(evaluation as any)?.activeListening?.score || 0}
                   label="Listening"
-                  explanation={evaluation?.activeListening.explanation}
+                  explanation={
+                    (evaluation as any)?.activeListening?.explanation
+                  }
                   icon={Ear}
                 />
                 <ScoreIndicator
-                  score={evaluation?.closing.score || 0}
+                  score={(evaluation as any)?.closing?.score || 0}
                   label="Closing"
-                  explanation={evaluation?.closing.explanation}
+                  explanation={(evaluation as any)?.closing?.explanation}
                   icon={Handshake}
                 />
               </div>

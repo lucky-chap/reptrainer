@@ -48,12 +48,17 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({
-  sessions,
+  sessions: allSessions,
   personas,
   products,
   metrics,
 }: AdminDashboardProps) {
   const { user } = useAuth();
+
+  // Filter sessions (none for now, but keeping useMemo for structure)
+  const sessions = useMemo(() => {
+    return allSessions;
+  }, [allSessions]);
   // Compute stats
   const totalSessions = sessions.length;
   const totalDuration = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
@@ -191,24 +196,12 @@ export function AdminDashboard({
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
         <StatCard
           icon={Activity}
           label="Team Sessions"
           value={metrics?.totalCalls.toString() || totalSessions.toString()}
           subtext={`${metrics ? Math.floor(metrics.totalDurationSeconds / 60) : Math.floor(totalDuration / 60)}m total practice`}
-        />
-        <StatCard
-          icon={Zap}
-          label="Practice Streak"
-          value={
-            metrics?.practiceStreak ? `${metrics.practiceStreak} Days` : "—"
-          }
-          subtext={
-            metrics?.lastPracticeDate
-              ? `Last: ${new Date(metrics.lastPracticeDate).toLocaleDateString()}`
-              : "Start a streak today"
-          }
         />
         <StatCard
           icon={Star}

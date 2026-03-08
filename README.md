@@ -11,9 +11,25 @@ Reptrainer is an AI-powered sales roleplay platform that allows sales representa
 - **🎙️ Voice-First Roleplay**: High-fidelity, real-time voice conversations with AI buyer personas via Gemini Live API.
 - **👁️ Whisper Coach**: A real-time HUD that analyzes your conversation and "whispers" tactical nudges and objection-handling strategies.
 - **🧠 AI Persona Generation**: Instantly generate diverse buyer personas (from Skeptical CFOs to Decision Makers) tailored to your specific product.
-- **📊 Coaching Insights**: Advanced analytics that identify skill gaps (Discovery, Closing, Listening) and trends across your team.
-- **🎞️ Multimodal AI Debrief**: Post-session debriefs featuring synchronized audio narration, visual slides, and interactive objection heatmaps.
+- **📊 Coaching Insights**: Advanced analytics that identify skill gaps (Discovery, Closing, Listening, etc) and trends across your team.
+- **🎞️ AI Debrief**: Post-session debriefs featuring synchronized audio narration, visual slides, and interactive objection heatmaps.
 - **👥 Team Management**: Role-based access control for Admins (Team Leaders) and Members, with aggregated team performance dashboards.
+
+---
+
+## 🧩 Core Concepts
+
+### Product-Persona Coupling
+
+In Reptrainer, **Personas are tightly coupled to specific Products**.
+
+Unlike generic AI chatbots, each buyer persona is generated with deep context about the product they are "buying." This includes:
+
+- **Product-Specific Objections**: The AI knows the common friction points for that specific industry and solution.
+- **Competitor Awareness**: Personas are aware of the specific competitors defined in the Product context.
+- **Tailored Personalities**: A CFO persona for a cybersecurity product will have different priorities and skepticism than a CFO persona for an HR software.
+
+This architectural decision ensures that every roleplay session is highly relevant and provides the most realistic training environment possible.
 
 ---
 

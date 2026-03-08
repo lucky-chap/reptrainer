@@ -120,10 +120,14 @@ export default function ProductsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedTeamId) {
+      alert("Please select a team before saving a product.");
+      return;
+    }
     const product: Product = {
       id: uuidv4(),
       userId: user?.uid || "anonymous",
-      teamId: selectedTeamId || "personal", // Fallback for personal space
+      teamId: selectedTeamId,
       companyName,
       description,
       targetCustomer,
@@ -143,11 +147,10 @@ export default function ProductsPage() {
 
   const handleAiGenerate = async () => {
     if (!selectedTeamId) {
-      // In a real app, maybe show a toast, but here we'll fallback
-      await generateProduct({ teamId: "personal" });
-    } else {
-      await generateProduct({ teamId: selectedTeamId });
+      alert("Please select a team before generating a product.");
+      return;
     }
+    await generateProduct({ teamId: selectedTeamId });
     setShowCreator(false);
   };
 
@@ -425,6 +428,7 @@ export default function ProductsPage() {
               <Button
                 type="submit"
                 variant="brand"
+                disabled={!selectedTeamId}
                 className="h-12 w-full rounded-xl text-sm font-bold tracking-widest uppercase"
               >
                 Save Product
@@ -554,10 +558,10 @@ export default function ProductsPage() {
                     handleDelete(selectedProduct.id);
                     setSelectedProduct(null);
                   }}
-                  className="text-warm-gray/50 rounded-full px-6 transition-all hover:bg-rose-50 hover:text-rose-600"
+                  className="text-warm-gray rounded-full px-6 transition-all hover:bg-rose-50 hover:text-rose-600"
                 >
                   <Trash2 className="mr-2 size-4" />
-                  Remove Record
+                  Remove Product
                 </Button>
                 <div className="flex gap-4">
                   <Button

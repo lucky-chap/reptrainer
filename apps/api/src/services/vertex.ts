@@ -3,7 +3,7 @@ import {
   GenerationConfig,
   type ModelParams,
 } from "@google-cloud/vertexai";
-import { type LiveConnectConfig } from "@google/genai";
+import { GoogleGenAI, type LiveConnectConfig } from "@google/genai";
 import { env } from "../config/env.js";
 import {
   GeneratePersonaRequest,
@@ -16,9 +16,16 @@ import {
   GEMINI_IMAGE_MODEL,
   type CompetitorContext,
 } from "@reptrainer/shared";
+import { uploadAvatar } from "./storage.js";
 
 // Initialize Vertex AI
 const vertexAI = new VertexAI({
+  project: env.GOOGLE_CLOUD_PROJECT,
+  location: env.GOOGLE_CLOUD_LOCATION,
+});
+
+const genAI = new GoogleGenAI({
+  vertexai: true,
   project: env.GOOGLE_CLOUD_PROJECT,
   location: env.GOOGLE_CLOUD_LOCATION,
 });
@@ -76,11 +83,6 @@ function extractJson(text: string): string | null {
 export async function researchCompetitor(
   url: string,
 ): Promise<CompetitorContext> {
-  const model = vertexAI.getGenerativeModel({
-    model: TEXT_MODEL,
-    tools: [{ googleSearchRetrieval: {} }] as any,
-  });
-
   const prompt = `Research the competitor at this website: ${url}
   Identify their:
   1. Product description and core value proposition.
@@ -99,8 +101,20 @@ export async function researchCompetitor(
     "complaints": ["..."]
   }`;
 
-  const response = await model.generateContent(prompt);
-  const text = response.response.candidates?.[0].content.parts?.[0].text ?? "";
+  const response = await genAI.models.generateContent({
+    model: TEXT_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      tools: [
+        {
+          // @ts-ignore - googleSearch is a valid tool in @google/genai for Vertex AI grounding
+          googleSearch: {},
+        },
+      ],
+    },
+  });
+
+  const text = response.text || "";
   const match = text.match(/\{[\s\S]*\}/);
   const jsonStr = match ? match[0] : null;
 
@@ -294,9 +308,6 @@ export function getLiveSetupConfig(
       },
       tools: [
         {
-          google_search: {},
-        },
-        {
           function_declarations: [
             {
               name: "log_sales_insight",
@@ -335,18 +346,13 @@ export function getLiveSetupConfig(
 }
 
 /**
- * Generate a persona avatar image using Vertex AI Imagen 4.0.
- * Returns the base64 encoded image or a public URL.
+ * Generate an image using Imagen 3 via Vertex AI REST API
+ * Returns the image buffer.
  */
-export async function generatePersonaAvatar(
-  gender: string,
-  role: string,
-): Promise<string> {
+async function generateImage(prompt: string): Promise<Buffer> {
   const project = env.GOOGLE_CLOUD_PROJECT;
   const location = env.GOOGLE_CLOUD_LOCATION;
   const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${GEMINI_IMAGE_MODEL}:predict`;
-
-  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their early 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -358,8 +364,8 @@ export async function generatePersonaAvatar(
       instances: [{ prompt }],
       parameters: {
         sampleCount: 1,
-        mimeType: "image/jpeg",
-        compressionQuality: 80,
+        // Imagen 3 supports different aspect ratios, we'll use 1:1 for avatars
+        aspectRatio: "1:1",
       },
     }),
   });
@@ -367,24 +373,16 @@ export async function generatePersonaAvatar(
   if (!response.ok) {
     const errorBody = await response.text();
     console.error("Imagen API Error:", errorBody);
-    throw new Error(`Failed to generate avatar: ${response.statusText}`);
+    throw new Error(`Failed to generate image: ${response.statusText}`);
   }
 
   const data = (await response.json()) as {
     predictions?: Array<{
-      bytesBase64?: string;
       bytesBase64Encoded?: string;
     }>;
   };
 
-  // Log structure for debugging if we get no data
-  if (!data.predictions?.[0]) {
-    console.error("Imagen API returned no predictions:", JSON.stringify(data));
-  }
-
-  const base64Image =
-    data.predictions?.[0]?.bytesBase64Encoded ||
-    data.predictions?.[0]?.bytesBase64;
+  const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
 
   if (!base64Image) {
     console.error(
@@ -394,7 +392,26 @@ export async function generatePersonaAvatar(
     throw new Error("No image data returned from Imagen API");
   }
 
-  return `data:image/jpeg;base64,${base64Image}`;
+  return Buffer.from(base64Image, "base64");
+}
+
+/**
+ * Generate a persona avatar image using Gemini 3.1 Flash Image Preview and store in Firebase.
+ * Returns the permanent storage URL.
+ */
+export async function generatePersonaAvatar(
+  gender: string,
+  role: string,
+): Promise<string> {
+  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their early 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
+
+  console.log(`Generating avatar for ${gender} ${role}...`);
+  const imageBuffer = await generateImage(prompt);
+
+  console.log("Uploading avatar to Firebase Storage...");
+  const publicUrl = await uploadAvatar(imageBuffer);
+
+  return publicUrl;
 }
 
 /**
