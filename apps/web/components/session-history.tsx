@@ -31,6 +31,7 @@ import { SessionResults } from "@/components/session-results";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import { generateCoachDebrief } from "@/app/actions/api";
+import { getOverallScore } from "@/lib/analytics-utils";
 
 export function SessionHistory() {
   const { user } = useAuth();
@@ -167,11 +168,7 @@ export function SessionHistory() {
             const product = products[session.productId];
             const evaluation = session.evaluation;
 
-            const overallScore = evaluation
-              ? (evaluation as any).overallScore !== undefined
-                ? (evaluation as any).overallScore
-                : Math.round((evaluation as any).overall_score / 10)
-              : null;
+            const overallScore = evaluation ? getOverallScore(evaluation) : null;
 
             return (
               <Card

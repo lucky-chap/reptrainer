@@ -45,6 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { getOverallScore } from "@/lib/analytics-utils";
 import { ObjectionHeatmap } from "./objection-heatmap";
 import Image from "next/image";
 import {
@@ -258,7 +259,7 @@ export function SessionResults({
 
   const evaluation = session.evaluation;
 
-  const overallScore = evaluation?.overallScore || 0;
+  const overallScore = getOverallScore(evaluation);
 
   const [audioUrl, setAudioUrl] = useState<string | null>(
     session.audioUrl || null,
@@ -352,13 +353,13 @@ export function SessionResults({
                 </span>
                 <div className="heading-serif flex items-baseline justify-center">
                   <span className="text-7xl font-bold">{overallScore}</span>
-                  <span className="ml-1 text-2xl opacity-40">/10</span>
+                  <span className="ml-1 text-2xl opacity-40">/100</span>
                 </div>
               </div>
               <p className="text-cream/70 mx-auto max-w-sm text-sm leading-relaxed">
-                {overallScore >= 8
+                {overallScore >= 80
                   ? "Excellent performance! You handled this call like a seasoned professional."
-                  : overallScore >= 6
+                  : overallScore >= 60
                     ? "Good job! You demonstrated strong core skills with some areas for refinement."
                     : "A solid first attempt. Focus on the specific feedback below to level up your game."}
               </p>

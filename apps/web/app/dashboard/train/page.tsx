@@ -262,17 +262,24 @@ function TrainPageContent() {
             {products.length === 0 || personas.length === 0 ? (
               <div className="py-8 text-center">
                 <p className="text-warm-gray mb-6 text-sm">
-                  You need at least one persona and one product to start a
-                  session.
+                  {isAdmin
+                    ? "You need at least one persona and one product to start a session."
+                    : "Your team hasn't set up any training products or personas yet. Please notify your team leader to create them so you can start practicing."}
                 </p>
-                <div className="flex items-center justify-center gap-4">
-                  <Button asChild variant="brand" className="h-12 px-6">
-                    <Link href="/dashboard/products">Manage Products</Link>
-                  </Button>
-                  <Button asChild variant="brandOutline" className="h-12 px-6">
-                    <Link href="/dashboard/personas">Manage Personas</Link>
-                  </Button>
-                </div>
+                {isAdmin && (
+                  <div className="flex items-center justify-center gap-4">
+                    <Button asChild variant="brand" className="h-12 px-6">
+                      <Link href="/dashboard/products">Manage Products</Link>
+                    </Button>
+                    <Button
+                      asChild
+                      variant="brandOutline"
+                      className="h-12 px-6"
+                    >
+                      <Link href="/dashboard/personas">Manage Personas</Link>
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-4 sm:flex-row">

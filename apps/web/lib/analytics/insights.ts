@@ -1,6 +1,10 @@
 import type { Session, CallSession } from "../db";
-import { getOverallScore } from "./scoring";
+import {
+  getOverallScore,
+  calculateSessionMetrics,
+} from "@/lib/analytics-utils";
 import { calculateDynamics } from "./dynamics";
+
 export interface CoachingInsight {
   type: "needs_coaching" | "improvement" | "team_weakness" | "skill_avoidance";
   user: string;
@@ -22,43 +26,13 @@ interface SkillScores {
  * Extracts normalized skill scores (0-100) from a session.
  */
 function getSkillScores(session: Session | CallSession): SkillScores {
-  const evaluation =
-    "evaluation" in session
-      ? session.evaluation
-      : (session as any).legacyEvaluation;
-  const feedback =
-    "feedbackReport" in session ? (session as any).feedbackReport : null;
-
-  if (evaluation && "discovery" in evaluation) {
-    return {
-      discovery: evaluation.discovery.score,
-      objection_handling: evaluation.objectionHandling.score,
-      positioning: evaluation.productPositioning.score,
-      closing: evaluation.closing.score,
-      listening: evaluation.activeListening.score,
-    };
-  }
-
-  // Use feedback scores if available, otherwise scale legacy 0-10 scores
-  const le = evaluation as any;
-  const obj =
-    feedback?.objection_handling_score ??
-    (le?.objectionHandlingScore ?? 0) * 10;
-  const conf = feedback?.confidence_score ?? (le?.confidenceScore ?? 0) * 10;
-  const cls =
-    feedback?.closing_effectiveness_score ?? (le?.confidenceScore ?? 0) * 10;
-  const clr = (le?.clarityScore ?? 0) * 10;
-
-  // Derive Discovery, Positioning, Listening from available data
-  const dynamics = calculateDynamics(session);
-  const listening = dynamics.talkToListenRatio.ai; // AI talk time is rep's listen time (approx)
-
+  const metrics = calculateSessionMetrics(session);
   return {
-    objection_handling: obj,
-    closing: cls,
-    discovery: Math.max(0, Math.min(100, Math.round((obj + clr) / 2) - 5)),
-    positioning: Math.max(0, Math.min(100, Math.round((conf + clr) / 2))),
-    listening: listening,
+    discovery: metrics.discovery,
+    objection_handling: metrics.objection_handling,
+    positioning: metrics.positioning,
+    closing: metrics.closing,
+    listening: metrics.listening,
   };
 }
 

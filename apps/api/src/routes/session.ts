@@ -14,6 +14,8 @@ import {
 } from "../services/vertex.js";
 import { generateFeedbackReport } from "../services/feedback.js";
 import { synthesizeSpeech } from "../services/tts.js";
+import { uploadFile } from "../services/storage.js";
+import { v4 as uuidv4 } from "uuid";
 
 export const sessionRoutes: Router = Router();
 
@@ -55,9 +57,10 @@ sessionRoutes.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { transcript, personaName, personaRole } = req.body;
+      const sessionId = uuidv4(); // Unique ID for storing assets
 
       console.log(
-        `[debrief] Generating multimodal coach debrief for session with ${personaName} (${personaRole})`,
+        `[debrief] Generating multimodal coach debrief for session ${sessionId} with ${personaName} (${personaRole})`,
       );
 
       // 1. Generate 4 slides JSON via Gemini
@@ -81,58 +84,71 @@ sessionRoutes.post(
         `[debrief] Processing multimodal assets for ${slides.length} slides...`,
       );
 
-      const audioPromises = slides.map(async (slide: any, index: number) => {
+      const audioUrls: string[] = [];
+      const visualUrls: string[] = [];
+
+      // Process slides sequentially to avoid potential rate limits and manage Storage uploads
+      for (let i = 0; i < slides.length; i++) {
+        const slide = slides[i];
+        const slideIndex = i + 1;
+
+        // A. Process Audio (TTS)
         try {
-          const base64 = await synthesizeSpeech(slide.narration);
-          console.log(
-            `[debrief] TTS successful for slide ${index + 1}: ${slide.title}`,
-          );
-          return base64;
+          const audioBase64 = await synthesizeSpeech(slide.narration);
+          if (audioBase64) {
+            const buffer = Buffer.from(audioBase64, "base64");
+            const destination = `debriefs/${sessionId}/audio-slide-${slideIndex}.mp3`;
+            const url = await uploadFile(buffer, destination, "audio/mpeg");
+            audioUrls.push(url);
+          } else {
+            audioUrls.push("");
+          }
         } catch (error) {
           console.error(
-            `[debrief] TTS failed for slide ${index + 1} ("${slide.title}"):`,
+            `[debrief] Audio upload failed for slide ${slideIndex}:`,
             error,
           );
-          return "";
+          audioUrls.push("");
         }
-      });
 
-      const visualPromises = slides.map(async (slide: any, index: number) => {
+        // B. Process Visual (Imagen)
         try {
-          const base64 = await generateSlideInfographic(slide.visual);
-          console.log(
-            `[debrief] Imagen successful for slide ${index + 1}: ${slide.title}`,
-          );
-          return base64;
+          let visualBase64 = await generateSlideInfographic(slide.visual);
+          if (visualBase64) {
+            // Strip data:image prefix if present
+            if (visualBase64.startsWith("data:")) {
+              visualBase64 = visualBase64.split(",")[1];
+            }
+
+            const buffer = Buffer.from(visualBase64, "base64");
+            const destination = `debriefs/${sessionId}/visual-slide-${slideIndex}.jpg`;
+            const url = await uploadFile(buffer, destination, "image/jpeg");
+            visualUrls.push(url);
+            slide.visualUrl = url; // Set the URL in the slide object
+          } else {
+            visualUrls.push("");
+          }
         } catch (error) {
           console.error(
-            `[debrief] Imagen failed for slide ${index + 1} ("${slide.title}"):`,
+            `[debrief] Visual upload failed for slide ${slideIndex}:`,
             error,
           );
-          return "";
+          visualUrls.push("");
         }
-      });
 
-      const [audioBase64, visualBase64] = await Promise.all([
-        Promise.all(audioPromises),
-        Promise.all(visualPromises),
-      ]);
-
-      // Add visualBase64 to each slide object
-      slides.forEach((slide: any, index: number) => {
-        if (visualBase64[index]) {
-          slide.visualBase64 = visualBase64[index];
-        }
-      });
+        // Clean up base64 from slide object if it exists (it shouldn't yet, but for safety)
+        delete (slide as any).visualBase64;
+        delete (slide as any).audioBase64;
+      }
 
       console.log(
-        `[debrief] Multimodal generation complete. Audio: ${audioBase64.filter((a: string) => !!a).length}/${slides.length}, Visuals: ${visualBase64.filter((v: string) => !!v).length}/${slides.length}`,
+        `[debrief] Multimodal generation and upload complete. Audio: ${audioUrls.filter((a) => !!a).length}/${slides.length}, Visuals: ${visualUrls.filter((v) => !!v).length}/${slides.length}`,
       );
 
       res.json({
         slides,
-        audioBase64,
-        visualBase64,
+        audioUrls,
+        visualUrls,
       });
     } catch (error: any) {
       console.error("[debrief] Fatal error in debrief route:", error);

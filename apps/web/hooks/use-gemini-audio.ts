@@ -235,6 +235,22 @@ export function useGeminiAudio(options: UseGeminiAudioOptions = {}) {
       triggerPersonaLeft();
     }
   }, [triggerPersonaLeft]);
+
+  const waitForPlaybackFinish = useCallback(async () => {
+    if (!isPlayingRef.current && audioQueueRef.current.length === 0) return;
+
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        if (!isPlayingRef.current && audioQueueRef.current.length === 0) {
+          resolve();
+        } else {
+          setTimeout(check, 100);
+        }
+      };
+      check();
+    });
+  }, []);
+
   // Play audio from the queue
   const playAudioQueue = useCallback(async () => {
     if (isPlayingRef.current || audioQueueRef.current.length === 0) {
@@ -312,14 +328,33 @@ export function useGeminiAudio(options: UseGeminiAudioOptions = {}) {
       triggerPersonaLeft();
     }
   }, [triggerPersonaLeft]);
-  // Start recording the session
   const startRecording = useCallback(() => {
     if (!mixedStreamDestRef.current) return;
 
+    // Try a few progressive formats so recording works cross-browser (e.g. Safari supports mp4, Chrome supports webm)
+    const mimeTypes = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4",
+      "audio/mp3",
+      "audio/aac",
+      "audio/ogg",
+      "", // Fallback to browser default
+    ];
+
+    let options = {};
+    for (const mimeType of mimeTypes) {
+      if (mimeType === "" || MediaRecorder.isTypeSupported(mimeType)) {
+        if (mimeType !== "") options = { mimeType };
+        break;
+      }
+    }
+
     try {
-      const recorder = new MediaRecorder(mixedStreamDestRef.current.stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
+      const recorder = new MediaRecorder(
+        mixedStreamDestRef.current.stream,
+        options,
+      );
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -411,7 +446,7 @@ export function useGeminiAudio(options: UseGeminiAudioOptions = {}) {
 
     micCtxRef.current = new AudioContext();
     const micSource = micCtxRef.current.createMediaStreamSource(micStream);
-    const processor = micCtxRef.current.createScriptProcessor(4096, 1, 1);
+    const processor = micCtxRef.current.createScriptProcessor(1024, 1, 1);
 
     micSource.connect(processor);
     processor.connect(micCtxRef.current.destination);
@@ -505,6 +540,7 @@ export function useGeminiAudio(options: UseGeminiAudioOptions = {}) {
     getRecordingBlob,
     initializeAudio,
     receiveAudioChunk,
+    waitForPlaybackFinish,
     audioQueueRef,
     isPlayingRef,
     currentSourceRef,

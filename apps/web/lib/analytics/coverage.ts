@@ -34,7 +34,7 @@ export function calculateCategoryScores(
   return Object.entries(scores)
     .map(([name, data]) => ({
       name,
-      score: Math.round((data.total / data.count) * 10) / 10,
+      score: Math.round(data.total / data.count),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 5); // Limit to top 5

@@ -500,6 +500,11 @@ export async function acceptInvitation(
     throw new Error("Invalid or expired invitation");
   }
 
+  const existingTeams = await getUserTeams(userId);
+  if (existingTeams.length > 0) {
+    throw new Error("You are already a member of a team.");
+  }
+
   await addTeamMember(
     invitation.teamId,
     userId,

@@ -8,6 +8,7 @@ import {
 } from "./db";
 import { type UserMetrics, type TrainingTrackId } from "@reptrainer/shared";
 import { v4 as uuidv4 } from "uuid";
+import { calculateSessionMetrics } from "./analytics/standardizer";
 
 /**
  * Recalculates all user metrics from scratch based on all existing sessions.
@@ -56,14 +57,10 @@ export async function recalculateUserMetrics(
   const practiceDates = new Set<string>();
 
   for (const session of allSessions) {
-    const evaluation =
-      session.feedbackReport || session.legacyEvaluation || session.evaluation;
-    if (!evaluation) continue;
-
-    const scores = extractScores(evaluation);
+    const scores = calculateSessionMetrics(session);
     totalScore += scores.overall;
     totalDiscovery += scores.discovery;
-    totalObjection += scores.objection;
+    totalObjection += scores.objection_handling;
     totalPositioning += scores.positioning;
     totalClosing += scores.closing;
     totalListening += scores.listening;
@@ -77,7 +74,7 @@ export async function recalculateUserMetrics(
       talkRatioCount++;
     }
 
-    const dateStr = session.createdAt.split("T")[0];
+    const dateStr = new Date(session.createdAt).toISOString().split("T")[0];
     practiceDates.add(dateStr);
 
     if (session.trackId && !metrics.tracksCompleted.includes(session.trackId)) {
@@ -106,24 +103,46 @@ export async function recalculateUserMetrics(
     for (let i = 1; i < sortedDates.length; i++) {
       const prev = new Date(sortedDates[i - 1]);
       const curr = new Date(sortedDates[i]);
-      const diffDays =
-        (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
-      if (diffDays <= 1.1) {
-        // approx 1 day (handles slight DST shifts)
+
+      // Normalize to UTC midnight to avoid DST issues
+      const prevUTC = Date.UTC(
+        prev.getUTCFullYear(),
+        prev.getUTCMonth(),
+        prev.getUTCDate(),
+      );
+      const currUTC = Date.UTC(
+        curr.getUTCFullYear(),
+        curr.getUTCMonth(),
+        curr.getUTCDate(),
+      );
+
+      const diffDays = Math.round((currUTC - prevUTC) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
         streak++;
-      } else {
+      } else if (diffDays > 1) {
         streak = 1;
       }
+      // if diffDays === 0, same day, streak doesn't change
     }
 
-    // Check if the streak is still active (was it practiced today or yesterday?)
+    // Check if the streak is still active
     const lastDate = new Date(sortedDates[sortedDates.length - 1]);
     const now = new Date();
-    // Normalize to midnight for comparison
-    const lastPracticeMidnight = new Date(lastDate).setHours(0, 0, 0, 0);
-    const todayMidnight = new Date(now).setHours(0, 0, 0, 0);
-    const diffDaysSinceLast =
-      (todayMidnight - lastPracticeMidnight) / (1000 * 60 * 60 * 24);
+    const lastUTC = Date.UTC(
+      lastDate.getUTCFullYear(),
+      lastDate.getUTCMonth(),
+      lastDate.getUTCDate(),
+    );
+    const nowUTC = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+    );
+
+    const diffDaysSinceLast = Math.round(
+      (nowUTC - lastUTC) / (1000 * 60 * 60 * 24),
+    );
 
     if (diffDaysSinceLast > 1) {
       streak = 0;
@@ -143,51 +162,20 @@ export async function recalculateUserMetrics(
 
 /**
  * Helper to extract various scores from any evaluation format.
+ * @deprecated Use calculateSessionMetrics from standardizer instead.
  */
 function extractScores(evaluation: any) {
-  const overall =
-    "overall_score" in evaluation
-      ? evaluation.overall_score
-      : "overallScore" in evaluation
-        ? evaluation.overallScore
-        : (((evaluation.objectionHandling?.score ?? 0) +
-            (evaluation.productPositioning?.score ?? 0) +
-            (evaluation.closing?.score ?? 0)) /
-            3) *
-          10;
-
-  const discovery =
-    evaluation.discovery?.score ??
-    (evaluation.confidence_score || evaluation.overallScore || 0);
-
-  const objection =
-    "objection_handling_score" in evaluation
-      ? evaluation.objection_handling_score
-      : (evaluation.objectionHandling?.score ?? 0);
-
-  const positioning =
-    evaluation.productPositioning?.score ?? (evaluation.confidence_score || 0);
-
-  const closing =
-    "closing_effectiveness_score" in evaluation
-      ? evaluation.closing_effectiveness_score
-      : (evaluation.closing?.score ?? 0);
-
-  const listening = evaluation.activeListening?.score ?? 0;
-
-  const confidence =
-    "confidence_score" in evaluation
-      ? evaluation.confidence_score
-      : positioning;
-
+  // Use a mock session object to satisfy standardizer
+  const mockSession: any = { evaluation };
+  const metrics = calculateSessionMetrics(mockSession);
   return {
-    overall,
-    discovery,
-    objection,
-    positioning,
-    closing,
-    listening,
-    confidence,
+    overall: metrics.overall,
+    discovery: metrics.discovery,
+    objection: metrics.objection_handling,
+    positioning: metrics.positioning,
+    closing: metrics.closing,
+    listening: metrics.listening,
+    confidence: metrics.confidence,
   };
 }
 

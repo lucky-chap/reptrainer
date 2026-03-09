@@ -30,7 +30,10 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { getOverallScore } from "@/lib/analytics-utils";
+import {
+  getOverallScore,
+  calculateSessionMetrics,
+} from "@/lib/analytics-utils";
 import {
   ResponsiveContainer,
   LineChart,
@@ -64,107 +67,74 @@ export function AdminDashboard({
   const totalDuration = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
   const evaluatedSessions = sessions.filter((s) => s.evaluation);
 
-  const avgScore = useMemo(() => {
-    if (evaluatedSessions.length === 0) return 0;
-    return Math.round(
-      evaluatedSessions.reduce((sum, s) => {
-        return sum + getOverallScore(s.evaluation);
-      }, 0) / evaluatedSessions.length,
+  const {
+    avgScore,
+    avgDiscovery,
+    avgObjection,
+    avgPositioning,
+    avgClosing,
+    avgListening,
+  } = useMemo(() => {
+    if (evaluatedSessions.length === 0) {
+      return {
+        avgScore: 0,
+        avgDiscovery: 0,
+        avgObjection: 0,
+        avgPositioning: 0,
+        avgClosing: 0,
+        avgListening: 0,
+      };
+    }
+
+    const totals = evaluatedSessions.reduce(
+      (acc, s) => {
+        const metrics = calculateSessionMetrics(s);
+        acc.overall += metrics.overall;
+        acc.discovery += metrics.discovery;
+        acc.objection += metrics.objection_handling;
+        acc.positioning += metrics.positioning;
+        acc.closing += metrics.closing;
+        acc.listening += metrics.listening;
+        return acc;
+      },
+      {
+        overall: 0,
+        discovery: 0,
+        objection: 0,
+        positioning: 0,
+        closing: 0,
+        listening: 0,
+      },
     );
+
+    const count = evaluatedSessions.length;
+    return {
+      avgScore: Math.round(totals.overall / count),
+      avgDiscovery: Math.round(totals.discovery / count),
+      avgObjection: Math.round(totals.objection / count),
+      avgPositioning: Math.round(totals.positioning / count),
+      avgClosing: Math.round(totals.closing / count),
+      avgListening: Math.round(totals.listening / count),
+    };
   }, [evaluatedSessions]);
-
-  const avgDiscovery =
-    evaluatedSessions.length > 0
-      ? Math.round(
-          evaluatedSessions.reduce((sum, s) => {
-            const e = s.evaluation as any;
-            return (
-              sum +
-              (e.discovery?.score ??
-                (e.confidenceScore !== undefined ? e.confidenceScore * 10 : 0))
-            );
-          }, 0) / evaluatedSessions.length,
-        ) / 10
-      : 0;
-
-  const avgObjection =
-    evaluatedSessions.length > 0
-      ? Math.round(
-          evaluatedSessions.reduce((sum, s) => {
-            const e = s.evaluation as any;
-            return (
-              sum +
-              (e.objectionHandling?.score ??
-                (e.objectionHandlingScore !== undefined
-                  ? e.objectionHandlingScore * 10
-                  : 0))
-            );
-          }, 0) / evaluatedSessions.length,
-        ) / 10
-      : 0;
-
-  const avgPositioning =
-    evaluatedSessions.length > 0
-      ? Math.round(
-          evaluatedSessions.reduce((sum, s) => {
-            const e = s.evaluation as any;
-            return (
-              sum +
-              (e.productPositioning?.score ??
-                (e.confidenceScore !== undefined ? e.confidenceScore * 10 : 0))
-            );
-          }, 0) / evaluatedSessions.length,
-        ) / 10
-      : 0;
-
-  const avgClosing =
-    evaluatedSessions.length > 0
-      ? Math.round(
-          evaluatedSessions.reduce((sum, s) => {
-            const e = s.evaluation as any;
-            return (
-              sum +
-              (e.closing?.score ??
-                (e.confidenceScore !== undefined ? e.confidenceScore * 8 : 0))
-            );
-          }, 0) / evaluatedSessions.length,
-        ) / 10
-      : 0;
-
-  const avgListening =
-    evaluatedSessions.length > 0
-      ? Math.round(
-          evaluatedSessions.reduce((sum, s) => {
-            const e = s.evaluation as any;
-            return (
-              sum +
-              (e.activeListening?.score ??
-                (e.clarityScore !== undefined ? e.clarityScore * 10 : 0))
-            );
-          }, 0) / evaluatedSessions.length,
-        ) / 10
-      : 0;
 
   // Recent sessions (last 7)
   const recentSessions = sessions.slice(0, 7);
 
-  // Trend data for chart (last 7 sessions)
   const trendData = useMemo(() => {
     return sessions
       .slice(0, 7)
       .reverse()
       .map((s) => {
         const date = new Date(s.createdAt);
-        const e = s.evaluation as any;
+        const metrics = calculateSessionMetrics(s);
         return {
           name: date.toLocaleDateString(undefined, {
             month: "short",
             day: "numeric",
           }),
-          score: getOverallScore(s.evaluation),
-          confidence:
-            e?.productPositioning?.score ??
-            (e?.confidenceScore !== undefined ? e.confidenceScore * 10 : 0),
+          score: metrics.overall,
+          confidence: metrics.confidence,
         };
       });
   }, [sessions]);
@@ -205,12 +175,11 @@ export function AdminDashboard({
         />
         <StatCard
           icon={Star}
-          label="Team Avg. Score"
           value={
             metrics?.averageScore
               ? `${Math.round(metrics.averageScore)}/100`
               : avgScore > 0
-                ? `${avgScore}/10`
+                ? `${avgScore}/100`
                 : "—"
           }
           subtext={
@@ -265,12 +234,13 @@ export function AdminDashboard({
                       axisLine={false}
                     />
                     <YAxis
-                      domain={[0, 10]}
+                      domain={[0, 100]}
                       stroke="#9CA3AF"
                       fontSize={10}
                       tickLine={false}
                       axisLine={false}
                     />
+
                     <Tooltip
                       contentStyle={{
                         backgroundColor: "#FFF",
@@ -324,9 +294,7 @@ export function AdminDashboard({
               icon={Search}
               label="Discovery"
               score={
-                metrics
-                  ? Math.round(metrics.discoveryAverage / 10)
-                  : avgDiscovery
+                metrics ? Math.round(metrics.discoveryAverage) : avgDiscovery
               }
             />
             <SkillBar
@@ -334,7 +302,7 @@ export function AdminDashboard({
               label="Objection Handling"
               score={
                 metrics
-                  ? Math.round(metrics.objectionHandlingAverage / 10)
+                  ? Math.round(metrics.objectionHandlingAverage)
                   : avgObjection
               }
             />
@@ -343,23 +311,21 @@ export function AdminDashboard({
               label="Product Positioning"
               score={
                 metrics
-                  ? Math.round(metrics.productPositioningAverage / 10)
+                  ? Math.round(metrics.productPositioningAverage)
                   : avgPositioning
               }
             />
             <SkillBar
               icon={CheckCircle2}
               label="Closing Success"
-              score={
-                metrics ? Math.round(metrics.closingAverage / 10) : avgClosing
-              }
+              score={metrics ? Math.round(metrics.closingAverage) : avgClosing}
             />
             <SkillBar
               icon={MessageSquare}
               label="Active Listening"
               score={
                 metrics
-                  ? Math.round(metrics.activeListeningAverage / 10)
+                  ? Math.round(metrics.activeListeningAverage)
                   : avgListening
               }
             />
@@ -433,7 +399,7 @@ export function AdminDashboard({
                             {score}
                           </span>
                           <span className="text-warm-gray/60 text-[10px] font-bold">
-                            /10
+                            %
                           </span>
                         </div>
                       )}
@@ -507,10 +473,10 @@ function SkillBar({ icon: Icon, label, score }: any) {
           {label}
         </span>
         <span className="text-charcoal text-xs font-bold">
-          {score > 0 ? `${score}/10` : "—"}
+          {score > 0 ? `${score}%` : "—"}
         </span>
       </div>
-      <Progress value={score * 10} className="h-1.5" />
+      <Progress value={score} className="h-1.5" />
     </div>
   );
 }

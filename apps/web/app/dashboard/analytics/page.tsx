@@ -52,8 +52,10 @@ import {
   calculateTeamCoverage,
   calculateCategoryScores,
   getOverallScore,
+  calculateSessionMetrics,
   generateCoachingInsights,
 } from "@/lib/analytics-utils";
+
 import { CoachingInsights } from "@/components/analytics/coaching-insights";
 import {
   ResponsiveContainer,
@@ -91,6 +93,7 @@ export default function AnalyticsPage() {
   } = useTeam();
   const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
   const [viewMode, setViewMode] = useState<"team" | "personal">("personal");
+  const isTeamView = viewMode === "team";
 
   useEffect(() => {
     if (!teamLoading) {
@@ -208,79 +211,47 @@ export default function AnalyticsPage() {
   const totalSessions = filteredSessions.length;
 
   const avgScores = useMemo(() => {
-    return evaluatedSessions.length > 0
-      ? {
-          overall:
-            Math.round(
-              evaluatedSessions.reduce((sum, s) => {
-                return sum + getOverallScore(s.evaluation);
-              }, 0) / evaluatedSessions.length,
-            ) / 10,
-          discovery:
-            Math.round(
-              evaluatedSessions.reduce((sum, s) => {
-                const e = s.evaluation as any;
-                const score =
-                  e.discovery?.score ??
-                  (e.confidenceScore !== undefined
-                    ? e.confidenceScore * 10
-                    : 0);
-                return sum + score;
-              }, 0) / evaluatedSessions.length,
-            ) / 10,
-          objection:
-            Math.round(
-              evaluatedSessions.reduce((sum, s) => {
-                const e = s.evaluation as any;
-                const score =
-                  e.objectionHandling?.score ??
-                  (e.objectionHandlingScore !== undefined
-                    ? e.objectionHandlingScore * 10
-                    : 0);
-                return sum + score;
-              }, 0) / evaluatedSessions.length,
-            ) / 10,
-          positioning:
-            Math.round(
-              evaluatedSessions.reduce((sum, s) => {
-                const e = s.evaluation as any;
-                const score =
-                  e.productPositioning?.score ??
-                  (e.confidenceScore !== undefined
-                    ? e.confidenceScore * 10
-                    : 0);
-                return sum + score;
-              }, 0) / evaluatedSessions.length,
-            ) / 10,
-          closing:
-            Math.round(
-              evaluatedSessions.reduce((sum, s) => {
-                const e = s.evaluation as any;
-                const score =
-                  e.closing?.score ??
-                  (e.confidenceScore !== undefined ? e.confidenceScore * 8 : 0);
-                return sum + score;
-              }, 0) / evaluatedSessions.length,
-            ) / 10,
-          listening:
-            Math.round(
-              evaluatedSessions.reduce((sum, s) => {
-                const e = s.evaluation as any;
-                const score =
-                  e.activeListening?.score ??
-                  (e.clarityScore !== undefined ? e.clarityScore * 10 : 0);
-                return sum + score;
-              }, 0) / evaluatedSessions.length,
-            ) / 10,
-        }
-      : {
-          overall: 0,
-          discovery: 0,
-          objection: 0,
-          positioning: 0,
-          closing: 0,
-          listening: 0,
-        };
+    if (evaluatedSessions.length === 0) {
+      return {
+        overall: 0,
+        discovery: 0,
+        objection: 0,
+        positioning: 0,
+        closing: 0,
+        listening: 0,
+      };
+    }
+
+    const totals = evaluatedSessions.reduce(
+      (acc, s) => {
+        const metrics = calculateSessionMetrics(s);
+        acc.overall += metrics.overall;
+        acc.discovery += metrics.discovery;
+        acc.objection += metrics.objection_handling;
+        acc.positioning += metrics.positioning;
+        acc.closing += metrics.closing;
+        acc.listening += metrics.listening;
+        return acc;
+      },
+      {
+        overall: 0,
+        discovery: 0,
+        objection: 0,
+        positioning: 0,
+        closing: 0,
+        listening: 0,
+      },
+    );
+
+    const count = evaluatedSessions.length;
+    return {
+      overall: Math.round(totals.overall / count),
+      discovery: Math.round(totals.discovery / count),
+      objection: Math.round(totals.objection / count),
+      positioning: Math.round(totals.positioning / count),
+      closing: Math.round(totals.closing / count),
+      listening: Math.round(totals.listening / count),
+    };
   }, [evaluatedSessions]);
 
   // Advanced Analytics Data
@@ -340,18 +311,12 @@ export default function AnalyticsPage() {
       .slice(0, limit)
       .reverse()
       .map((s, i) => {
-        const e = s.evaluation as any;
+        const metrics = calculateSessionMetrics(s);
         return {
           name: i + 1,
-          score: getOverallScore(s.evaluation) / 10,
-          objection:
-            e?.objectionHandling?.score !== undefined
-              ? e.objectionHandling.score / 10
-              : (e?.objectionHandlingScore ?? 0),
-          listening:
-            e?.activeListening?.score !== undefined
-              ? e.activeListening.score / 10
-              : (e?.clarityScore ?? 0),
+          score: metrics.overall,
+          objection: metrics.objection_handling,
+          listening: metrics.listening,
         };
       });
   }, [filteredSessions, timeframe]);
@@ -413,13 +378,12 @@ export default function AnalyticsPage() {
             Deep Insights
           </span>
           <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
-            {viewMode === "team" ? "Team" : "Personal"} <em>Performance.</em>
+            {isTeamView ? "Team" : "Personal"} <em>Performance.</em>
           </h1>
           <p className="text-warm-gray mt-2 max-w-2xl text-base">
-            Track {viewMode === "team" ? "your team's" : "your"} journey from
-            pitch to close. See how{" "}
-            {viewMode === "team" ? "collective" : "your"} skills have evolved
-            across every roleplay session.
+            Track {isTeamView ? "your team's" : "your"} journey from pitch to
+            close. See how {isTeamView ? "collective" : "your"} skills have
+            evolved across every roleplay session.
           </p>
         </div>
       </div>
@@ -483,7 +447,7 @@ export default function AnalyticsPage() {
           </Select>
 
           {/* Member Filter */}
-          {viewMode === "team" && (
+          {isTeamView && (
             <Select
               value={selectedMemberId}
               onValueChange={setSelectedMemberId}
@@ -529,29 +493,46 @@ export default function AnalyticsPage() {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <MetricCard
-          label="Team Mastery"
-          value={`${avgScores.overall}/10`}
+          label={isTeamView ? "Team Mastery" : "Personal Mastery"}
+          value={`${avgScores.overall}/100`}
           icon={Award}
-          description="Average across all team evaluated sessions"
+          description={
+            isTeamView
+              ? "Average across all team evaluated sessions"
+              : "Average across your evaluated sessions"
+          }
         />
+
         <MetricCard
           label="Training Intensity"
           value={totalSessions.toString()}
           icon={Activity}
-          description="Total roleplay sessions completed"
+          description={
+            isTeamView
+              ? "Total roleplay sessions completed"
+              : "Your total roleplay sessions"
+          }
         />
         <MetricCard
           label="Recent Consistency"
           value={(() => {
-            const weekAgo = new Date();
-            weekAgo.setDate(weekAgo.getDate() - 7);
+            const now = new Date();
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+            // Filter sessions from the last 7 days
             const recentSessions = filteredSessions.filter((s) => {
               const sessionDate = new Date(s.createdAt);
-              return sessionDate > weekAgo;
+              return sessionDate >= weekAgo && sessionDate <= now;
             });
+
+            // Count unique days in UTC to be consistent with streak logic
             const uniqueDays = new Set(
-              recentSessions.map((s) => new Date(s.createdAt).toDateString()),
+              recentSessions.map((s) => {
+                const d = new Date(s.createdAt);
+                return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+              }),
             ).size;
+
             return uniqueDays.toString();
           })()}
           icon={Calendar}
@@ -600,7 +581,7 @@ export default function AnalyticsPage() {
                       }}
                     />
                     <YAxis
-                      domain={[0, 10]}
+                      domain={[0, 100]}
                       stroke="#9CA3AF"
                       fontSize={10}
                       tickLine={false}
@@ -645,7 +626,9 @@ export default function AnalyticsPage() {
               <div className="border-border/40 flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed">
                 <BarChart3 className="text-warm-gray/30 size-8" />
                 <p className="text-warm-gray text-sm italic">
-                  Not enough data to graph the team's progress yet.
+                  {isTeamView
+                    ? "Not enough data to graph the team's progress yet."
+                    : "Not enough data to graph your progress yet."}
                 </p>
               </div>
             )}
@@ -660,10 +643,12 @@ export default function AnalyticsPage() {
         <Card className="border-border/60 min-w-0 bg-white shadow-none">
           <CardHeader>
             <CardTitle className="text-base font-bold">
-              Team Skill Radar
+              {isTeamView ? "Team Skill Radar" : "Personal Skill Radar"}
             </CardTitle>
             <CardDescription className="text-xs">
-              Holistic view of collective team sales competencies
+              {isTeamView
+                ? "Holistic view of collective team sales competencies"
+                : "Holistic view of your sales competencies"}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex h-[300px] items-center justify-center pt-4">
@@ -682,7 +667,7 @@ export default function AnalyticsPage() {
                   />
                   <PolarRadiusAxis
                     angle={30}
-                    domain={[0, 10]}
+                    domain={[0, 100]}
                     axisLine={false}
                     tick={false}
                   />
@@ -698,7 +683,9 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             ) : (
               <p className="text-warm-gray text-xs italic">
-                Not enough data to reveal team radar.
+                {isTeamView
+                  ? "Not enough data to reveal team radar."
+                  : "Not enough data to reveal your radar."}
               </p>
             )}
           </CardContent>
@@ -710,7 +697,9 @@ export default function AnalyticsPage() {
         <CardHeader>
           <CardTitle className="text-base font-bold">Skill Breakdown</CardTitle>
           <CardDescription className="text-xs">
-            Detailed view of collective team sales skills
+            {isTeamView
+              ? "Detailed view of collective team sales skills"
+              : "Detailed view of your sales skills"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -755,10 +744,12 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base font-bold">
-                  Team Training Coverage
+                  {isTeamView ? "Team Training Coverage" : "Training Coverage"}
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Practice depth across products
+                  {isTeamView
+                    ? "Practice depth across products"
+                    : "Your practice depth across products"}
                 </CardDescription>
               </div>
               <Activity className="text-warm-gray size-4" />
@@ -805,7 +796,7 @@ export default function AnalyticsPage() {
                     %
                   </span>
                   <span className="text-warm-gray/60 text-[8px] font-bold tracking-widest uppercase">
-                    Total Coverage
+                    {isTeamView ? "Total Coverage" : "Your Coverage"}
                   </span>
                 </div>
                 <div className="bg-charcoal/5 flex flex-1 flex-col items-center rounded-xl p-3">
@@ -816,7 +807,7 @@ export default function AnalyticsPage() {
                     )}
                   </span>
                   <span className="text-warm-gray/60 text-[8px] font-bold tracking-widest uppercase">
-                    Mastered Scenarios
+                    {isTeamView ? "Mastered Scenarios" : "Personas Practiced"}
                   </span>
                 </div>
               </div>
@@ -828,10 +819,12 @@ export default function AnalyticsPage() {
         <Card className="border-border/60 bg-white shadow-none lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base font-bold">
-              Team Activity Feed
+              {isTeamView ? "Team Activity Feed" : "Your Session Feed"}
             </CardTitle>
             <CardDescription className="text-xs">
-              Recent roleplay sessions across the team
+              {isTeamView
+                ? "Recent roleplay sessions across the team"
+                : "Your most recent roleplay sessions"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -851,7 +844,7 @@ export default function AnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-border/20 divide-y">
-                  {sessions.slice(0, 5).map((session) => (
+                  {filteredSessions.slice(0, 5).map((session) => (
                     <tr
                       key={session.id}
                       className="group hover:bg-cream/10 transition-colors"
@@ -865,7 +858,9 @@ export default function AnalyticsPage() {
                       <td className="px-2 py-4">
                         <div className="flex flex-col">
                           <span className="text-charcoal text-xs font-semibold">
-                            {session.userName || "Team Member"}
+                            {isTeamView
+                              ? session.userName || "Team Member"
+                              : session.userName || user?.displayName || "You"}
                           </span>
                           <span className="text-warm-gray text-[10px]">
                             vs. {session.personaName} ({session.personaRole})
@@ -910,7 +905,7 @@ export default function AnalyticsPage() {
             {personaScores.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={personaScores} layout="vertical">
-                  <XAxis type="number" domain={[0, 10]} hide />
+                  <XAxis type="number" domain={[0, 100]} hide />
                   <YAxis
                     dataKey="name"
                     type="category"
@@ -950,7 +945,7 @@ export default function AnalyticsPage() {
             {productScores.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={productScores} layout="vertical">
-                  <XAxis type="number" domain={[0, 10]} hide />
+                  <XAxis type="number" domain={[0, 100]} hide />
                   <YAxis
                     dataKey="name"
                     type="category"
@@ -990,10 +985,10 @@ function SkillBar({ icon: Icon, label, score }: any) {
           {label}
         </span>
         <span className="text-charcoal text-xs font-bold">
-          {score > 0 ? `${score}/10` : "—"}
+          {score > 0 ? `${score}%` : "—"}
         </span>
       </div>
-      <Progress value={score * 10} className="h-1.5" />
+      <Progress value={score} className="h-1.5" />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import {
   Phone,
@@ -31,16 +32,13 @@ import {
   createCallSession,
   updateCallSession,
 } from "@/lib/db";
-import { SessionResults } from "@/components/session-results";
 import { CallDurationSelector } from "@/components/call-duration-selector";
-import { FeedbackReportDisplay } from "@/components/feedback-report-display";
 import {
   evaluateSession as evaluateSessionAction,
   generateFeedbackReport,
   generateCoachDebrief,
 } from "@/app/actions/api";
 import { useAuth } from "@/context/auth-context";
-import { CoachDebrief } from "@/components/coach-debrief";
 import { updateUserMetrics } from "@/lib/progress-service";
 import {
   CALL_DURATION_DEFAULT,
@@ -49,7 +47,6 @@ import {
   type TrainingTrackId,
   type FeedbackReport,
   type TranscriptMessage,
-  type CoachDebriefResponse,
   type ScenarioTemplate,
   PersonaEngine,
 } from "@reptrainer/shared";
@@ -79,12 +76,8 @@ export function RoleplaySession({
   customScenario,
   teamId,
 }: RoleplaySessionProps) {
+  const router = useRouter();
   const { user } = useAuth();
-  const [showResults, setShowResults] = useState(false);
-  const [savedSession, setSavedSession] = useState<Session | null>(null);
-  const [feedbackReport, setFeedbackReport] = useState<FeedbackReport | null>(
-    null,
-  );
   const [evaluating, setEvaluating] = useState(false);
   const [loadingStage, setLoadingStage] = useState<
     "audio" | "evaluating" | "saving" | "finalizing"
@@ -95,9 +88,6 @@ export function RoleplaySession({
     user?.displayName || "",
   );
   const [nameSubmitted, setNameSubmitted] = useState(!!user);
-  const [sidebarTab, setSidebarTab] = useState<"chat" | "insights" | "coach">(
-    "chat",
-  );
 
   // ─── Timed Call State ─────────────────────────────────────────────────
   const [durationSelected, setDurationSelected] = useState(false);
@@ -107,12 +97,6 @@ export function RoleplaySession({
   const [warningShown, setWarningShown] = useState(false);
   const [callSessionId] = useState(() => uuidv4());
   const [inputLocked, setInputLocked] = useState(false);
-  const [coachMode, setCoachMode] = useState(true);
-  const [showDebrief, setShowDebrief] = useState(false);
-  const [debriefData, setDebriefData] = useState<CoachDebriefResponse | null>(
-    null,
-  );
-
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
   // ─── Training Track Context ───────────────────────────────────────────
@@ -211,15 +195,24 @@ ${trackPromptOverride}
 - If the rep earns your respect with compelling, evidence-backed answers, you can soften slightly — but never become easy.
 - You are the BUYER, not the sales rep. Do not pitch for them or fill in gaps they should address.
 
-─── SALES COACHING & INSIGHTS (SILENT) ───
-1. **AUTONOMOUS LOGGING**: You are a world-class sales coach. As the meeting progresses, actively identify 3-5 key moments where the rep shows a specific strength or a clear area for improvement (e.g., "Handled the price objection with ROI data" or "Avoided the direct question about security"). Call "log_sales_insight" IMMEDIATELY when these moments occur. Do NOT wait for silence. These insights are your primary way of providing real-time coaching.
-2. **BUTTON TRIGGERS**: If you receive "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]", IMMEDIATELY call "log_sales_insight" with a summary of the rep's most recent performance. Do this SILENTLY; do not break character.
-3. **VOCAL CUES**: If the rep says "Remember this" or "Log that", call the tool and acknowledge them briefly in character (e.g., "Noted. Now, about your implementation timeline...").
-4. **ENDING THE MEETING**: When you decide to wrap up and leave the meeting (as described in section 5 of BEHAVIOR RULES), you MUST:
-   a) FIRST: Speak your full closing/goodbye phrase out loud naturally and completely. Do NOT cut yourself off.
-   b) THEN: Only AFTER you have fully finished speaking your goodbye, call the "end_roleplay" tool. Never call this tool mid-sentence or before your spoken goodbye is complete.
+─── SALES COACHING & INSIGHTS (SILENT WHISPER TIPS) ───
+1. **PROACTIVE COACHING**: You are a veteran sales coach. Your Whisper Tips must sound like a real coach talking to the rep in real time. Be direct, specific, and action‑oriented. Do NOT wait for major events. Log 3-5 tips per call.
+2. **VOICE & FORMAT**:
+   - Use second person ("you") and a confident coach tone.
+   - Give a concrete next move, not a generic critique.
+   - Keep each tip to 1-2 short sentences.
+   - If useful, include a quick line the rep can say next.
+   - Never mention tools, logging, or AI.
+3. **ROI NUDGE (SPECIFIC)**: If "17% ROI" or a similar high‑impact metric is mentioned, IMMEDIATELY log: "Acknowledge the 17% ROI claim, then pressure‑test it. Ask what assumptions get them there and how it holds under our current budget."
+4. **TACTICAL MOMENTS**: Log insights for:
+   - Handling price/objection with data.
+   - Missing a chance to ask a discovery question.
+   - Using too much jargon.
+   - Failing to pause for the buyer's reaction.
+5. **BUTTON TRIGGERS**: If you receive "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]", IMMEDIATELY call "log_sales_insight" with a sharp, coach‑style tip on the rep's most recent performance.
+6. **ENDING THE MEETING**: After you have fully finished speaking your goodbye, call the "end_roleplay" tool.
 
-**CRITICAL**: Never mention "tools", "logging", or being an AI.   */
+**CRITICAL**: You are a SILENT COACH. Your insights appear on the rep's HUD as "Whisper Tips". Never mention "tools", "logging", or being an AI in your spoken dialogue.   */
 
   // Map persona gender to a matching Gemini voice
   const FEMALE_VOICES = ["Aoede", "Kore", "Zephyr"];
@@ -279,6 +272,7 @@ ${trackPromptOverride}
     isAISpeaking,
     startRecording,
     stopRecording,
+    waitForPlaybackFinish,
   } = useGeminiLive({
     systemPrompt,
     voiceName,
@@ -433,6 +427,9 @@ ${trackPromptOverride}
     // Stop recording FIRST — this awaits the MediaRecorder flush
     const audioBlob = (await stopRecording()) || undefined;
 
+    // Wait for AI to finish speaking before disconnecting
+    await waitForPlaybackFinish?.();
+
     disconnect();
 
     // Build transcript text with timestamps
@@ -569,18 +566,12 @@ ${trackPromptOverride}
             updateCallSession(callSessionId, { debrief }),
             saveSession({ ...session, debrief }),
           ]).catch((err) => console.error("Failed to persist debrief:", err));
-
-          setDebriefData(debrief);
-          setShowDebrief(true);
         } catch (debriefError) {
           console.error("Coach Debrief generation failed:", debriefError);
         }
       }
 
       setLoadingProgress(100);
-      setSavedSession(session);
-      setFeedbackReport(feedbackResult);
-
       // ─── Update User Metrics ──────────────────────────────────────────
       if (user) {
         // Construct a CallSession-like object for metrics update
@@ -594,6 +585,9 @@ ${trackPromptOverride}
           console.error("Failed to update user metrics:", err),
         );
       }
+
+      router.push(`/history/${sessionId}`);
+      return;
     } catch (error) {
       console.error("Evaluation error:", error);
       userId = user?.uid || "anonymous";
@@ -616,51 +610,15 @@ ${trackPromptOverride}
         createdAt: new Date().toISOString(),
       };
       await saveSession(session);
-      setSavedSession(session);
-      setShowResults(true);
+      router.push(`/session/${sessionId}`);
+      return;
     } finally {
       setEvaluating(false);
     }
   };
 
-  // ─── Render: Coach Debrief Overlay ─────────────────────────────────────
-  if (showDebrief && debriefData) {
-    return (
-      <CoachDebrief
-        slides={debriefData.slides}
-        audioBase64={debriefData.audioBase64}
-        onClose={() => setShowDebrief(false)}
-      />
-    );
-  }
-
   // Keep ref updated for timer callback
   handleEndCallRef.current = handleEndCall;
-
-  // ─── Render: Show feedback report if available ─────────────────────────
-  if (showResults && feedbackReport) {
-    return (
-      <FeedbackReportDisplay
-        report={feedbackReport}
-        personaName={persona.name}
-        durationSeconds={callDuration}
-        insights={insights}
-        onBack={onBack}
-      />
-    );
-  }
-
-  // Show legacy results after call
-  if (showResults && savedSession) {
-    return (
-      <SessionResults
-        session={savedSession}
-        persona={persona}
-        product={product}
-        onBack={onBack}
-      />
-    );
-  }
 
   // Show evaluating screen
   if (evaluating) {
@@ -1160,7 +1118,7 @@ ${trackPromptOverride}
                   {/* Whisper Coach HUD Overlay */}
                   <div
                     className={`absolute bottom-24 left-1/2 z-20 w-full max-w-sm -translate-x-1/2 px-4 transition-all duration-500 ease-out ${
-                      showHUD && coachMode
+                      showHUD
                         ? "translate-y-0 opacity-100"
                         : "pointer-events-none translate-y-4 opacity-0"
                     }`}
@@ -1267,25 +1225,6 @@ ${trackPromptOverride}
                 </button>
               )}
 
-              {/* Coach Mode Toggle */}
-              {isConnected && !personaLeft && (
-                <button
-                  onClick={() => {
-                    const nextMode = !coachMode;
-                    setCoachMode(nextMode);
-                    if (nextMode) setSidebarTab("coach");
-                  }}
-                  title={coachMode ? "Exit Coach Mode" : "Enter Coach Mode"}
-                  className={`flex size-11 items-center justify-center rounded-full border shadow-sm transition-colors ${
-                    coachMode
-                      ? "border-sky-600 bg-sky-500 text-white"
-                      : "border-border/40 hover:bg-cream bg-white text-sky-500"
-                  }`}
-                >
-                  <BookOpen className="size-5" />
-                </button>
-              )}
-
               {/* Start / End Call */}
               {!isConnected && !isConnecting && !personaLeft ? (
                 <button
@@ -1370,211 +1309,76 @@ ${trackPromptOverride}
             {/* Coach Mode static panel removed (moved to sidebar tabs) */}
 
             {/* Chat / Transcript */}
-            <div className="border-border/40 bg-cream/20 flex shrink-0 items-center gap-1 border-b px-2 py-2">
-              <button
-                onClick={() => setSidebarTab("chat")}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-                  sidebarTab === "chat"
-                    ? "text-charcoal border-border/40 border bg-white shadow-sm"
-                    : "text-warm-gray hover:text-charcoal"
-                }`}
-              >
-                <MessageSquare className="size-3.5" />
-                Chat
-              </button>
-              <button
-                onClick={() => setSidebarTab("insights")}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-                  sidebarTab === "insights"
-                    ? "text-charcoal border-border/40 border bg-white shadow-sm"
-                    : "text-warm-gray hover:text-charcoal"
-                }`}
-              >
-                <Zap className="size-3.5" />
-                Insights
-                {insights.length > 0 && (
-                  <span className="flex size-4 items-center justify-center rounded-full bg-amber-500 text-[9px] text-white">
-                    {insights.length}
-                  </span>
-                )}
-              </button>
-
-              {coachMode && (
-                <button
-                  onClick={() => setSidebarTab("coach")}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-                    sidebarTab === "coach"
-                      ? "text-charcoal border-border/40 border bg-white shadow-sm"
-                      : "text-warm-gray hover:text-charcoal"
-                  }`}
-                >
-                  <BookOpen className="size-3.5" />
-                  Coach
-                </button>
-              )}
+            <div className="border-border/40 bg-cream/20 flex shrink-0 items-center gap-2 border-b px-4 py-3">
+              <MessageSquare className="text-warm-gray size-4" />
+              <h3 className="text-charcoal text-sm font-semibold">
+                Live Transcript
+              </h3>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
-              {sidebarTab === "chat" ? (
-                <div className="space-y-4">
-                  {transcript.length === 0 ? (
-                    <div className="flex h-full flex-col items-center justify-center py-10 text-center">
-                      <div className="bg-cream mb-3 flex size-10 items-center justify-center rounded-full">
-                        <MessageSquare className="text-warm-gray size-4" />
-                      </div>
-                      <p className="text-warm-gray max-w-[180px] text-xs">
-                        {isConnected
-                          ? "Listening... conversation will appear here."
-                          : "Start the call to see the live transcript."}
-                      </p>
+              <div className="space-y-4">
+                {transcript.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center py-10 text-center">
+                    <div className="bg-cream mb-3 flex size-10 items-center justify-center rounded-full">
+                      <MessageSquare className="text-warm-gray size-4" />
                     </div>
-                  ) : (
-                    transcript.map((entry, i) => (
+                    <p className="text-warm-gray max-w-[180px] text-xs">
+                      {isConnected
+                        ? "Listening... conversation will appear here."
+                        : "Start the call to see the live transcript."}
+                    </p>
+                  </div>
+                ) : (
+                  transcript.map((entry, i) => (
+                    <div
+                      key={i}
+                      className={`animate-fade-up flex gap-2.5 ${
+                        entry.role === "user" ? "flex-row-reverse" : "flex-row"
+                      }`}
+                      style={{
+                        animationDelay: `${Math.min(i * 50, 200)}ms`,
+                      }}
+                    >
                       <div
-                        key={i}
-                        className={`animate-fade-up flex gap-2.5 ${
-                          entry.role === "user"
-                            ? "flex-row-reverse"
-                            : "flex-row"
+                        className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                          entry.role === "model"
+                            ? "bg-charcoal text-cream"
+                            : "bg-cream-dark text-charcoal"
                         }`}
-                        style={{
-                          animationDelay: `${Math.min(i * 50, 200)}ms`,
-                        }}
                       >
-                        <div
-                          className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                            entry.role === "model"
-                              ? "bg-charcoal text-cream"
-                              : "bg-cream-dark text-charcoal"
-                          }`}
-                        >
-                          {entry.role === "model"
-                            ? persona.name.charAt(0)
-                            : displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <div
-                          className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] ${
-                            entry.role === "user"
-                              ? "bg-charcoal rounded-tr-sm text-white"
-                              : "bg-cream/80 text-charcoal rounded-tl-sm"
-                          }`}
-                        >
-                          <p
-                            className={`mb-0.5 text-[9px] font-bold tracking-wider uppercase ${entry.role === "user" ? "text-white/50" : "text-warm-gray"}`}
-                          >
-                            {entry.role === "user" ? displayName : persona.name}
-                          </p>
-                          <p className="leading-relaxed">
-                            {entry.text}
-                            {entry.isStreaming && (
-                              <span className="ml-1 inline-block h-3.5 w-1 animate-pulse rounded-full bg-current align-middle opacity-50" />
-                            )}
-                            {entry.role === "model" && entry.isInterrupted && (
-                              <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 opacity-80">
-                                <PhoneOff className="size-2.5" /> [Interrupted]
-                              </span>
-                            )}
-                          </p>
-                        </div>
+                        {entry.role === "model"
+                          ? persona.name.charAt(0)
+                          : displayName.charAt(0).toUpperCase()}
                       </div>
-                    ))
-                  )}
-                </div>
-              ) : sidebarTab === "coach" ? (
-                <div className="animate-fade-up space-y-4">
-                  <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
-                    <div className="mb-3 flex items-center gap-2">
-                      <Zap className="size-4 text-sky-600" />
-                      <h3 className="text-sm font-bold text-sky-700">
-                        Live Whisper Tips
-                      </h3>
-                    </div>
-                    <div className="mb-4 rounded-lg border border-sky-100 bg-white/80 p-3 shadow-sm">
-                      <p className="text-[10px] font-bold tracking-widest text-sky-600 uppercase">
-                        Current Insight
-                      </p>
-                      <p className="text-charcoal mt-1 text-xs leading-relaxed font-medium">
-                        {latestInsight?.insight || "Analyzing conversation..."}
-                      </p>
-                    </div>
-                    <p className="text-warm-gray mb-3 text-[10px] font-bold tracking-widest uppercase">
-                      Coaching Frameworks
-                    </p>
-                    <ul className="space-y-3 text-xs text-sky-800">
-                      <li className="flex items-start gap-3">
-                        <div className="mt-1 size-1.5 shrink-0 rounded-full bg-sky-200" />
-                        <p>
-                          <strong className="text-sky-900">LAER</strong>:
-                          Listen, Acknowledge, Explore, Respond. Never skip the
-                          Explore phase.
-                        </p>
-                      </li>
-                      <li className="flex items-start gap-3">
-                        <div className="mt-1 size-1.5 shrink-0 rounded-full bg-sky-200" />
-                        <p>
-                          <strong className="text-sky-900">Value-First</strong>:
-                          Quantify the $ impact of the problem before offering
-                          the solution.
-                        </p>
-                      </li>
-                      <li className="flex items-start gap-3">
-                        <div className="mt-1 size-1.5 shrink-0 rounded-full bg-sky-200" />
-                        <p>
-                          <strong className="text-sky-900">Trial Close</strong>:
-                          Test the waters with &quot;Hypothetically, if we
-                          could...&quot;
-                        </p>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div className="rounded-xl border border-amber-100 bg-amber-50/30 p-4">
-                    <h4 className="mb-2 text-[10px] font-bold tracking-widest text-amber-700 uppercase">
-                      Member Tip
-                    </h4>
-                    <p className="text-charcoal text-xs leading-relaxed italic">
-                      &quot;The goal isn&apos;t just to pitch, but to understand
-                      why they might NOT buy today.&quot;
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {insights.length === 0 ? (
-                    <div className="flex h-full flex-col items-center justify-center py-10 text-center">
-                      <div className="bg-cream mb-3 flex size-10 items-center justify-center rounded-full">
-                        <Zap className="text-warm-gray size-4" />
-                      </div>
-                      <p className="text-warm-gray max-w-[180px] text-xs">
-                        No insights logged yet. The AI will log key moments, or
-                        you can click the lightbulb to save a moment.
-                      </p>
-                    </div>
-                  ) : (
-                    insights.map((insight, i) => (
                       <div
-                        key={i}
-                        className="animate-fade-up rounded-xl border border-amber-100 bg-amber-50/50 p-3"
-                        style={{
-                          animationDelay: `${Math.min(i * 50, 200)}ms`,
-                        }}
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] ${
+                          entry.role === "user"
+                            ? "bg-charcoal rounded-tr-sm text-white"
+                            : "bg-cream/80 text-charcoal rounded-tl-sm"
+                        }`}
                       >
-                        <div className="mb-1.5 flex items-center justify-between">
-                          <span className="text-[10px] font-bold tracking-tight text-amber-600 uppercase">
-                            Sales Insight
-                          </span>
-                          <span className="text-warm-gray font-mono text-[10px]">
-                            {formatTime(insight.timestamp)}
-                          </span>
-                        </div>
-                        <p className="text-charcoal pr-2 text-xs leading-relaxed">
-                          {insight.insight}
+                        <p
+                          className={`mb-0.5 text-[9px] font-bold tracking-wider uppercase ${entry.role === "user" ? "text-white/50" : "text-warm-gray"}`}
+                        >
+                          {entry.role === "user" ? displayName : persona.name}
+                        </p>
+                        <p className="leading-relaxed">
+                          {entry.text}
+                          {entry.isStreaming && (
+                            <span className="ml-1 inline-block h-3.5 w-1 animate-pulse rounded-full bg-current align-middle opacity-50" />
+                          )}
+                          {entry.role === "model" && entry.isInterrupted && (
+                            <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 opacity-80">
+                              <PhoneOff className="size-2.5" /> [Interrupted]
+                            </span>
+                          )}
                         </p>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
+                    </div>
+                  ))
+                )}
+              </div>
               <div ref={transcriptEndRef} className="h-2" />
             </div>
           </div>

@@ -98,8 +98,9 @@ ${transcript}
 
 1. **Be specific.** Reference exact quotes or paraphrased moments from the transcript. Don't give generic advice.
 2. **Be balanced.** Acknowledge what the rep did well AND where they fell short.
-3. **Be actionable.** Every suggestion must be something the rep can practice or change immediately.
-4. **Score honestly.** Don't inflate scores. A truly excellent rep gets 85+. Average is 50-65. Poor is below 40.
+3. **Be personal and direct.** Use the second person ("you") for all commentary. Address the rep directly (e.g., "You handled the objection well" instead of "The rep handled the objection well").
+4. **Be actionable.** Every suggestion must be something the rep can practice or change immediately.
+5. **Score honestly.** Don't inflate scores. A truly excellent rep gets 85+. Average is 50-65. Poor is below 40.
 
 ─── OUTPUT FORMAT ───
 

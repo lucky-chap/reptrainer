@@ -188,6 +188,11 @@ export function useGeminiSocket(options: UseGeminiSocketOptions) {
                 generation_config: {
                   response_modalities: ["AUDIO"],
                 },
+                realtime_input_config: {
+                  automatic_activity_detection: {
+                    silence_duration_ms: 600,
+                  },
+                },
               },
             };
             ws.send(JSON.stringify(fallbackSetup));
@@ -266,7 +271,12 @@ export function useGeminiSocket(options: UseGeminiSocketOptions) {
           const toolCall = message.toolCall || message.tool_call;
           if (toolCall?.functionCalls || toolCall?.function_calls) {
             const calls = toolCall.functionCalls || toolCall.function_calls;
+            console.log(`[GeminiSocket] Received ${calls.length} tool calls`);
             for (const call of calls) {
+              console.log(
+                `[GeminiSocket] Processing tool call: ${call.name}`,
+                call.args,
+              );
               if (call.name === "log_sales_insight") {
                 const insightContent = call.args.insight;
                 const insightTime = call.args.timestamp || getDuration();
@@ -274,27 +284,29 @@ export function useGeminiSocket(options: UseGeminiSocketOptions) {
                   insight: insightContent,
                   timestamp: insightTime,
                 };
+                console.log("[GeminiSocket] New sales insight:", newInsight);
                 setInsights((prev) => [...prev, newInsight]);
               }
 
               if (call.name === "end_roleplay") {
+                console.log("[GeminiSocket] Persona requested to end roleplay");
                 optionsRef.current.onToolCallEndRoleplay();
               }
 
               if (ws.readyState === WebSocket.OPEN) {
-                ws.send(
-                  JSON.stringify({
-                    tool_response: {
-                      function_responses: [
-                        {
-                          name: call.name,
-                          response: { success: true },
-                          id: call.id,
-                        },
-                      ],
-                    },
-                  }),
-                );
+                const response = {
+                  tool_response: {
+                    function_responses: [
+                      {
+                        name: call.name,
+                        response: { success: true },
+                        id: call.id,
+                      },
+                    ],
+                  },
+                };
+                console.log("[GeminiSocket] Sending tool response:", response);
+                ws.send(JSON.stringify(response));
               }
             }
           }

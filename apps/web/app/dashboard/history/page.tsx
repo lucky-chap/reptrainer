@@ -50,6 +50,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getOverallScore } from "@/lib/analytics-utils";
 
 export default function HistoryPage() {
   const { user } = useAuth();
@@ -236,7 +237,7 @@ export default function HistoryPage() {
             const product = products[session.productId];
             const evaluation = session.evaluation;
 
-            const overallScore = evaluation?.overallScore || 0;
+            const overallScore = evaluation ? getOverallScore(evaluation) : 0;
 
             return (
               <div

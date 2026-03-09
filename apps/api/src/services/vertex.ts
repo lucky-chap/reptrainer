@@ -307,7 +307,7 @@ export function getLiveSetupConfig(
       output_audio_transcription: {},
       realtime_input_config: {
         automatic_activity_detection: {
-          silence_duration_ms: 1200,
+          silence_duration_ms: 600, // Reduced from 1200 to decrease response latency
           start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
           end_of_speech_sensitivity: "END_SENSITIVITY_HIGH",
         },

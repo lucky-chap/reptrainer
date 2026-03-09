@@ -26,3 +26,29 @@ export async function uploadAvatar(
   // Return the public URL
   return file.publicUrl();
 }
+
+/**
+ * Uploads a buffer to Firebase Storage and returns the public URL.
+ */
+export async function uploadFile(
+  buffer: Buffer,
+  destination: string,
+  contentType: string,
+): Promise<string> {
+  const bucket = storage.bucket();
+  const file = bucket.file(destination);
+
+  await file.save(buffer, {
+    metadata: {
+      contentType,
+    },
+  });
+
+  // Make the file publicly accessible
+  await file.makePublic();
+
+  console.log(`File uploaded to ${destination}`);
+
+  // Return the public URL
+  return file.publicUrl();
+}

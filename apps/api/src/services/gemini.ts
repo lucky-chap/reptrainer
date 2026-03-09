@@ -247,6 +247,8 @@ Also identify:
 - 3-5 actionable improvement tips (specific, practical advice)
 - An overall score (0-100) based on weighted performance.
 
+**CRITICAL: Use the second person ("you") for all descriptions, strengths, weaknesses, and tips to address the rep directly.**
+
 Return ONLY valid JSON in this exact format, no markdown:
 {
   "discovery": { "score": <0-100>, "explanation": "<brief 1-sentence explanation>" },

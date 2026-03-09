@@ -94,11 +94,14 @@ export default function InvitePage() {
       router.push("/dashboard");
     } catch (error) {
       console.error("Error accepting invitation:", error);
+      const description =
+        error instanceof Error
+          ? error.message
+          : "Failed to accept invitation. It may have expired or been revoked.";
       setErrorModal({
         show: true,
         title: "Invitation Error",
-        description:
-          "Failed to accept invitation. It may have expired or been revoked.",
+        description,
       });
       setIsAccepting(false);
     }

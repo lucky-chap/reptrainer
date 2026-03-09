@@ -101,5 +101,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     startRecording: audio.startRecording,
     stopRecording: audio.stopRecording,
     getRecordingBlob: audio.getRecordingBlob,
+    waitForPlaybackFinish: audio.waitForPlaybackFinish,
   };
 }
