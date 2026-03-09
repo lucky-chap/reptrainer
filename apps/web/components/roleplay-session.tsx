@@ -586,7 +586,7 @@ ${trackPromptOverride}
         );
       }
 
-      router.push(`/history/${sessionId}`);
+      router.push(`/dashboard/history/${sessionId}`);
       return;
     } catch (error) {
       console.error("Evaluation error:", error);

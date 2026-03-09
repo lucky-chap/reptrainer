@@ -170,24 +170,16 @@ export function AdminDashboard({
         <StatCard
           icon={Activity}
           label="Team Sessions"
-          value={metrics?.totalCalls.toString() || totalSessions.toString()}
-          subtext={`${metrics ? Math.floor(metrics.totalDurationSeconds / 60) : Math.floor(totalDuration / 60)}m total practice`}
+          value={totalSessions.toString()}
+          subtext={`${Math.floor(totalDuration / 60)}m total practice`}
         />
         <StatCard
           icon={Star}
-          value={
-            metrics?.averageScore
-              ? `${Math.round(metrics.averageScore)}/100`
-              : avgScore > 0
-                ? `${avgScore}/100`
-                : "—"
-          }
+          value={avgScore > 0 ? `${avgScore}/100` : "—"}
           subtext={
-            metrics?.totalCalls
-              ? `Across ${metrics.totalCalls} sessions`
-              : evaluatedSessions.length > 0
-                ? `From ${evaluatedSessions.length} evaluated`
-                : "Complete a session to see"
+            evaluatedSessions.length > 0
+              ? `From ${evaluatedSessions.length} evaluated`
+              : "Complete a session to see"
           }
         />
         <StatCard
@@ -290,44 +282,26 @@ export function AdminDashboard({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <SkillBar
-              icon={Search}
-              label="Discovery"
-              score={
-                metrics ? Math.round(metrics.discoveryAverage) : avgDiscovery
-              }
-            />
+            <SkillBar icon={Search} label="Discovery" score={avgDiscovery} />
             <SkillBar
               icon={Target}
               label="Objection Handling"
-              score={
-                metrics
-                  ? Math.round(metrics.objectionHandlingAverage)
-                  : avgObjection
-              }
+              score={avgObjection}
             />
             <SkillBar
               icon={Zap}
               label="Product Positioning"
-              score={
-                metrics
-                  ? Math.round(metrics.productPositioningAverage)
-                  : avgPositioning
-              }
+              score={avgPositioning}
             />
             <SkillBar
               icon={CheckCircle2}
               label="Closing Success"
-              score={metrics ? Math.round(metrics.closingAverage) : avgClosing}
+              score={avgClosing}
             />
             <SkillBar
               icon={MessageSquare}
               label="Active Listening"
-              score={
-                metrics
-                  ? Math.round(metrics.activeListeningAverage)
-                  : avgListening
-              }
+              score={avgListening}
             />
           </CardContent>
         </Card>

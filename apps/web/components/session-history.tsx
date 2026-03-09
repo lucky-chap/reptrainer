@@ -31,7 +31,7 @@ import { SessionResults } from "@/components/session-results";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import { generateCoachDebrief } from "@/app/actions/api";
-import { getOverallScore } from "@/lib/analytics-utils";
+import { calculateSessionMetrics } from "@/lib/analytics/standardizer";
 
 export function SessionHistory() {
   const { user } = useAuth();
@@ -167,8 +167,8 @@ export function SessionHistory() {
             const persona = personas[session.personaId];
             const product = products[session.productId];
             const evaluation = session.evaluation;
-
-            const overallScore = evaluation ? getOverallScore(evaluation) : null;
+            const metrics = calculateSessionMetrics(session);
+            const overallScore = evaluation ? metrics.overall : null;
 
             return (
               <Card
@@ -183,9 +183,9 @@ export function SessionHistory() {
                     <div
                       className={`flex size-12 items-center justify-center rounded-xl text-lg font-bold ${
                         overallScore !== null
-                          ? overallScore >= 7
+                          ? overallScore >= 70
                             ? "bg-emerald-glow/10 text-emerald-glow border-emerald-glow/20 border"
-                            : overallScore >= 4
+                            : overallScore >= 40
                               ? "bg-amber-glow/10 text-amber-glow border-amber-glow/20 border"
                               : "bg-rose-glow/10 text-rose-glow border-rose-glow/20 border"
                           : "bg-secondary text-muted-foreground"
@@ -224,15 +224,11 @@ export function SessionHistory() {
                       <div className="hidden items-center gap-3 text-xs sm:flex">
                         <span className="text-emerald-glow flex items-center gap-1">
                           <Target className="size-3" />
-                          {(evaluation as any).objectionHandling
-                            ? (evaluation as any).objectionHandling.score
-                            : (evaluation as any).objection_handling_score}
+                          {metrics.objection_handling}
                         </span>
                         <span className="text-blue-glow flex items-center gap-1">
                           <Shield className="size-3" />
-                          {(evaluation as any).closing
-                            ? (evaluation as any).closing.score
-                            : (evaluation as any).closing_effectiveness_score}
+                          {metrics.closing}
                         </span>
                       </div>
                     )}

@@ -33,6 +33,7 @@ import {
 import { CoachDebrief } from "./coach-debrief";
 import { generateCoachDebrief } from "@/app/actions/api";
 import type { CoachDebriefResponse } from "@reptrainer/shared";
+import { calculateSessionMetrics } from "@/lib/analytics/standardizer";
 import {
   Card,
   CardHeader,
@@ -257,9 +258,9 @@ export function SessionResults({
     }
   };
 
-  const evaluation = session.evaluation;
-
-  const overallScore = getOverallScore(evaluation);
+  const sessionMetrics = calculateSessionMetrics(session);
+  const overallScore = sessionMetrics.overall;
+  const evaluation = session.evaluation as any;
 
   const [audioUrl, setAudioUrl] = useState<string | null>(
     session.audioUrl || null,
@@ -368,40 +369,40 @@ export function SessionResults({
             <CardContent className="-mt-6 rounded-t-3xl bg-white p-8">
               <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:flex sm:flex-wrap sm:justify-between">
                 <ScoreIndicator
-                  score={(evaluation as any)?.discovery?.score || 0}
+                  score={sessionMetrics.discovery}
                   label="Discovery"
-                  explanation={(evaluation as any)?.discovery?.explanation}
+                  explanation={evaluation?.discovery?.explanation}
                   icon={Search}
                 />
                 <ScoreIndicator
-                  score={(evaluation as any)?.objectionHandling?.score || 0}
+                  score={sessionMetrics.objection_handling}
                   label="Objections"
-                  explanation={
-                    (evaluation as any)?.objectionHandling?.explanation
-                  }
+                  explanation={evaluation?.objectionHandling?.explanation}
                   icon={Shield}
                 />
                 <ScoreIndicator
-                  score={(evaluation as any)?.productPositioning?.score || 0}
+                  score={sessionMetrics.positioning}
                   label="Positioning"
-                  explanation={
-                    (evaluation as any)?.productPositioning?.explanation
-                  }
+                  explanation={evaluation?.productPositioning?.explanation}
                   icon={Target}
                 />
                 <ScoreIndicator
-                  score={(evaluation as any)?.activeListening?.score || 0}
+                  score={sessionMetrics.listening}
                   label="Listening"
-                  explanation={
-                    (evaluation as any)?.activeListening?.explanation
-                  }
+                  explanation={evaluation?.activeListening?.explanation}
                   icon={Ear}
                 />
                 <ScoreIndicator
-                  score={(evaluation as any)?.closing?.score || 0}
+                  score={sessionMetrics.closing}
                   label="Closing"
-                  explanation={(evaluation as any)?.closing?.explanation}
+                  explanation={evaluation?.closing?.explanation}
                   icon={Handshake}
+                />
+                <ScoreIndicator
+                  score={sessionMetrics.confidence}
+                  label="Confidence"
+                  explanation="Overall delivery confidence"
+                  icon={Eye}
                 />
               </div>
             </CardContent>
@@ -422,7 +423,7 @@ export function SessionResults({
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3">
-                  {evaluation?.strengths.map((s, i) => (
+                  {evaluation?.strengths.map((s: string, i: number) => (
                     <li
                       key={i}
                       className="text-warm-gray flex items-start gap-2.5 text-sm leading-relaxed"
@@ -448,7 +449,7 @@ export function SessionResults({
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3">
-                  {evaluation?.weaknesses.map((w, i) => (
+                  {evaluation?.weaknesses.map((w: string, i: number) => (
                     <li
                       key={i}
                       className="text-warm-gray flex items-start gap-2.5 text-sm leading-relaxed"
@@ -476,7 +477,7 @@ export function SessionResults({
             </CardHeader>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                {evaluation?.improvementTips.map((t, i) => (
+                {evaluation?.improvementTips.map((t: string, i: number) => (
                   <div
                     key={i}
                     className="rounded-xl border border-amber-500/10 bg-amber-500/5 p-4"

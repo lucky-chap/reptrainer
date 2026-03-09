@@ -32,6 +32,7 @@ export function useGeminiAudio(options: UseGeminiAudioOptions = {}) {
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const supportedMimeTypeRef = useRef<string>("audio/webm");
   const mixedStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(
     null,
   );
@@ -345,7 +346,12 @@ export function useGeminiAudio(options: UseGeminiAudioOptions = {}) {
     let options = {};
     for (const mimeType of mimeTypes) {
       if (mimeType === "" || MediaRecorder.isTypeSupported(mimeType)) {
-        if (mimeType !== "") options = { mimeType };
+        if (mimeType !== "") {
+          options = { mimeType };
+          supportedMimeTypeRef.current = mimeType;
+        } else {
+          supportedMimeTypeRef.current = ""; // Browser default
+        }
         break;
       }
     }
@@ -402,7 +408,7 @@ export function useGeminiAudio(options: UseGeminiAudioOptions = {}) {
           return;
         }
         const blob = new Blob(recordedChunksRef.current, {
-          type: "audio/webm",
+          type: supportedMimeTypeRef.current || "audio/webm",
         });
         recordedChunksRef.current = [];
         resolve(blob);
@@ -414,7 +420,9 @@ export function useGeminiAudio(options: UseGeminiAudioOptions = {}) {
   }, []);
   const getRecordingBlob = useCallback(() => {
     if (recordedChunksRef.current.length === 0) return null;
-    const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
+    const blob = new Blob(recordedChunksRef.current, {
+      type: supportedMimeTypeRef.current || "audio/webm",
+    });
     recordedChunksRef.current = [];
     return blob;
   }, []);

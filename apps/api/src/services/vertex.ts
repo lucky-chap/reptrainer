@@ -274,7 +274,7 @@ export function getLiveSetupConfig(
   project: string,
   location: string,
   systemPrompt: string,
-  voiceNameInput: string = "Kore",
+  voiceNameInput: string,
 ) {
   // Ensure voiceName is valid for the Live API
   const allVoices = [...FEMALE_VOICES, ...MALE_VOICES];
@@ -324,7 +324,8 @@ export function getLiveSetupConfig(
                 properties: {
                   insight: {
                     type: "string",
-                    description: "The description of the sales insight.",
+                    description:
+                      "The description of the sales insight. The description should be geared towards the user, in a form of advice. Use pronouns like 'you'. Directly address the user.",
                   },
                   timestamp: {
                     type: "number",

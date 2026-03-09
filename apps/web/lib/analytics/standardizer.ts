@@ -57,15 +57,38 @@ export function calculateSessionMetrics(
   // 1. Handle New structured SessionEvaluation
   if ("discovery" in activeEval && typeof activeEval.discovery === "object") {
     const e = activeEval as SessionEvaluation;
-    const overall = normalizeTo100(e.overallScore);
+
+    // Calculate the average of the 5 core skills to prevent AI hallucinations (e.g. flat 18 score)
+    const scoresToAverage: number[] = [];
+    if (e.discovery?.score !== undefined)
+      scoresToAverage.push(normalizeTo100(e.discovery.score));
+    if (e.objectionHandling?.score !== undefined)
+      scoresToAverage.push(normalizeTo100(e.objectionHandling.score));
+    if (e.productPositioning?.score !== undefined)
+      scoresToAverage.push(normalizeTo100(e.productPositioning.score));
+    if (e.closing?.score !== undefined)
+      scoresToAverage.push(normalizeTo100(e.closing.score));
+    if (e.activeListening?.score !== undefined)
+      scoresToAverage.push(normalizeTo100(e.activeListening.score));
+
+    const calculatedOverall =
+      scoresToAverage.length > 0
+        ? Math.round(
+            scoresToAverage.reduce((a, b) => a + b, 0) / scoresToAverage.length,
+          )
+        : normalizeTo100(e.overallScore) || 0;
+
     return {
-      overall,
-      discovery: normalizeTo100(e.discovery?.score) || overall,
-      objection_handling: normalizeTo100(e.objectionHandling?.score) || overall,
-      positioning: normalizeTo100(e.productPositioning?.score) || overall,
-      closing: normalizeTo100(e.closing?.score) || overall,
-      listening: normalizeTo100(e.activeListening?.score) || overall,
-      confidence: normalizeTo100(e.productPositioning?.score) || overall,
+      overall: calculatedOverall,
+      discovery: normalizeTo100(e.discovery?.score) || calculatedOverall,
+      objection_handling:
+        normalizeTo100(e.objectionHandling?.score) || calculatedOverall,
+      positioning:
+        normalizeTo100(e.productPositioning?.score) || calculatedOverall,
+      closing: normalizeTo100(e.closing?.score) || calculatedOverall,
+      listening: normalizeTo100(e.activeListening?.score) || calculatedOverall,
+      confidence:
+        normalizeTo100(e.productPositioning?.score) || calculatedOverall,
     };
   }
 
