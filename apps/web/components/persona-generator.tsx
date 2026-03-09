@@ -25,12 +25,16 @@ interface PersonaGeneratorProps {
 
 const intensityLabels = [
   "Friendly Skeptic",
+  "Curious Prospect",
   "Tough Negotiator",
+  "Stubborn Executive",
   "Hostile Gatekeeper",
 ];
 const intensityColors = [
   "text-amber-glow bg-amber-glow/10 border-amber-glow/20",
+  "text-indigo-glow bg-indigo-glow/10 border-indigo-glow/20",
   "text-blue-glow bg-blue-glow/10 border-blue-glow/20",
+  "text-violet-glow bg-violet-glow/10 border-violet-glow/20",
   "text-rose-glow bg-rose-glow/10 border-rose-glow/20",
 ];
 
@@ -93,13 +97,13 @@ export function PersonaGenerator({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="size-8 border-2 border-emerald-glow/30 border-t-emerald-glow rounded-full animate-spin" />
+        <div className="border-emerald-glow/30 border-t-emerald-glow size-8 animate-spin rounded-full border-2" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="animate-fade-up space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Buyer Personas</h2>
@@ -109,29 +113,29 @@ export function PersonaGenerator({
       </div>
 
       {/* Generator */}
-      <Card className="p-6 glass">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="size-10 rounded-xl bg-gradient-to-br from-violet-glow/15 to-violet-glow/5 border border-violet-glow/15 flex items-center justify-center">
-            <Sparkles className="size-5 text-violet-glow" />
+      <Card className="glass p-6">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="from-violet-glow/15 to-violet-glow/5 border-violet-glow/15 flex size-10 items-center justify-center rounded-xl border bg-gradient-to-br">
+            <Sparkles className="text-violet-glow size-5" />
           </div>
           <div>
             <h3 className="font-semibold">Generate New Persona</h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Select a product to generate a unique buyer persona
             </p>
           </div>
         </div>
 
         {products.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Add a product first to generate personas.
           </p>
         ) : (
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <select
               value={selectedProductId || ""}
               onChange={(e) => setSelectedProductId(e.target.value || null)}
-              className="flex-1 h-10 rounded-lg border border-border bg-input px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="border-border bg-input focus:ring-ring h-10 flex-1 rounded-lg border px-3 text-sm focus:ring-2 focus:outline-none"
             >
               <option value="">Select a product...</option>
               {products.map((p) => (
@@ -143,7 +147,7 @@ export function PersonaGenerator({
             <Button
               onClick={handleGenerate}
               disabled={!selectedProductId || isGenerating}
-              className="gap-2 min-w-[160px]"
+              className="min-w-[160px] gap-2"
             >
               {isGenerating ? (
                 <>
@@ -163,12 +167,12 @@ export function PersonaGenerator({
 
       {/* Persona List */}
       {personas.length === 0 ? (
-        <Card className="p-12 flex flex-col items-center justify-center text-center glass">
-          <div className="size-16 rounded-2xl bg-violet-glow/10 flex items-center justify-center mb-4">
-            <UserCircle className="size-8 text-violet-glow/60" />
+        <Card className="glass flex flex-col items-center justify-center p-12 text-center">
+          <div className="bg-violet-glow/10 mb-4 flex size-16 items-center justify-center rounded-2xl">
+            <UserCircle className="text-violet-glow/60 size-8" />
           </div>
-          <h3 className="text-lg font-semibold mb-1">No personas yet</h3>
-          <p className="text-muted-foreground text-sm max-w-sm">
+          <h3 className="mb-1 text-lg font-semibold">No personas yet</h3>
+          <p className="text-muted-foreground max-w-sm text-sm">
             Generate your first buyer persona to start roleplay sessions.
           </p>
         </Card>
@@ -179,17 +183,17 @@ export function PersonaGenerator({
             return (
               <Card
                 key={persona.id}
-                className="p-5 glass hover:border-violet-glow/20 transition-all duration-300 group animate-fade-up"
+                className="glass hover:border-violet-glow/20 group animate-fade-up p-5 transition-all duration-300"
                 style={{ animationDelay: `${i * 80}ms` }}
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className="mb-3 flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="size-11 rounded-full bg-gradient-to-br from-violet-glow/20 to-blue-glow/10 border border-violet-glow/15 flex items-center justify-center text-lg font-bold text-violet-glow">
+                    <div className="from-violet-glow/20 to-blue-glow/10 border-violet-glow/15 text-violet-glow flex size-11 items-center justify-center rounded-full border bg-gradient-to-br text-lg font-bold">
                       {persona.name.charAt(0)}
                     </div>
                     <div>
                       <h3 className="font-semibold">{persona.name}</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         {persona.role}
                       </p>
                     </div>
@@ -197,7 +201,7 @@ export function PersonaGenerator({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                    className="text-muted-foreground hover:text-destructive opacity-0 transition-all group-hover:opacity-100"
                     onClick={() => handleDelete(persona.id)}
                   >
                     <Trash2 className="size-4" />
@@ -205,11 +209,11 @@ export function PersonaGenerator({
                 </div>
 
                 {/* Traits */}
-                <div className="space-y-2 mb-4">
+                <div className="mb-4 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Gauge className="size-3.5 text-muted-foreground" />
+                    <Gauge className="text-muted-foreground size-3.5" />
                     <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+                      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
                         intensityColors[persona.intensityLevel - 1]
                       }`}
                     >
@@ -217,8 +221,8 @@ export function PersonaGenerator({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Siren className="size-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">
+                    <Siren className="text-muted-foreground size-3.5" />
+                    <span className="text-muted-foreground text-xs">
                       Interruptions:{" "}
                       <span className="text-foreground capitalize">
                         {persona.traits.interruptionFrequency}
@@ -226,8 +230,8 @@ export function PersonaGenerator({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <MessageSquareWarning className="size-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">
+                    <MessageSquareWarning className="text-muted-foreground size-3.5" />
+                    <span className="text-muted-foreground text-xs">
                       Style:{" "}
                       <span className="text-foreground capitalize">
                         {persona.traits.objectionStyle}
@@ -237,12 +241,12 @@ export function PersonaGenerator({
                 </div>
 
                 {product && (
-                  <p className="text-[11px] text-muted-foreground mb-3">
+                  <p className="text-muted-foreground mb-3 text-[11px]">
                     Product: {product.companyName}
                   </p>
                 )}
 
-                <p className="text-xs text-muted-foreground line-clamp-2 mb-4">
+                <p className="text-muted-foreground mb-4 line-clamp-2 text-xs">
                   {persona.objectionStrategy}
                 </p>
 
@@ -250,7 +254,7 @@ export function PersonaGenerator({
                   onClick={() => onStartRoleplay?.(persona)}
                   variant="secondary"
                   size="sm"
-                  className="w-full gap-2 group-hover:bg-emerald-glow/10 group-hover:text-emerald-glow group-hover:border-emerald-glow/20 transition-all"
+                  className="group-hover:bg-emerald-glow/10 group-hover:text-emerald-glow group-hover:border-emerald-glow/20 w-full gap-2 transition-all"
                 >
                   Start Roleplay
                   <ChevronRight className="size-4" />

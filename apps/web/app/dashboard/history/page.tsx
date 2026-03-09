@@ -19,6 +19,7 @@ import Image from "next/image";
 import type { Session, Persona, Product } from "@/lib/db";
 import {
   deleteSession,
+  deleteCallSession,
   subscribeSessions,
   subscribePersonas,
   subscribeProducts,
@@ -26,6 +27,7 @@ import {
   updateCallSession,
   getUserTeams,
 } from "@/lib/db";
+import { recalculateUserMetrics } from "@/lib/progress-service";
 import { generateCoachDebrief } from "@/app/actions/api";
 import { SessionResults } from "@/components/session-results";
 import {
@@ -120,8 +122,16 @@ export default function HistoryPage() {
     };
   }, [user]);
 
-  const handleDelete = async (id: string) => {
-    await deleteSession(id);
+  const handleDelete = async (id: string, userId?: string) => {
+    if (!isAdmin) return;
+    if (!window.confirm("Are you sure you want to delete this session?"))
+      return;
+
+    await Promise.all([deleteSession(id), deleteCallSession(id)]);
+
+    if (userId) {
+      await recalculateUserMetrics(userId);
+    }
   };
 
   const handleMoveToTeam = async (sessionId: string, teamId: string) => {
@@ -365,15 +375,17 @@ export default function HistoryPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(session.id);
-                      }}
-                      className="text-warm-gray-light hover:text-rose-glow p-2 opacity-0 transition-all group-hover:opacity-100"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(session.id, session.userId);
+                        }}
+                        className="text-warm-gray-light hover:text-rose-glow p-2 opacity-0 transition-all group-hover:opacity-100"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
                     <div className="bg-cream-dark flex size-8 items-center justify-center rounded-full transition-transform group-hover:translate-x-1">
                       <ChevronRight className="text-charcoal size-4" />
                     </div>

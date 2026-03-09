@@ -3,7 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { createTeam, getUserMemberships } from "@/lib/db";
+import {
+  createTeam,
+  getUserMemberships,
+  getAllUserMemberships,
+  acceptInvitation,
+} from "@/lib/db";
 import { useTeam } from "@/context/team-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,15 +20,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Zap, Users, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Zap, Users, Loader2, LogIn } from "lucide-react";
+import { toast } from "sonner";
 
 export default function TeamOnboardingPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [teamName, setTeamName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const [checkingTeams, setCheckingTeams] = useState(true);
   const [loadingText, setLoadingText] = useState("Preparing your workspace...");
+  const [wasRemoved, setWasRemoved] = useState(false);
   const { refreshMemberships } = useTeam();
 
   useEffect(() => {
@@ -34,9 +44,13 @@ export default function TeamOnboardingPage() {
 
     if (user) {
       const checkExistingTeams = async () => {
-        const teams = await getUserMemberships(user.uid);
-        if (teams.length > 0) {
-          const isAdmin = teams.some((t) => t.role === "admin");
+        const [activeTeams, allMemberships] = await Promise.all([
+          getUserMemberships(user.uid),
+          getAllUserMemberships(user.uid),
+        ]);
+
+        if (activeTeams.length > 0) {
+          const isAdmin = activeTeams.some((t) => t.role === "admin");
           setLoadingText(
             isAdmin
               ? "Preparing your workspace..."
@@ -44,6 +58,10 @@ export default function TeamOnboardingPage() {
           );
           router.push("/dashboard");
         } else {
+          const hasBeenRemoved = allMemberships.some(
+            (m) => m.status === "removed",
+          );
+          setWasRemoved(hasBeenRemoved);
           setCheckingTeams(false);
         }
       };
@@ -62,7 +80,32 @@ export default function TeamOnboardingPage() {
       router.push("/dashboard");
     } catch (error) {
       console.error("Failed to create team:", error);
+      toast.error("Failed to create team. Please try again.");
       setIsCreating(false);
+    }
+  };
+
+  const handleJoinTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !inviteCode.trim()) return;
+
+    setIsJoining(true);
+    try {
+      await acceptInvitation(
+        inviteCode.trim(),
+        user.uid,
+        user.displayName || undefined,
+        user.photoURL || undefined,
+      );
+      await refreshMemberships();
+      toast.success("Joined team successfully!");
+      router.push("/dashboard");
+    } catch (error) {
+      console.error("Failed to join team:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to join team.",
+      );
+      setIsJoining(false);
     }
   };
 
@@ -88,51 +131,103 @@ export default function TeamOnboardingPage() {
 
       <Card className="border-border/40 shadow-charcoal/5 w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <div className="bg-charcoal/5 mx-auto mb-4 flex size-12 items-center justify-center rounded-full">
+          <div className="bg-charcoal/5 mx-auto mb-1 flex size-12 items-center justify-center rounded-full">
             <Users className="text-charcoal size-6" />
           </div>
-          <CardTitle className="text-2xl">Create your team</CardTitle>
+          <CardTitle className="my-2 font-serif text-4xl">
+            {wasRemoved ? "Join a new team" : "Welcome to Reptrainer"}
+          </CardTitle>
           <CardDescription>
-            Collaborate with your colleagues and share roleplay insights.
+            {wasRemoved
+              ? "You are no longer part of your previous team. Join a new one or create your own."
+              : "Collaborate with your colleagues and share roleplay insights."}
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleCreateTeam}>
-          <CardContent className="space-y-4">
-            <div className="mb-4 space-y-2">
-              <label
-                htmlFor="teamName"
-                className="text-charcoal text-sm font-medium"
-              >
-                Team Name
-              </label>
-              <Input
-                id="teamName"
-                placeholder="Acme Sales Team"
-                value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
-                required
-                disabled={isCreating}
-                className="bg-white"
-              />
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button
-              type="submit"
-              disabled={isCreating || !teamName.trim()}
-              className="bg-charcoal text-cream hover:bg-charcoal-light w-full gap-2 py-6 text-base font-semibold transition-all"
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Creating Team...
-                </>
-              ) : (
-                "Continue to Dashboard"
-              )}
-            </Button>
-          </CardFooter>
-        </form>
+        <CardContent>
+          <Tabs defaultValue="create" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="create">Create Team</TabsTrigger>
+              <TabsTrigger value="join">Join Team</TabsTrigger>
+            </TabsList>
+            <TabsContent value="create">
+              <form onSubmit={handleCreateTeam} className="mt-4 space-y-4">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="teamName"
+                    className="text-charcoal text-sm font-medium"
+                  >
+                    Team Name
+                  </label>
+                  <Input
+                    id="teamName"
+                    placeholder="Acme Sales Team"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    required
+                    disabled={isCreating}
+                    className="bg-white"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isCreating || !teamName.trim()}
+                  className="bg-charcoal text-cream hover:bg-charcoal-light w-full gap-2 py-6 text-base font-semibold transition-all"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Creating Team...
+                    </>
+                  ) : (
+                    "Create Team"
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
+            <TabsContent value="join">
+              <form onSubmit={handleJoinTeam} className="mt-4 space-y-4">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="inviteCode"
+                    className="text-charcoal text-sm font-medium"
+                  >
+                    Invitation Code
+                  </label>
+                  <Input
+                    id="inviteCode"
+                    placeholder="Enter your code"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    required
+                    disabled={isJoining}
+                    className="bg-white"
+                  />
+                  <p className="text-warm-gray text-xs">
+                    Paste the code from your invitation link or enter it
+                    manually.
+                  </p>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isJoining || !inviteCode.trim()}
+                  className="bg-charcoal text-cream hover:bg-charcoal-light w-full gap-2 py-6 text-base font-semibold transition-all"
+                >
+                  {isJoining ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Joining Team...
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="size-4" />
+                      Join Team
+                    </>
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
       </Card>
 
       <p className="text-warm-gray mt-8 text-center text-sm">

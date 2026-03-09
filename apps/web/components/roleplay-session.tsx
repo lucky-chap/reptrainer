@@ -91,9 +91,13 @@ export function RoleplaySession({
   >("audio");
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [userName, setUserName] = useState(user?.displayName || "");
+  const [sessionUserName, setSessionUserName] = useState(
+    user?.displayName || "",
+  );
   const [nameSubmitted, setNameSubmitted] = useState(!!user);
-  const [sidebarTab, setSidebarTab] = useState<"chat" | "insights">("chat");
+  const [sidebarTab, setSidebarTab] = useState<"chat" | "insights" | "coach">(
+    "chat",
+  );
 
   // ─── Timed Call State ─────────────────────────────────────────────────
   const [durationSelected, setDurationSelected] = useState(false);
@@ -119,15 +123,15 @@ export function RoleplaySession({
       ? track.scenarios.find((s) => s.id === scenarioId)
       : null;
 
-  const displayName = userName.trim() || "Sales Rep";
+  const displayName = sessionUserName.trim() || "Sales Rep";
 
   // Build system prompt using the PersonaEngine
   const systemPrompt = useMemo(() => {
     return PersonaEngine.generatePrompt(persona as any, product as any, {
       scenario: scenario || undefined,
-      userName: userName.trim() || undefined,
+      userName: sessionUserName.trim() || undefined,
     });
-  }, [persona, product, scenario, userName]);
+  }, [persona, product, scenario, sessionUserName]);
 
   /*
   const systemPromptLegacy = `You are an enterprise-level buyer named "${persona.name}", a ${persona.role}.
@@ -218,41 +222,9 @@ ${trackPromptOverride}
 **CRITICAL**: Never mention "tools", "logging", or being an AI.   */
 
   // Map persona gender to a matching Gemini voice
-  const FEMALE_VOICES = [
-    "Zephyr",
-    "Kore",
-    "Leda",
-    "Aoede",
-    "Callirrhoe",
-    "Autonoe",
-    "Despina",
-    "Erinome",
-    "Laomedeia",
-    "Achernar",
-    "Pulcherrima",
-    "Achird",
-    "Vindemiatrix",
-    "Sulafat",
-  ];
+  const FEMALE_VOICES = ["Aoede", "Kore", "Zephyr"];
 
-  const MALE_VOICES = [
-    "Puck",
-    "Charon",
-    "Fenrir",
-    "Orus",
-    "Enceladus",
-    "Iapetus",
-    "Umbriel",
-    "Algieba",
-    "Algenib",
-    "Rasalgethi",
-    "Alnilam",
-    "Schedar",
-    "Gacrux",
-    "Zubenelgenubi",
-    "Sadachbia",
-    "Sadaltager",
-  ];
+  const MALE_VOICES = ["Charon", "Fenrir", "Puck"];
 
   const getVoiceForPersona = useCallback(() => {
     // If a specific voice was assigned during generation, use it
@@ -865,13 +837,13 @@ ${trackPromptOverride}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (userName.trim()) setNameSubmitted(true);
+                if (sessionUserName.trim()) setNameSubmitted(true);
               }}
               className="w-full space-y-5"
             >
               <Input
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
+                value={sessionUserName}
+                onChange={(e) => setSessionUserName(e.target.value)}
                 placeholder="Your name (e.g., Alex Johnson)"
                 className="border-border/60 bg-cream/30 focus:ring-charcoal/10 h-14 rounded-2xl text-center text-base transition-all focus:bg-white"
                 autoFocus
@@ -880,7 +852,7 @@ ${trackPromptOverride}
               <Button
                 type="submit"
                 className="bg-charcoal text-cream hover:bg-charcoal-light h-14 w-full gap-3 rounded-2xl text-base font-semibold shadow-md transition-all active:scale-[0.98]"
-                disabled={!userName.trim()}
+                disabled={!sessionUserName.trim()}
               >
                 Continue
                 <Phone className="size-5" />
@@ -1005,7 +977,7 @@ ${trackPromptOverride}
       {/* Call Area — Google Meet-style layout */}
       <div
         className="border-border/40 flex flex-col overflow-hidden rounded-[2rem] border bg-white shadow-xl"
-        style={{ height: "calc(100vh - 200px)", minHeight: "550px" }}
+        style={{ height: "calc(100vh - 120px)", minHeight: "650px" }}
       >
         {/* Top Header Bar */}
         <div className="flex shrink-0 items-center justify-between px-6 py-3">
@@ -1298,7 +1270,11 @@ ${trackPromptOverride}
               {/* Coach Mode Toggle */}
               {isConnected && !personaLeft && (
                 <button
-                  onClick={() => setCoachMode(!coachMode)}
+                  onClick={() => {
+                    const nextMode = !coachMode;
+                    setCoachMode(nextMode);
+                    if (nextMode) setSidebarTab("coach");
+                  }}
                   title={coachMode ? "Exit Coach Mode" : "Enter Coach Mode"}
                   className={`flex size-11 items-center justify-center rounded-full border shadow-sm transition-colors ${
                     coachMode
@@ -1334,7 +1310,7 @@ ${trackPromptOverride}
           </div>
 
           {/* Right Sidebar */}
-          <div className="hidden w-[320px] shrink-0 flex-col gap-3 lg:flex xl:w-[360px]">
+          <div className="hidden w-[380px] shrink-0 flex-col gap-3 lg:flex xl:w-[420px]">
             {/* Meeting Overview Card */}
             <div className="shrink-0 rounded-2xl bg-white p-5 shadow-sm">
               <h3 className="text-charcoal mb-2 text-lg font-semibold">
@@ -1362,7 +1338,7 @@ ${trackPromptOverride}
                     Intensity
                   </p>
                   <p className="text-charcoal text-sm font-semibold">
-                    {persona.intensityLevel}/3
+                    {persona.intensityLevel}/5
                   </p>
                 </div>
                 <div className="bg-cream flex-1 rounded-xl px-3 py-2 text-center">
@@ -1391,41 +1367,7 @@ ${trackPromptOverride}
               )}
             </div>
 
-            {/* Coach Mode Panel */}
-            {coachMode && isConnected && (
-              <div className="animate-fade-up rounded-2xl border border-sky-200/60 bg-sky-50 p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <BookOpen className="size-4 text-sky-600" />
-                  <h3 className="text-sm font-semibold text-sky-700">
-                    Coach Mode Active
-                  </h3>
-                </div>
-                <p className="mb-3 text-xs leading-relaxed text-sky-600/80">
-                  Quick coaching tips based on the current conversation:
-                </p>
-                <ul className="space-y-2 text-xs text-sky-700">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 text-sky-500">•</span>
-                    Listen actively — acknowledge the buyer&apos;s concerns
-                    before responding.
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 text-sky-500">•</span>
-                    Use the LAER framework: Listen, Acknowledge, Explore,
-                    Respond.
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 text-sky-500">•</span>
-                    Quantify value with specific numbers, not vague promises.
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 text-sky-500">•</span>
-                    Try a trial close: &quot;If we can solve X, would you be
-                    interested in moving forward?&quot;
-                  </li>
-                </ul>
-              </div>
-            )}
+            {/* Coach Mode static panel removed (moved to sidebar tabs) */}
 
             {/* Chat / Transcript */}
             <div className="border-border/40 bg-cream/20 flex shrink-0 items-center gap-1 border-b px-2 py-2">
@@ -1456,6 +1398,20 @@ ${trackPromptOverride}
                   </span>
                 )}
               </button>
+
+              {coachMode && (
+                <button
+                  onClick={() => setSidebarTab("coach")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+                    sidebarTab === "coach"
+                      ? "text-charcoal border-border/40 border bg-white shadow-sm"
+                      : "text-warm-gray hover:text-charcoal"
+                  }`}
+                >
+                  <BookOpen className="size-3.5" />
+                  Coach
+                </button>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
@@ -1523,6 +1479,64 @@ ${trackPromptOverride}
                       </div>
                     ))
                   )}
+                </div>
+              ) : sidebarTab === "coach" ? (
+                <div className="animate-fade-up space-y-4">
+                  <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Zap className="size-4 text-sky-600" />
+                      <h3 className="text-sm font-bold text-sky-700">
+                        Live Whisper Tips
+                      </h3>
+                    </div>
+                    <div className="mb-4 rounded-lg border border-sky-100 bg-white/80 p-3 shadow-sm">
+                      <p className="text-[10px] font-bold tracking-widest text-sky-600 uppercase">
+                        Current Insight
+                      </p>
+                      <p className="text-charcoal mt-1 text-xs leading-relaxed font-medium">
+                        {latestInsight?.insight || "Analyzing conversation..."}
+                      </p>
+                    </div>
+                    <p className="text-warm-gray mb-3 text-[10px] font-bold tracking-widest uppercase">
+                      Coaching Frameworks
+                    </p>
+                    <ul className="space-y-3 text-xs text-sky-800">
+                      <li className="flex items-start gap-3">
+                        <div className="mt-1 size-1.5 shrink-0 rounded-full bg-sky-200" />
+                        <p>
+                          <strong className="text-sky-900">LAER</strong>:
+                          Listen, Acknowledge, Explore, Respond. Never skip the
+                          Explore phase.
+                        </p>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="mt-1 size-1.5 shrink-0 rounded-full bg-sky-200" />
+                        <p>
+                          <strong className="text-sky-900">Value-First</strong>:
+                          Quantify the $ impact of the problem before offering
+                          the solution.
+                        </p>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="mt-1 size-1.5 shrink-0 rounded-full bg-sky-200" />
+                        <p>
+                          <strong className="text-sky-900">Trial Close</strong>:
+                          Test the waters with &quot;Hypothetically, if we
+                          could...&quot;
+                        </p>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-100 bg-amber-50/30 p-4">
+                    <h4 className="mb-2 text-[10px] font-bold tracking-widest text-amber-700 uppercase">
+                      Member Tip
+                    </h4>
+                    <p className="text-charcoal text-xs leading-relaxed italic">
+                      &quot;The goal isn&apos;t just to pitch, but to understand
+                      why they might NOT buy today.&quot;
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">

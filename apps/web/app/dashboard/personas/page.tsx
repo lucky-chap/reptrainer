@@ -201,9 +201,19 @@ export default function PersonasPage() {
       objectionStrategy: manualStrategy,
       gender: manualGender,
       traits: {
-        aggressiveness: manualIntensity * 3,
-        interruptionFrequency: "low",
-        objectionStyle: "analytical",
+        aggressiveness: manualIntensity * 3 + Math.floor(Math.random() * 2),
+        interruptionFrequency:
+          manualIntensity === 3
+            ? "high"
+            : manualIntensity === 2
+              ? "medium"
+              : "low",
+        objectionStyle:
+          manualIntensity === 3
+            ? "authority-based"
+            : manualIntensity === 2
+              ? "budget-focused"
+              : "analytical",
       },
       createdAt: new Date().toISOString(),
     };

@@ -22,7 +22,7 @@ export const MAX_SCORE = 10;
 
 /** Persona intensity levels */
 export const MIN_INTENSITY = 1;
-export const MAX_INTENSITY = 3;
+export const MAX_INTENSITY = 5;
 
 /** Call duration constraints (in minutes) */
 export const CALL_DURATION_OPTIONS = [5, 10, 15] as const;

@@ -166,7 +166,7 @@ Generate a buyer persona with the following JSON structure. Return ONLY valid JS
   "gender": "male" or "female" (must match the name),
   "voiceName": "Choose one from the context-appropriate list based on the gender: ${gender === "male" ? MALE_VOICES.join(", ") : gender === "female" ? FEMALE_VOICES.join(", ") : [...MALE_VOICES, ...FEMALE_VOICES].join(", ")}",
   "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. Include: their communication style (direct, analytical, impatient, etc.), what triggers their skepticism, specific pet peeves in sales pitches (e.g., 'hates buzzwords', 'demands ROI before features'), their decision-making approach (consensus-driven, data-driven, gut-feel), and what would make them end a meeting early. Make the persona feel like a real, specific person with strong opinions.",
-  "intensityLevel": 1-3 (1=friendly skeptic, 2=tough negotiator, 3=hostile gatekeeper),
+  "intensityLevel": 1-5 (1=friendly skeptic, 3=tough negotiator, 5=hostile gatekeeper),
   "objectionStrategy": "A specific 2-3 sentence strategy this persona uses to push back. E.g., 'Opens with budget concerns, then escalates to questioning whether the product solves a real problem. Will demand competitive comparisons and walk if the rep can't provide them.'",
   "traits": {
     "aggressiveness": 1-3,
@@ -221,7 +221,7 @@ export async function evaluateSession(
 Persona Context:
 - Buyer Name: ${personaName}
 - Buyer Role: ${personaRole}
-- Difficulty Level: ${intensityLevel}/3
+- Difficulty Level: ${intensityLevel}/5
 - Call Duration: ${Math.round(durationSeconds / 60)} minutes
 
 Transcript:
@@ -274,8 +274,14 @@ export function getLiveSetupConfig(
   project: string,
   location: string,
   systemPrompt: string,
-  voiceName: string = "Kore",
+  voiceNameInput: string = "Kore",
 ) {
+  // Ensure voiceName is valid for the Live API
+  const allVoices = [...FEMALE_VOICES, ...MALE_VOICES];
+  const voiceName = allVoices.includes(voiceNameInput)
+    ? voiceNameInput
+    : "Kore";
+
   return {
     setup: {
       model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
@@ -303,7 +309,7 @@ export function getLiveSetupConfig(
         automatic_activity_detection: {
           silence_duration_ms: 1200,
           start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
-          end_of_speech_sensitivity: "END_SENSITIVITY_MEDIUM",
+          end_of_speech_sensitivity: "END_SENSITIVITY_HIGH",
         },
       },
       tools: [

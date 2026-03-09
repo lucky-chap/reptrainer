@@ -289,13 +289,23 @@ export async function updateTeam(
 
 export type TeamWithRole = Team & { role: "admin" | "member" };
 
+export async function getAllUserMemberships(
+  userId: string,
+): Promise<TeamMember[]> {
+  const q = query(collection(db, "teamMembers"), where("userId", "==", userId));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => doc.data() as TeamMember);
+}
+
 export async function getUserMemberships(
   userId: string,
 ): Promise<TeamWithRole[]> {
   const q = query(collection(db, "teamMembers"), where("userId", "==", userId));
   const querySnapshot = await getDocs(q);
 
-  const memberships = querySnapshot.docs.map((doc) => doc.data() as TeamMember);
+  const memberships = querySnapshot.docs
+    .map((doc) => doc.data() as TeamMember)
+    .filter((m) => m.status === "active");
 
   if (memberships.length === 0) return [];
 
@@ -322,9 +332,10 @@ export async function getUserMemberships(
 export async function getUserTeams(userId: string): Promise<Team[]> {
   const q = query(collection(db, "teamMembers"), where("userId", "==", userId));
   const querySnapshot = await getDocs(q);
-  const teamIds = querySnapshot.docs.map(
-    (doc) => (doc.data() as TeamMember).teamId,
-  );
+  const teamIds = querySnapshot.docs
+    .map((doc) => doc.data() as TeamMember)
+    .filter((m) => m.status === "active")
+    .map((m) => m.teamId);
 
   if (teamIds.length === 0) return [];
 
@@ -352,7 +363,9 @@ export function subscribeUserMemberships(
   return onSnapshot(
     q,
     async (snap) => {
-      const memberships = snap.docs.map((d) => d.data() as TeamMember);
+      const memberships = snap.docs
+        .map((d) => d.data() as TeamMember)
+        .filter((m) => m.status === "active");
       if (memberships.length === 0) {
         onData([]);
         return;
@@ -395,7 +408,10 @@ export function subscribeUserTeams(
   return onSnapshot(
     q,
     async (snap) => {
-      const teamIds = snap.docs.map((d) => (d.data() as TeamMember).teamId);
+      const teamIds = snap.docs
+        .map((d) => d.data() as TeamMember)
+        .filter((m) => m.status === "active")
+        .map((m) => m.teamId);
       if (teamIds.length === 0) {
         onData([]);
         return;
@@ -425,6 +441,7 @@ export async function addTeamMember(
     teamId,
     userId,
     role,
+    status: "active",
     joinedAt: new Date().toISOString(),
   };
 
@@ -438,7 +455,9 @@ export async function removeTeamMember(
   teamId: string,
   userId: string,
 ): Promise<void> {
-  await deleteDoc(doc(db, "teamMembers", `${teamId}_${userId}`));
+  await updateDoc(doc(db, "teamMembers", `${teamId}_${userId}`), {
+    status: "removed",
+  });
 }
 
 // ─── Invitation Operations ───

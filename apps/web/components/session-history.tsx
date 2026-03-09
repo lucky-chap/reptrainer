@@ -22,15 +22,19 @@ import {
   getAllPersonas,
   getAllProducts,
   deleteSession,
+  deleteCallSession,
   saveSession,
   updateCallSession,
 } from "@/lib/db";
+import { recalculateUserMetrics } from "@/lib/progress-service";
 import { SessionResults } from "@/components/session-results";
 import { useAuth } from "@/context/auth-context";
+import { useTeam } from "@/context/team-context";
 import { generateCoachDebrief } from "@/app/actions/api";
 
 export function SessionHistory() {
   const { user } = useAuth();
+  const { isAdmin } = useTeam();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [personas, setPersonas] = useState<Record<string, Persona>>({});
   const [products, setProducts] = useState<Record<string, Product>>({});
@@ -61,8 +65,20 @@ export function SessionHistory() {
     loadData();
   }, [loadData]);
 
-  const handleDelete = async (id: string) => {
-    await deleteSession(id);
+  const handleDelete = async (session: Session) => {
+    if (!isAdmin) return;
+    if (!window.confirm("Are you sure you want to delete this session?"))
+      return;
+
+    // Attempt both just in case, or we could check where it resides
+    await Promise.all([
+      deleteSession(session.id),
+      deleteCallSession(session.id),
+    ]);
+
+    if (session.userId) {
+      await recalculateUserMetrics(session.userId);
+    }
     loadData();
   };
 
@@ -250,17 +266,19 @@ export function SessionHistory() {
                       </Badge>
                     )}
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground hover:text-destructive opacity-0 transition-all group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(session.id);
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive opacity-0 transition-all group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(session);
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
 
                     <ChevronRight className="text-muted-foreground group-hover:text-foreground size-4 transition-colors" />
                   </div>

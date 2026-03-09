@@ -32,7 +32,9 @@ import {
 
 const intensityLabels = [
   "Friendly Skeptic",
+  "Firm Decision Maker",
   "Tough Negotiator",
+  "High-Pressure Executive",
   "Hostile Gatekeeper",
 ];
 
@@ -137,13 +139,13 @@ export function PersonaCard({
           <div className="bg-cream/30 border-border/10 flex items-center gap-2 rounded-lg border px-2.5 py-1.5">
             <Gauge className="text-warm-gray/60 size-3" />
             <span className="text-warm-gray/80 text-[10px] font-bold tracking-tight uppercase">
-              {intensityLabels[persona.intensityLevel - 1]}
+              {intensityLabels[(persona.intensityLevel || 1) - 1] || "Level 1"}
             </span>
           </div>
           <div className="bg-cream/30 border-border/10 flex items-center gap-2 rounded-lg border px-2.5 py-1.5">
             <Siren className="text-warm-gray/60 size-3" />
             <span className="text-warm-gray/80 text-[10px] font-bold tracking-tight uppercase">
-              {persona.traits.interruptionFrequency}
+              {persona.traits?.interruptionFrequency || "Low"}
             </span>
           </div>
         </div>

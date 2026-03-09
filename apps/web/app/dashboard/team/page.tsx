@@ -14,6 +14,7 @@ import {
   Sparkles,
   Loader2,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,6 +36,7 @@ import {
 import { toast } from "sonner";
 import type { TeamMember, Invitation } from "@reptrainer/shared";
 import { Badge } from "@/components/ui/badge";
+import Image from "next/image";
 
 export default function TeamPage() {
   const { user } = useAuth();
@@ -225,51 +227,69 @@ export default function TeamPage() {
                 {members.map((member) => (
                   <div
                     key={member.userId}
-                    className="flex items-center justify-between py-4"
+                    className={cn(
+                      "flex items-center justify-between py-4",
+                      member.status === "removed" && "opacity-60",
+                    )}
                   >
                     <div className="flex items-center gap-3">
                       <div className="bg-charcoal/5 flex size-10 items-center justify-center overflow-hidden rounded-full">
                         {member.userId === user?.uid ? (
                           user?.photoURL ? (
-                            <img
+                            <Image
                               src={user.photoURL}
                               alt="You"
                               className="size-full object-cover"
+                              width={40}
+                              height={40}
                             />
                           ) : (
                             <User className="text-charcoal size-5" />
                           )
                         ) : member.userAvatarUrl ? (
-                          <img
+                          <Image
                             src={member.userAvatarUrl}
                             alt={member.userName || "Team member"}
                             className="size-full object-cover"
+                            width={40}
+                            height={40}
                           />
                         ) : (
                           <User className="text-charcoal size-5" />
                         )}
                       </div>
                       <div>
-                        <p className="text-sm font-medium">
-                          {member.userId === user?.uid
-                            ? "You"
-                            : member.userName || member.userId}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">
+                            {member.userId === user?.uid
+                              ? "You"
+                              : member.userName || member.userId}
+                          </p>
+                          {member.status === "removed" && (
+                            <Badge
+                              variant="secondary"
+                              className="border-red-100 bg-red-50 text-[10px] font-bold tracking-wider text-red-600 uppercase"
+                            >
+                              Removed
+                            </Badge>
+                          )}
+                        </div>
                         <Badge variant="outline" className="mt-1 capitalize">
                           {member.role}
                         </Badge>
                       </div>
                     </div>
-                    {member.userId !== user?.uid && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-warm-gray hover:text-red-500"
-                        onClick={() => handleRemoveMember(member.userId)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    )}
+                    {member.userId !== user?.uid &&
+                      member.status !== "removed" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-warm-gray hover:text-red-500"
+                          onClick={() => handleRemoveMember(member.userId)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
                   </div>
                 ))}
               </div>

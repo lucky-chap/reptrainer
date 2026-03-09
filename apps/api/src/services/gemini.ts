@@ -165,7 +165,7 @@ Generate a buyer persona with the following JSON structure. Return ONLY valid JS
   },
   "speakingStyle": "Describe their verbal pattern (e.g., 'fast-paced and data-driven', 'slow, skeptical and deliberate')",
   "accent": "Specify a natural regional accent (e.g., 'British', 'New York', 'Indian', 'Neutral American')",
-  "voiceName": "Choose a suitable name from 'Zephyr', 'Nova', 'Atlas', 'Vela', 'Phoebe', 'Dax'",
+  "voiceName": "Choose one: ${finalGender === "male" ? "Charon, Fenrir, Puck" : finalGender === "female" ? "Aoede, Kore, Zephyr" : "Aoede, Charon, Fenrir, Kore, Puck"}",
   "communicationStyle": "professional",
   "emotionalState": "e.g., Skeptical, Busy, Curiously optimistic, Guarded",
   "environmentContext": "Where they are (e.g., noisy open office, quiet executive suite, airport lounge)",
@@ -173,17 +173,20 @@ Generate a buyer persona with the following JSON structure. Return ONLY valid JS
   "conversationBehavior": ["2-3 specific conversational patterns/habits"],
   "buyingAttitude": "e.g., Skeptical but open if high value, Tech-first early adopter, Highly price-sensitive",
   "difficultyLevel": "medium",
-  "intensityLevel": 2,
+  "intensityLevel": 3,
   "patience": "medium",
   "verbosity": "medium",
   "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. ${template ? `IT MUST INCORPORATE THE BEHAVIORAL PROFILE, TONE, AND TRIGGERS FROM THE ${template.name} TEMPLATE.` : "Include communication style, skepticism triggers, pet peeves, and decision-making approach."}",
-  "objectionStrategy": "A specific strategy this persona uses to push back (2-3 sentences).",
+  "objectionStrategy": "A specific strategy this persona uses to push back (2-3 sentences). This MUST be dynamic and specific to the product context, not a generic statement.",
   "competitorContext": ${competitorContext ? JSON.stringify(competitorContext, null, 2) : "null"}
 }
 
 IMPORTANT:
 - ${finalGender ? `The name and gender MUST be ${finalGender}.` : "Vary the gender across generations — create a realistic mix of male and female personas."}
 - The name MUST clearly match the gender field.
+- "intensityLevel" MUST be an integer between 1 and 5 (1=Friendly, 3=Tough, 5=Hostile).
+- "objectionStrategy" MUST be unique and reflect the persona's specific role and the objections provided.
+- "traits" object MUST be fully populated with realistic values matching the personality.
 - Make the name MEMORABLE and DISTINCT — these are senior executives with presence.
 - Vary cultural backgrounds. Do NOT default to generic Anglo-Saxon names every time.`;
 
@@ -225,7 +228,7 @@ export async function evaluateSession(
 Persona Context:
 - Buyer Name: ${personaName}
 - Buyer Role: ${personaRole}
-- Difficulty Level: ${intensityLevel}/3
+- Difficulty Level: ${intensityLevel}/5
 - Call Duration: ${Math.round(durationSeconds / 60)} minutes
 
 Transcript:

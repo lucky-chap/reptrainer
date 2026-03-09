@@ -38,6 +38,7 @@ import {
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 const navItems = [
   {
@@ -163,10 +164,12 @@ export function AppSidebar() {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   {user?.photoURL ? (
-                    <img
+                    <Image
                       src={user.photoURL}
                       alt={user.displayName || ""}
                       className="border-border/40 size-8 rounded-full border object-cover"
+                      width={32}
+                      height={32}
                     />
                   ) : (
                     <div className="bg-charcoal text-cream flex size-8 items-center justify-center rounded-full text-[11px] font-semibold">

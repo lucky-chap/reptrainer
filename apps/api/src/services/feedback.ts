@@ -88,7 +88,7 @@ Your task is to review a sales roleplay transcript and provide structured, actio
 
 ─── CALL CONTEXT ───
 - Buyer: ${personaName} (${personaRole})
-- Buyer Difficulty: ${intensityLevel}/3 (${["friendly skeptic", "tough negotiator", "hostile gatekeeper"][intensityLevel - 1]})
+- Buyer Difficulty: ${intensityLevel}/5 (${["friendly skeptic", "firm decision maker", "tough negotiator", "high-pressure executive", "hostile gatekeeper"][intensityLevel - 1]})
 - Call Duration: ${Math.round(durationSeconds / 60)} minutes${trackContext}
 
 ─── TRANSCRIPT ───

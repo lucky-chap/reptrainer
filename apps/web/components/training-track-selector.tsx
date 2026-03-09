@@ -31,10 +31,18 @@ const TRACK_ICONS: Record<string, React.ReactNode> = {
   Zap: <Zap className="size-6" />,
 };
 
-const DIFFICULTY_LABELS = ["Easy", "Medium", "Hard"];
+const DIFFICULTY_LABELS = [
+  "Warm Intro",
+  "Standard",
+  "Challenging",
+  "High Pressure",
+  "Elite/Hostile",
+];
 const DIFFICULTY_COLORS = [
   "bg-emerald-100 text-emerald-700",
+  "bg-blue-100 text-blue-700",
   "bg-amber-100 text-amber-700",
+  "bg-orange-100 text-orange-700",
   "bg-rose-100 text-rose-700",
 ];
 

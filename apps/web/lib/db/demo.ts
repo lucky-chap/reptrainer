@@ -113,6 +113,22 @@ export async function seedDemoTeamData(
 
   for (const pd of personasData) {
     const personaId = uuidv4();
+    const intensity = Math.floor(Math.random() * 3) + 1; // 1 to 3
+    const objectionStyles = [
+      "analytical",
+      "emotional",
+      "authority-based",
+      "budget-focused",
+    ];
+    const interruptionFrequencies = ["rarely", "occasionally", "frequently"];
+    const strategies = [
+      `Focuses on ${pd.accent} market nuances and ${pd.speakingStyle} communication style.`,
+      `Very skeptical about new technology; requires deep proof of ${pd.role} ROI.`,
+      `Impatient buyer who wants the "bottom line" immediately without fluff.`,
+      `Relationship-first buyer who values trust and local ${pd.accent} references.`,
+      `Analytical decision maker who drills into technical details and scale.`,
+    ];
+
     const persona: Persona = {
       id: personaId,
       userId,
@@ -124,12 +140,17 @@ export async function seedDemoTeamData(
       accent: pd.accent,
       speakingStyle: pd.speakingStyle,
       personalityPrompt: pd.personalityPrompt,
-      intensityLevel: 2,
-      objectionStrategy: "skeptical",
+      intensityLevel: intensity,
+      objectionStrategy:
+        strategies[Math.floor(Math.random() * strategies.length)],
       traits: {
-        aggressiveness: 3,
-        interruptionFrequency: "rarely",
-        objectionStyle: "direct",
+        aggressiveness: intensity * 2 + Math.floor(Math.random() * 4), // Dynamic but based on intensity
+        interruptionFrequency:
+          interruptionFrequencies[
+            Math.floor(Math.random() * interruptionFrequencies.length)
+          ],
+        objectionStyle:
+          objectionStyles[Math.floor(Math.random() * objectionStyles.length)],
       },
       avatarUrl: pd.avatarUrl,
       createdAt: new Date().toISOString(),

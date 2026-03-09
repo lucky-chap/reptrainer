@@ -379,6 +379,7 @@ export interface TeamMember {
   userName?: string;
   userAvatarUrl?: string;
   role: "admin" | "member";
+  status: "active" | "removed";
   joinedAt: string;
 }
 

@@ -147,15 +147,19 @@ export function GenerationProvider({
           name: data.name,
           role: data.role,
           personalityPrompt: data.personalityPrompt,
-          intensityLevel: data.intensityLevel,
-          objectionStrategy: data.objectionStrategy,
+          intensityLevel: Number(data.intensityLevel) || 2,
+          objectionStrategy:
+            data.objectionStrategy || "Skeptical but open to value.",
           gender: data.gender || gender || "female",
           voiceName: data.voiceName || "Zephyr",
           personalityType: data.personalityType,
-          traits: data.traits || {
-            aggressiveness: data.intensityLevel * 3,
-            interruptionFrequency: "low",
-            objectionStyle: "analytical",
+          traits: {
+            aggressiveness:
+              Number(data.traits?.aggressiveness) ||
+              (Number(data.intensityLevel) || 2) * 3,
+            interruptionFrequency:
+              data.traits?.interruptionFrequency || "medium",
+            objectionStyle: data.traits?.objectionStyle || "analytical",
           },
           // Rich Persona Fields
           companyType: data.companyType,

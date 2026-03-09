@@ -42,9 +42,7 @@ import type {
   DifficultyLevel,
 } from "./core";
 
-
 // ─── Session Operations (Legacy) ───
-
 
 export async function saveSession(session: Session): Promise<void> {
   await setDoc(doc(db, "sessions", session.id), session);
@@ -113,6 +111,10 @@ export async function getAllSessions(
 
 export async function deleteSession(id: string): Promise<void> {
   await deleteDoc(doc(db, "sessions", id));
+}
+
+export async function deleteCallSession(id: string): Promise<void> {
+  await deleteDoc(doc(db, "callSessions", id));
 }
 
 // ─── Call Session Operations (New — Timed Calls) ─────────────────────────

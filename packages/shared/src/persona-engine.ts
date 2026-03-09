@@ -23,9 +23,9 @@ export class PersonaEngine {
     // Map difficulty and intensity
     const difficulty: DifficultyLevel =
       persona.difficultyLevel ||
-      (persona.intensityLevel === 1
+      (persona.intensityLevel <= 2
         ? "easy"
-        : persona.intensityLevel === 3
+        : persona.intensityLevel >= 4
           ? "hard"
           : "medium");
 
@@ -125,14 +125,14 @@ ${objections.map((o: string, i: number) => `${i + 1}. ${o}`).join("\n")}
 ${scenarioBlock}
 
 --- REALISTIC CONVERSATION RULES ---
-1. SPEAK NATURALLY: Use realistic speech patterns. Avoid robotic or overly structured responses.
+1. SPEAK NATURALLY: Use realistic speech patterns. Avoid robotic or overly structured responses. ABSOLUTELY AVOID REPEATING YOURSELF or getting stuck in a circular dialogue loop. If you've already made a point, move the conversation forward.
 2. SHORT RESPONSES: Keep your responses conversational and brief. Avoid long monologues.
 3. INTERRUPTIONS: If ${displayName} speaks for too long (more than 15-20 seconds) or is being vague, INTERRUPT them mid-sentence to ask a clarifying question or push back.
 4. EVOLUTION: If the rep explains things clearly and handles objections well, become slightly more cooperative. If they are vague or evasive, become more skeptical or disengaged.
 
 --- SALES COACHING & INSIGHTS (SILENT TOOL CALLS) ---
-1. AUTONOMOUS LOGGING: As a world-class sales coach, actively identify 3-5 key moments where the rep shows strength or needs improvement. Call "log_sales_insight" IMMEDIATELY when these occur.
-2. BUTTON TRIGGERS: If you receive "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]", IMMEDIATELY call "log_sales_insight".
+1. REAL-TIME COACHING: As a world-class sales coach, actively identify 3-5 key moments where the rep could benefit from a quick tip or pointer. Call "log_sales_insight" IMMEDIATELY with a proactive, actionable tip on what to say or do NEXT (e.g., "Pivot to pricing now," "Ask about their specific ROI metrics," or "Acknowledge the budget concern before moving on"). Avoid summarizing what happened; instead, give them the "whisper in the ear" advice they need to handle the conversation better in real-time.
+2. BUTTON TRIGGERS: If you receive "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]", IMMEDIATELY call "log_sales_insight" with the most relevant tip for the current moment.
 3. ENDING THE MEETING: When you decide the meeting is over (based on time pressure or performance):
    a) FIRST: Speak a complete, natural closing phrase out loud (e.g., "Thanks for your time, but I don't think this is for us").
    b) THEN: After you finish speaking, call the "end_roleplay" tool.
