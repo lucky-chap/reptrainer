@@ -2,22 +2,11 @@
 
 import { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  Sparkles,
-  ChevronRight,
-  Loader2,
-  Gauge,
-  Siren,
-  MessageSquareWarning,
-  Phone,
-  UserCircle,
-  Target,
-} from "lucide-react";
+import { Loader2, Phone, Target } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
 import {
   subscribeProducts,
   subscribePersonas,
-  deletePersona,
   subscribeUserMetrics,
   type UserMetrics,
 } from "@/lib/db";
@@ -37,12 +26,6 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-const intensityLabels = [
-  "Friendly Skeptic",
-  "Tough Negotiator",
-  "Hostile Gatekeeper",
-];
 
 type TrainStep = "configure" | "track-select" | "session";
 

@@ -85,6 +85,7 @@ export interface Persona {
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female";
+  ethnicity?: string;
   voiceName?: string;
   avatarUrl?: string; // Added avatarUrl as it's used in RoleplaySession
   traits: PersonaTraits;
@@ -264,6 +265,7 @@ export interface GeneratePersonaRequest {
   objections: string[];
   personalityType?: PersonalityType;
   gender?: "male" | "female" | "other";
+  ethnicity?: string;
   competitorUrl?: string;
 }
 

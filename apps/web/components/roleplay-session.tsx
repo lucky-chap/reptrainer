@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
 import {
   Phone,
@@ -46,9 +47,13 @@ import {
   TRAINING_TRACKS,
   type TrainingTrackId,
   type FeedbackReport,
-  type TranscriptMessage,
   type ScenarioTemplate,
   PersonaEngine,
+  type CallSession,
+  type Persona as SharedPersona,
+  type Product as SharedProduct,
+  FEMALE_VOICES,
+  MALE_VOICES,
 } from "@reptrainer/shared";
 
 interface RoleplaySessionProps {
@@ -94,7 +99,6 @@ export function RoleplaySession({
   const [callDurationMinutes, setCallDurationMinutes] = useState(
     CALL_DURATION_DEFAULT,
   );
-  const [warningShown, setWarningShown] = useState(false);
   const [callSessionId] = useState(() => uuidv4());
   const [inputLocked, setInputLocked] = useState(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -111,113 +115,19 @@ export function RoleplaySession({
 
   // Build system prompt using the PersonaEngine
   const systemPrompt = useMemo(() => {
-    return PersonaEngine.generatePrompt(persona as any, product as any, {
-      scenario: scenario || undefined,
-      userName: sessionUserName.trim() || undefined,
-    });
+    return PersonaEngine.generatePrompt(
+      persona as unknown as SharedPersona,
+      product as unknown as SharedProduct,
+      {
+        scenario: scenario || undefined,
+        userName: sessionUserName.trim() || undefined,
+      },
+    );
   }, [persona, product, scenario, sessionUserName]);
 
-  /*
-  const systemPromptLegacy = `You are an enterprise-level buyer named "${persona.name}", a ${persona.role}.
-
-${persona.personalityPrompt}
-
-You are intelligent, skeptical, time-conscious, and financially responsible.
-Your role is to simulate a high-pressure real-world sales meeting.
-
-The sales rep you're meeting with is named "${displayName}".
-
-You are evaluating "${product?.companyName || "a product"}" — ${product?.description || "a software product"}.
-
-─── INTENSITY & STYLE ───
-- Intensity level: ${persona.intensityLevel}/3 (${intensityLabel}).
-- Interruption frequency: ${persona.traits.interruptionFrequency}.
-- Objection style: ${persona.traits.objectionStyle}.
-- ${persona.objectionStrategy}
-
-─── EVALUATION CRITERIA ───
-You continuously evaluate the sales rep for:
-- Confidence
-- Clarity
-- Directness
-- ROI quantification
-- Objection handling
-- Avoidance behavior
-- Rambling
-
-─── BEHAVIOR RULES ───
-
-1. INTERRUPT the rep if:
-   - **MANDATORY**: You MUST interrupt the rep at least once (preferably early or mid-call) to clarify a claim or push back on a vague point. Jump in mid-sentence if they make a big promise.
-   - They avoid answering your question.
-   - They speak vaguely or use buzzwords without substance.
-   - They show uncertainty or hedge excessively.
-   - They ramble without getting to the point.
-
-2. SKEPTICAL MODE (default):
-   - Ask sharp clarification questions.
-   - Demand specific numbers, timelines, and case studies.
-   - Repeat objections more firmly if not addressed directly.
-   - Push for measurable ROI.
-
-3. VEXED MODE (triggered by repeated vagueness or avoidance):
-   - Interrupt mid-sentence.
-   - Ask rapid-fire direct questions.
-   - Keep responses short and impatient.
-   - Challenge the rep's credibility.
-   - Demand concrete proof, not promises.
-
-4. DISENGAGED MODE (triggered if repeatedly unimpressed):
-   - Reduce engagement and enthusiasm.
-   - Give shorter, less interested responses.
-   - Express doubt clearly ("I'm not sure this is for us").
-   - Signal that you're losing patience.
-
-5. ENDING THE MEETING (if value isn't demonstrated after multiple attempts):
-   - Wind down naturally — express that you're not convinced.
-   - You MUST speak a complete, natural closing phrase OUT LOUD before ending. Use varied phrases like:
-     "I appreciate your time, but I don't think this is the right fit for us."
-     "Thank you for the presentation, but we're going to pass on this."
-     "I need to wrap up — I don't see enough value here for us to move forward."
-     "I've heard enough. Thank you for your time, but this isn't what we're looking for."
-     "Alright, I think we've covered enough here. Thank you for coming in."
-     "Look, I appreciate the effort, but I need to get to my next meeting. Good luck."
-   - Say goodbye naturally and completely, like a real executive would. Let your closing words finish fully.
-   - After your closing, stay completely silent. Do NOT respond to anything else the rep says. The meeting is done.
-
-${product?.objections && product.objections.length > 0 ? `─── KEY OBJECTIONS TO RAISE ───\nThese are your primary concerns. Raise them naturally during the conversation:\n${product.objections.map((o, i) => `${i + 1}. ${o}`).join("\n")}` : ""}
-${trackPromptOverride}
-─── CRITICAL RULES ───
-- Never break character. You are a REAL buyer, not an AI.
-- Never explain the simulation or reference it being a training exercise.
-- Start by introducing yourself briefly, then ask ${displayName} to pitch their product to you.
-- Keep your opening warm but professional — let the rep set the tone before you push back.
-- If the rep earns your respect with compelling, evidence-backed answers, you can soften slightly — but never become easy.
-- You are the BUYER, not the sales rep. Do not pitch for them or fill in gaps they should address.
-
-─── SALES COACHING & INSIGHTS (SILENT WHISPER TIPS) ───
-1. **PROACTIVE COACHING**: You are a veteran sales coach. Your Whisper Tips must sound like a real coach talking to the rep in real time. Be direct, specific, and action‑oriented. Do NOT wait for major events. Log 3-5 tips per call.
-2. **VOICE & FORMAT**:
-   - Use second person ("you") and a confident coach tone.
-   - Give a concrete next move, not a generic critique.
-   - Keep each tip to 1-2 short sentences.
-   - If useful, include a quick line the rep can say next.
-   - Never mention tools, logging, or AI.
-3. **ROI NUDGE (SPECIFIC)**: If "17% ROI" or a similar high‑impact metric is mentioned, IMMEDIATELY log: "Acknowledge the 17% ROI claim, then pressure‑test it. Ask what assumptions get them there and how it holds under our current budget."
-4. **TACTICAL MOMENTS**: Log insights for:
-   - Handling price/objection with data.
-   - Missing a chance to ask a discovery question.
-   - Using too much jargon.
-   - Failing to pause for the buyer's reaction.
-5. **BUTTON TRIGGERS**: If you receive "[SYSTEM_COMMAND: LOG_CURRENT_INSIGHT]", IMMEDIATELY call "log_sales_insight" with a sharp, coach‑style tip on the rep's most recent performance.
-6. **ENDING THE MEETING**: After you have fully finished speaking your goodbye, call the "end_roleplay" tool.
-
-**CRITICAL**: You are a SILENT COACH. Your insights appear on the rep's HUD as "Whisper Tips". Never mention "tools", "logging", or being an AI in your spoken dialogue.   */
-
   // Map persona gender to a matching Gemini voice
-  const FEMALE_VOICES = ["Aoede", "Kore", "Zephyr"];
-
-  const MALE_VOICES = ["Charon", "Fenrir", "Puck"];
+  const femaleVoices = [...FEMALE_VOICES];
+  const maleVoices = [...MALE_VOICES];
 
   const getVoiceForPersona = useCallback(() => {
     // If a specific voice was assigned during generation, use it
@@ -229,7 +139,7 @@ ${trackPromptOverride}
     }
 
     const gender = persona.gender || "female";
-    const voices = gender === "male" ? MALE_VOICES : FEMALE_VOICES;
+    const voices = gender === "male" ? maleVoices : femaleVoices;
     // Pick a consistent voice per persona (based on name hash)
     const hash = persona.name
       .split("")
@@ -237,7 +147,13 @@ ${trackPromptOverride}
     const selectedVoice = voices[hash % voices.length];
     console.log(`[RoleplaySession] Using fallback voice: ${selectedVoice}`);
     return selectedVoice;
-  }, [persona.gender, persona.name, persona.voiceName]);
+  }, [
+    persona.gender,
+    persona.name,
+    persona.voiceName,
+    femaleVoices,
+    maleVoices,
+  ]);
 
   const voiceName = getVoiceForPersona();
 
@@ -326,7 +242,7 @@ ${trackPromptOverride}
 
   // ─── Call Timer ────────────────────────────────────────────────────────
   const handleTimerWarning = useCallback(() => {
-    setWarningShown(true);
+    // Warning logic could go here if needed
   }, []);
 
   const handleTimeUp = useCallback(() => {
@@ -336,15 +252,11 @@ ${trackPromptOverride}
   }, []);
 
   const {
-    elapsed,
-    remaining,
     isRunning: isTimerRunning,
     warningTriggered,
     isTimeUp,
-    startTime: timerStartTime,
     start: startTimer,
     formattedRemaining,
-    formattedElapsed,
   } = useCallTimer({
     durationMinutes: callDurationMinutes,
     onWarning: handleTimerWarning,
@@ -414,7 +326,23 @@ ${trackPromptOverride}
           ),
         );
     }
-  }, [isConnected, durationSelected]);
+  }, [
+    isConnected,
+    durationSelected,
+    isTimerRunning,
+    startTimer,
+    user?.uid,
+    callSessionId,
+    persona.id,
+    persona.name,
+    persona.role,
+    persona.avatarUrl,
+    product.id,
+    displayName,
+    callDurationMinutes,
+    trackId,
+    scenarioId,
+  ]);
 
   // ─── Handle End Call ───────────────────────────────────────────────────
   const handleEndCallRef = useRef<(() => Promise<void>) | null>(null);
@@ -580,7 +508,7 @@ ${trackPromptOverride}
           transcriptMessages: transcript,
           feedbackReport: feedbackResult,
           legacyEvaluation: evalResult,
-        } as any;
+        } as unknown as CallSession;
         updateUserMetrics(user.uid, callSessionData).catch((err) =>
           console.error("Failed to update user metrics:", err),
         );
@@ -741,10 +669,16 @@ ${trackPromptOverride}
         <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
           <div className="flex items-center gap-4">
             {persona.avatarUrl || avatarUrl ? (
-              <img
-                src={persona.avatarUrl || (avatarUrl as string) || undefined}
+              <Image
+                src={
+                  persona.avatarUrl ||
+                  (avatarUrl as string) ||
+                  "/placeholder-avatar.png"
+                }
                 alt={persona.name}
-                className="bg-cream size-12 shrink-0 rounded-full object-cover shadow-sm"
+                width={48}
+                height={48}
+                className="bg-cream shrink-0 rounded-full object-cover shadow-sm"
               />
             ) : (
               <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
@@ -823,10 +757,16 @@ ${trackPromptOverride}
         <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
           <div className="flex items-center gap-4">
             {persona.avatarUrl || avatarUrl ? (
-              <img
-                src={persona.avatarUrl || (avatarUrl as string) || undefined}
+              <Image
+                src={
+                  persona.avatarUrl ||
+                  (avatarUrl as string) ||
+                  "/placeholder-avatar.png"
+                }
                 alt={persona.name}
-                className="bg-cream size-12 shrink-0 rounded-full object-cover shadow-sm"
+                width={48}
+                height={48}
+                className="bg-cream shrink-0 rounded-full object-cover shadow-sm"
               />
             ) : (
               <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
@@ -1011,12 +951,16 @@ ${trackPromptOverride}
               </div>
               <div className="bg-cream text-charcoal flex size-8 items-center justify-center overflow-hidden rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
                 {persona.avatarUrl || avatarUrl ? (
-                  <img
+                  <Image
                     src={
-                      persona.avatarUrl || (avatarUrl as string) || undefined
+                      persona.avatarUrl ||
+                      (avatarUrl as string) ||
+                      "/placeholder-avatar.png"
                     }
                     alt={persona.name}
-                    className="h-full w-full object-cover"
+                    className="object-cover"
+                    width={32}
+                    height={32}
                   />
                 ) : (
                   persona.name.charAt(0)
@@ -1049,13 +993,15 @@ ${trackPromptOverride}
                 <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
                   <div className="border-border/60 text-charcoal mb-4 flex size-24 items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-sm sm:size-32">
                     {persona.avatarUrl || avatarUrl ? (
-                      <img
+                      <Image
                         src={
                           persona.avatarUrl ||
                           (avatarUrl as string) ||
-                          undefined
+                          "/placeholder-avatar.png"
                         }
                         alt={persona.name}
+                        width={86}
+                        height={86}
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -1094,14 +1040,16 @@ ${trackPromptOverride}
                   <div className="border-border/60 text-charcoal relative flex size-32 items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-md sm:size-40">
                     <div className="from-cream flex size-full items-center justify-center bg-linear-to-br to-white">
                       {persona.avatarUrl || avatarUrl ? (
-                        <img
+                        <Image
                           src={
                             persona.avatarUrl ||
                             (avatarUrl as string) ||
-                            undefined
+                            "/placeholder-avatar.png"
                           }
-                          className="size-full object-cover"
                           alt={persona.name}
+                          className="h-full w-full object-cover"
+                          width={86}
+                          height={86}
                         />
                       ) : (
                         persona.name.charAt(0)

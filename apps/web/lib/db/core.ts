@@ -1,45 +1,24 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  deleteDoc,
-  onSnapshot,
-  updateDoc as firestoreUpdateDoc,
-  Timestamp,
-} from "firebase/firestore";
+import { updateDoc as firestoreUpdateDoc } from "firebase/firestore";
 
 export const updateDoc = firestoreUpdateDoc;
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  uploadString,
-  deleteObject,
-} from "firebase/storage";
-import { db as firestoreDb, storage as firestoreStorage } from "../firebase";
+import { db as firestoreDb, storage as firebaseStorage } from "../firebase";
 export const db = firestoreDb;
-export const storage = firestoreStorage;
-import { v4 as uuidv4 } from "uuid";
+export const storage = firebaseStorage;
 import type {
+  Team,
+  TeamMember,
+  Invitation,
+  PersonalityType,
+  DifficultyLevel,
+  SkillEvaluation,
+  CoachDebriefResponse,
   CallSession,
   CallStatus,
   FeedbackReport,
   TranscriptMessage,
-  TrainingTrackId,
-  CoachDebriefResponse,
   UserMetrics,
+  TrainingTrackId,
   ProgressReport,
-  PersonalityType,
-  Team,
-  TeamMember,
-  Invitation,
-  SkillEvaluation,
-  DifficultyLevel,
 } from "@reptrainer/shared";
 
 // ─── Data Models ───
@@ -67,6 +46,7 @@ export interface Persona {
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female" | "other";
+  ethnicity?: string;
   voiceName?: string;
   personalityType?: PersonalityType;
   avatarUrl?: string;
@@ -128,18 +108,18 @@ export interface Session {
 
 // Re-export shared types for convenience
 export type {
+  Team,
+  TeamMember,
+  Invitation,
+  PersonalityType,
+  DifficultyLevel,
+  SkillEvaluation,
+  CoachDebriefResponse,
   CallSession,
   CallStatus,
   FeedbackReport,
   TranscriptMessage,
   UserMetrics,
   TrainingTrackId,
-  Team,
-  TeamMember,
-  Invitation,
   ProgressReport,
-  PersonalityType,
-  CoachDebriefResponse,
-  SkillEvaluation,
-  DifficultyLevel,
 };

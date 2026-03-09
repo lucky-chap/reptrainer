@@ -39,6 +39,7 @@ export interface GenerationContextType {
     product: Product,
     personalityType?: string,
     gender?: "male" | "female" | "other",
+    ethnicity?: string,
     competitorUrl?: string,
   ) => Promise<void>;
   generateProduct: (data: {
@@ -82,6 +83,7 @@ export function GenerationProvider({
       product: Product,
       personalityType?: string,
       gender?: "male" | "female" | "other",
+      ethnicity?: string,
       competitorUrl?: string,
     ) => {
       const taskId = uuidv4();
@@ -118,6 +120,7 @@ export function GenerationProvider({
           objections: product.objections,
           personalityType,
           gender,
+          ethnicity,
           competitorUrl,
         });
 
@@ -151,6 +154,7 @@ export function GenerationProvider({
           objectionStrategy:
             data.objectionStrategy || "Skeptical but open to value.",
           gender: data.gender || gender || "female",
+          ethnicity: ethnicity,
           voiceName: data.voiceName || "Zephyr",
           personalityType: data.personalityType,
           traits: {

@@ -4,20 +4,16 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  TrendingUp,
-  Target,
-  Zap,
   Activity,
   Calendar,
   BarChart3,
   Award,
   Mic2,
-  Timer,
-  Ghost,
   ShieldAlert,
   Search,
   MessageSquare,
   CheckCircle2,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
@@ -64,16 +60,11 @@ import {
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
-  PieChart,
-  Pie,
-  Cell,
   LineChart,
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
-  Legend,
   BarChart,
   Bar,
 } from "recharts";
@@ -97,7 +88,10 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     if (!teamLoading) {
-      setViewMode(isAdmin ? "team" : "personal");
+      const timer = setTimeout(() => {
+        setViewMode(isAdmin ? "team" : "personal");
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isAdmin, teamLoading]);
 
@@ -155,8 +149,10 @@ export default function AnalyticsPage() {
   // Subscribe to team members if in team mode
   useEffect(() => {
     if (viewMode !== "team" || !activeMembership?.id) {
-      setTeamMembers([]);
-      return;
+      const timer = setTimeout(() => {
+        setTeamMembers([]);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     return subscribeTeamMembers(
@@ -300,7 +296,7 @@ export default function AnalyticsPage() {
       }
     });
     return Array.from(memberMap.values());
-  }, [sessions, teamMembers, viewMode]);
+  }, [sessions, teamMembers, viewMode, user]);
 
   // Trend data
   const trendData = useMemo(() => {
@@ -976,7 +972,15 @@ export default function AnalyticsPage() {
   );
 }
 
-function SkillBar({ icon: Icon, label, score }: any) {
+function SkillBar({
+  icon: Icon,
+  label,
+  score,
+}: {
+  icon: LucideIcon;
+  label: string;
+  score: number;
+}) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -1001,7 +1005,7 @@ function MetricCard({
 }: {
   label: string;
   value: string;
-  icon: any;
+  icon: LucideIcon;
   description: string;
 }) {
   return (

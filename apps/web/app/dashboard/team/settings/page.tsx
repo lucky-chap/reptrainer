@@ -122,7 +122,8 @@ export default function TeamSettingsPage() {
             <CardHeader>
               <CardTitle>General Information</CardTitle>
               <CardDescription>
-                Update your team's name. This will be visible to all members.
+                Update your team&apos;s name. This will be visible to all
+                members.
               </CardDescription>
             </CardHeader>
             <CardContent className="mt-4 space-y-4">

@@ -82,6 +82,7 @@ export async function generatePersona(
     objections,
     personalityType,
     gender: preferredGender,
+    ethnicity,
     competitorUrl,
   } = input;
 
@@ -145,10 +146,11 @@ The persona should be a current user of this competitor and should naturally ref
     : ""
 }
 ${finalGender ? `- Preferred Gender: ${finalGender}` : ""}
+${ethnicity ? `- Preferred Ethnicity: ${ethnicity}` : ""}
 
 Generate a buyer persona with the following JSON structure. Return ONLY valid JSON, no markdown:
 {
-  "name": "A realistic, memorable full name${finalGender ? ` for a ${finalGender} executive` : ""}. Use culturally diverse names. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
+  "name": "A realistic, memorable full name${finalGender ? ` for a ${finalGender} executive` : ""}${ethnicity ? ` from a ${ethnicity} background` : ""}. Use culturally diverse names. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
   "role": "A specific, realistic job title (e.g., 'SVP of Revenue Operations', 'Chief Data Officer', 'Director of IT Infrastructure').",
   "gender": "${finalGender || '"male" or "female"'} (must match the name)",
   "companyType": "A realistic description of their company (e.g., 'Fortune 500 Fintech', 'Seed-stage AI startup', 'Mid-market manufacturing giant')",
@@ -188,7 +190,7 @@ IMPORTANT:
 - "objectionStrategy" MUST be unique and reflect the persona's specific role and the objections provided.
 - "traits" object MUST be fully populated with realistic values matching the personality.
 - Make the name MEMORABLE and DISTINCT — these are senior executives with presence.
-- Vary cultural backgrounds. Do NOT default to generic Anglo-Saxon names every time.`;
+- Vary cultural backgrounds. ${ethnicity ? `Prioritize the specified ethnicity (${ethnicity}) for the name and background.` : "Do NOT default to generic Anglo-Saxon names every time."}`;
 
   const response = await ai.models.generateContent({
     model: GEMINI_TEXT_MODEL,

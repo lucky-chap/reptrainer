@@ -34,6 +34,7 @@ export async function generatePersona(data: {
   objections: string[];
   personalityType?: string;
   gender?: "male" | "female" | "other";
+  ethnicity?: string;
   competitorUrl?: string;
 }) {
   const res = await fetch(`${baseUrl}/api/persona/generate`, {

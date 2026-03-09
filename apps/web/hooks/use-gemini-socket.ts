@@ -336,7 +336,6 @@ export function useGeminiSocket(options: UseGeminiSocketOptions) {
             serverContent?.outputTranscription ||
             serverContent?.output_transcription;
           if (outputTx?.text) {
-            addTranscriptEntry("model", outputTx.text, true);
             if (outputTx.finished || outputTx.is_final) {
               addTranscriptEntry(
                 "model",

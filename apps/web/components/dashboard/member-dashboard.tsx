@@ -44,6 +44,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
+import { Badge } from "../ui/badge";
 
 interface MemberDashboardProps {
   user: User | null;
@@ -148,9 +149,11 @@ export function MemberDashboard({
       {/* Page Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <span className="text-warm-gray mb-2 block text-xs font-medium tracking-widest uppercase">
+          <span className="text-warm-gray mb-2 flex items-center gap-2 text-xs font-medium tracking-widest uppercase">
             Personal Performance{" "}
-            {activeMembership?.name ? `• ${activeMembership.name}` : ""}
+            <Badge className="bg-yellow-200 text-black">
+              {activeMembership?.name ? `Team ${activeMembership.name}` : ""}
+            </Badge>
           </span>
           <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
             Your <em>Training.</em>

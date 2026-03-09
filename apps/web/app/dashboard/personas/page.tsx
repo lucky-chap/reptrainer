@@ -2,36 +2,18 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import {
-  Sparkles,
-  ChevronRight,
-  Loader2,
-  Gauge,
-  Siren,
-  MessageSquareWarning,
-  Trash2,
-  UserCircle,
-  Plus,
-  Building2,
-  X,
-  Target,
-  Users,
-} from "lucide-react";
+import { Sparkles, Loader2, Trash2, UserCircle, Plus, X } from "lucide-react";
 import type { Product, Persona } from "@/lib/db";
 import {
   subscribeProducts,
   subscribePersonas,
   deletePersona,
   savePersona,
-  getUserTeams,
 } from "@/lib/db";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
 import { PersonaCard } from "@/components/persona-card";
-import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
 import { PROSPECT_PERSONALITY_TEMPLATES } from "@reptrainer/shared";
 import { Button } from "@/components/ui/button";
@@ -70,6 +52,16 @@ const intensityLabels = [
   "Hostile Gatekeeper",
 ];
 
+const ethnicityOptions = [
+  { value: "other", label: "AI Selects (Randomized)" },
+  { value: "african", label: "African/Black" },
+  { value: "asian", label: "Asian" },
+  { value: "caucasian", label: "Caucasian/White" },
+  { value: "hispanic", label: "Hispanic/Latino" },
+  { value: "middle-eastern", label: "Middle Eastern" },
+  { value: "south-asian", label: "South Asian" },
+];
+
 export default function PersonasPage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
@@ -102,16 +94,18 @@ export default function PersonasPage() {
   const [manualGender, setManualGender] = useState<"male" | "female" | "other">(
     "female",
   );
+  const [manualEthnicity, setManualEthnicity] = useState<string>("other");
 
   // AI Generation State
   const [selectedGender, setSelectedGender] = useState<
     "male" | "female" | "other"
   >("other");
+  const [selectedEthnicity, setSelectedEthnicity] = useState<string>("other");
   const [competitorUrl, setCompetitorUrl] = useState("");
 
-  const { tasks, isGenerating, generatePersona, dismissTask } =
-    useBackgroundGeneration();
+  const { isGenerating, generatePersona } = useBackgroundGeneration();
 
+  // Initialize selectedTeamId
   useEffect(() => {
     if (!user || teamLoading) return;
 
@@ -120,16 +114,33 @@ export default function PersonasPage() {
       return;
     }
 
+    if (!selectedTeamId) {
+      const timer = setTimeout(() => {
+        if (activeMembership) {
+          setSelectedTeamId(activeMembership.id);
+        } else if (memberships.length > 0) {
+          setSelectedTeamId(memberships[0].id);
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    user,
+    teamLoading,
+    isAdmin,
+    activeMembership,
+    memberships,
+    selectedTeamId,
+  ]);
+
+  // Subscribe to data
+  useEffect(() => {
+    if (!user || teamLoading || !isAdmin) return;
+
     const handleError = (err: Error) => {
       console.error("Personas page subscription error:", err);
       setLoading(false);
     };
-
-    if (activeMembership && !selectedTeamId) {
-      setSelectedTeamId(activeMembership.id);
-    } else if (memberships.length > 0 && !selectedTeamId) {
-      setSelectedTeamId(memberships[0].id);
-    }
 
     const unsubProducts = subscribeProducts(
       user.uid,
@@ -152,7 +163,7 @@ export default function PersonasPage() {
       unsubProducts();
       unsubPersonas();
     };
-  }, [user, teamIds, teamLoading, isAdmin, memberships]);
+  }, [user, teamIds, teamLoading, isAdmin]);
 
   const handleGenerate = () => {
     if (!selectedProductId) return;
@@ -162,6 +173,7 @@ export default function PersonasPage() {
         product,
         selectedPersonality || undefined,
         selectedGender,
+        selectedEthnicity === "other" ? undefined : selectedEthnicity,
         competitorUrl || undefined,
       );
     }
@@ -215,6 +227,7 @@ export default function PersonasPage() {
               ? "budget-focused"
               : "analytical",
       },
+      ethnicity: manualEthnicity === "other" ? undefined : manualEthnicity,
       createdAt: new Date().toISOString(),
     };
 
@@ -224,6 +237,7 @@ export default function PersonasPage() {
     setManualStrategy("");
     setManualIntensity(1);
     setManualProductId("");
+    setManualEthnicity("other");
     setShowForm(false);
     setShowCreator(false);
   };
@@ -368,28 +382,48 @@ export default function PersonasPage() {
                         <SelectValue placeholder="AI Selects" />
                       </SelectTrigger>
                       <SelectContent position="popper" className="rounded-xl">
-                        <SelectItem value="other">
-                          AI Selects (Mixed)
-                        </SelectItem>
+                        <SelectItem value="other">AI Selects</SelectItem>
                         <SelectItem value="male">Male</SelectItem>
                         <SelectItem value="female">Female</SelectItem>
                       </SelectContent>
                     </Select>
-                    <div className="pt-2">
-                      <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
-                        Current Competitor Website (Optional)
-                      </Label>
-                      <Input
-                        value={competitorUrl}
-                        onChange={(e) => setCompetitorUrl(e.target.value)}
-                        placeholder="e.g., https://competitor.com"
-                        className="h-12 rounded-xl"
-                      />
-                      <p className="text-warm-gray/50 mt-1 text-[10px] font-medium">
-                        AI will research this competitor to create a more
-                        realistic buyer.
-                      </p>
-                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
+                      Ethnicity
+                    </Label>
+                    <Select
+                      value={selectedEthnicity}
+                      onValueChange={(val) => setSelectedEthnicity(val)}
+                    >
+                      <SelectTrigger className="h-12 w-full rounded-xl">
+                        <SelectValue placeholder="AI Selects" />
+                      </SelectTrigger>
+                      <SelectContent position="popper" className="rounded-xl">
+                        {ethnicityOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="pt-2">
+                    <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
+                      Current Competitor Website (Optional)
+                    </Label>
+                    <Input
+                      value={competitorUrl}
+                      onChange={(e) => setCompetitorUrl(e.target.value)}
+                      placeholder="e.g., https://competitor.com"
+                      className="h-12 rounded-xl"
+                    />
+                    <p className="text-warm-gray/50 mt-1 text-[10px] font-medium">
+                      AI will research this competitor to create a more
+                      realistic buyer.
+                    </p>
                   </div>
                 </div>
               )}
@@ -523,6 +557,33 @@ export default function PersonasPage() {
                       <SelectItem value="male">Male</SelectItem>
                       <SelectItem value="female">Female</SelectItem>
                       <SelectItem value="other">Other / Randomized</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="manualEthnicity"
+                    className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
+                  >
+                    Ethnicity
+                  </Label>
+                  <Select
+                    value={manualEthnicity}
+                    onValueChange={(val) => setManualEthnicity(val)}
+                  >
+                    <SelectTrigger
+                      id="manualEthnicity"
+                      className="h-12 rounded-xl"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {ethnicityOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

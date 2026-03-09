@@ -1,6 +1,11 @@
 [
   {
-    "origin": ["http://localhost:3000", "http://localhost:3001"],
+    "origin": [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "https://reptrainerai.vercel.app",
+      "https://reptrainer-gemini.vercel.app"
+    ],
     "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
     "maxAgeSeconds": 3600
   }

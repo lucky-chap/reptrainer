@@ -26,25 +26,16 @@ import type {
   Persona,
   SessionEvaluation,
   Session,
-  CallSession,
-  CallStatus,
-  FeedbackReport,
-  TranscriptMessage,
-  UserMetrics,
-  TrainingTrackId,
   Team,
   TeamMember,
   Invitation,
-  ProgressReport,
   PersonalityType,
   CoachDebriefResponse,
   SkillEvaluation,
   DifficultyLevel,
 } from "./core";
 
-
 // ─── Persona Operations ───
-
 
 export async function savePersona(persona: Persona): Promise<void> {
   await setDoc(doc(db, "personas", persona.id), persona);
@@ -134,4 +125,3 @@ export async function updatePersona(
 ): Promise<void> {
   await updateDoc(doc(db, "personas", id), updates);
 }
-

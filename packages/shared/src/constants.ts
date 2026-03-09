@@ -302,3 +302,45 @@ export const DEFAULT_PERSONAS: any[] = [
     intensityLevel: 2,
   },
 ];
+
+/**
+ * Gemini voices for female personas
+ */
+export const FEMALE_VOICES = [
+  "Zephyr",
+  "Kore",
+  "Leda",
+  "Aoede",
+  "Callirrhoe",
+  "Autonoe",
+  "Despina",
+  "Erinome",
+  "Laomedeia",
+  "Achernar",
+  "Pulcherrima",
+  "Achird",
+  "Vindemiatrix",
+  "Sulafat",
+];
+
+/**
+ * Gemini voices for male personas
+ */
+export const MALE_VOICES = [
+  "Puck",
+  "Charon",
+  "Fenrir",
+  "Orus",
+  "Enceladus",
+  "Iapetus",
+  "Umbriel",
+  "Algieba",
+  "Algenib",
+  "Rasalgethi",
+  "Alnilam",
+  "Schedar",
+  "Gacrux",
+  "Zubenelgenubi",
+  "Sadachbia",
+  "Sadaltager",
+];

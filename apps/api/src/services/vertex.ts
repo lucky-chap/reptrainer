@@ -234,6 +234,11 @@ Evaluate the sales rep's performance on these 5 specific skills (Score 0-100):
 4. **Closing**: Did the rep clearly define next steps or ask for the business at the appropriate time?
 5. **Active Listening**: Did the rep demonstrate understanding by summarizing, mirroring, or reacting appropriately to the buyer's cues?
 
+SCORING GUIDELINES:
+- **Score honestly.** DO NOT inflate scores. If a rep performed poorly, the score should reflect that (e.g., 10-30).
+- **Be balanced.** A truly perfect session is rare. 85+ is for world-class performance. 50-65 is average. Below 40 is poor.
+- **Evidence-based.** Ensure the scores align with the specific strengths and weaknesses identified.
+
 Also identify:
 - 3-5 specific strengths
 - 3-5 specific weaknesses
@@ -287,6 +292,9 @@ export function getLiveSetupConfig(
       model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
       generation_config: {
         response_modalities: ["AUDIO"],
+        // session_resumption_config: {
+        //   transparent: true,
+        // },
         speech_config: {
           voice_config: {
             prebuilt_voice_config: {
@@ -298,7 +306,7 @@ export function getLiveSetupConfig(
       system_instruction: {
         parts: [
           {
-            text: "You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions.",
+            text: "You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions. Never repeat the same response or sentence twice. If you already answered something, continue the conversation naturally instead of repeating yourself.",
           },
           { text: systemPrompt },
         ],
@@ -307,9 +315,10 @@ export function getLiveSetupConfig(
       output_audio_transcription: {},
       realtime_input_config: {
         automatic_activity_detection: {
-          silence_duration_ms: 600, // Reduced from 1200 to decrease response latency
-          start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
-          end_of_speech_sensitivity: "END_SENSITIVITY_HIGH",
+          prefix_padding_ms: 20,
+          silence_duration_ms: 100,
+          start_of_speech_sensitivity: "START_SENSITIVITY_LOW",
+          end_of_speech_sensitivity: "END_SENSITIVITY_LOW",
         },
       },
       tools: [

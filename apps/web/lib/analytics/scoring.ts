@@ -1,4 +1,4 @@
-import { calculateSessionMetrics } from "./standardizer";
+import { calculateSessionMetrics, normalizeTo100 } from "./standardizer";
 import type {
   Session,
   CallSession,
@@ -38,28 +38,17 @@ export function getOverallScore(
       .overall;
   }
 
-  // If it's just the evaluation part, we need to wrap it temporarily for calculateSessionMetrics
-  // or just use a simpler fallback if we can't easily wrap.
-  // Given standardizer handles it, let's just make it handle both if needed or adjust here.
   const evaluation = sessionOrEvaluation as any;
-  if ("overallScore" in evaluation)
-    return Math.round(
-      evaluation.overallScore > 10
-        ? evaluation.overallScore
-        : evaluation.overallScore * 10,
-    );
-  if ("overall_score" in evaluation)
-    return Math.round(
-      evaluation.overall_score > 10
-        ? evaluation.overall_score
-        : evaluation.overall_score * 10,
-    );
+  if (evaluation.overallScore !== undefined)
+    return normalizeTo100(evaluation.overallScore);
+  if (evaluation.overall_score !== undefined)
+    return normalizeTo100(evaluation.overall_score);
 
   // Legacy fallback
   if (evaluation.objectionHandlingScore !== undefined) {
-    const obj = (evaluation.objectionHandlingScore || 0) * 10;
-    const conf = (evaluation.confidenceScore || 0) * 10;
-    const clr = (evaluation.clarityScore || 0) * 10;
+    const obj = normalizeTo100(evaluation.objectionHandlingScore);
+    const conf = normalizeTo100(evaluation.confidenceScore);
+    const clr = normalizeTo100(evaluation.clarityScore);
     return Math.round((obj + conf + clr) / 3);
   }
 

@@ -3,12 +3,18 @@ import {
   saveUserMetrics,
   getAllSessions,
   getAllCallSessions,
-  type CallSession,
   type Session,
 } from "./db";
-import { type UserMetrics, type TrainingTrackId } from "@reptrainer/shared";
-import { v4 as uuidv4 } from "uuid";
+import { type UserMetrics, type CallSession } from "@reptrainer/shared";
 import { calculateSessionMetrics } from "./analytics/standardizer";
+import { type SessionEvaluation } from "./db/core";
+
+type ExtendedSession = (CallSession | Session) & {
+  evaluation?: SessionEvaluation | null;
+  feedbackReport?: CallSession["feedbackReport"];
+  legacyEvaluation?: CallSession["legacyEvaluation"];
+  trackId?: string;
+};
 
 /**
  * Recalculates all user metrics from scratch based on all existing sessions.
@@ -23,7 +29,7 @@ export async function recalculateUserMetrics(
   ]);
 
   // Combined and de-duplicate by ID
-  const sessionMap = new Map<string, any>();
+  const sessionMap = new Map<string, CallSession | Session>();
   sessions.forEach((s: Session) => sessionMap.set(s.id, s));
   callSessions.forEach((cs: CallSession) => {
     // CallSession has richer data (like transcriptMessages), so merge/overwrite
@@ -32,7 +38,10 @@ export async function recalculateUserMetrics(
   });
 
   const allSessions = Array.from(sessionMap.values())
-    .filter((s) => s.evaluation || s.feedbackReport || s.legacyEvaluation)
+    .filter((s) => {
+      const ext = s as ExtendedSession;
+      return ext.evaluation || ext.feedbackReport || ext.legacyEvaluation;
+    })
     .sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
@@ -77,8 +86,9 @@ export async function recalculateUserMetrics(
     const dateStr = new Date(session.createdAt).toISOString().split("T")[0];
     practiceDates.add(dateStr);
 
-    if (session.trackId && !metrics.tracksCompleted.includes(session.trackId)) {
-      metrics.tracksCompleted.push(session.trackId);
+    const ext = session as ExtendedSession;
+    if (ext.trackId && !metrics.tracksCompleted.includes(ext.trackId as any)) {
+      metrics.tracksCompleted.push(ext.trackId as any);
     }
   }
 
@@ -164,9 +174,11 @@ export async function recalculateUserMetrics(
  * Helper to extract various scores from any evaluation format.
  * @deprecated Use calculateSessionMetrics from standardizer instead.
  */
-function extractScores(evaluation: any) {
+function extractScores(
+  evaluation: CallSession["feedbackReport"] | CallSession["legacyEvaluation"],
+) {
   // Use a mock session object to satisfy standardizer
-  const mockSession: any = { evaluation };
+  const mockSession = { evaluation } as unknown as CallSession;
   const metrics = calculateSessionMetrics(mockSession);
   return {
     overall: metrics.overall,
@@ -182,20 +194,21 @@ function extractScores(evaluation: any) {
 /**
  * Helper to calculate talk-to-listen ratio from transcript messages.
  */
-function calculateTalkRatio(session: any): number | null {
+function calculateTalkRatio(session: CallSession | Session): number | null {
+  const transcriptMessages = (session as CallSession).transcriptMessages;
   if (
-    !session.transcriptMessages ||
-    !Array.isArray(session.transcriptMessages) ||
-    session.transcriptMessages.length === 0
+    !transcriptMessages ||
+    !Array.isArray(transcriptMessages) ||
+    transcriptMessages.length === 0
   ) {
     return null;
   }
 
-  const userChars = session.transcriptMessages
-    .filter((m: any) => m.role === "user")
-    .reduce((sum: number, m: any) => sum + (m.text?.length || 0), 0);
-  const totalChars = session.transcriptMessages.reduce(
-    (sum: number, m: any) => sum + (m.text?.length || 0),
+  const userChars = transcriptMessages
+    .filter((m) => m.role === "user")
+    .reduce((sum: number, m) => sum + (m.text?.length || 0), 0);
+  const totalChars = transcriptMessages.reduce(
+    (sum: number, m) => sum + (m.text?.length || 0),
     0,
   );
 
@@ -215,7 +228,11 @@ export async function updateUserMetrics(
 
   if (!evaluation) return currentMetrics;
 
-  const scores = extractScores(evaluation);
+  const scores = extractScores(
+    evaluation as
+      | CallSession["feedbackReport"]
+      | CallSession["legacyEvaluation"],
+  );
   const talkRatio = calculateTalkRatio(session) ?? 50;
 
   const newTotalCalls = currentMetrics.totalCalls + 1;

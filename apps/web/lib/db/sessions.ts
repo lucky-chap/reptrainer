@@ -11,6 +11,7 @@ import {
   onSnapshot,
   updateDoc,
   Timestamp,
+  Query,
 } from "firebase/firestore";
 import {
   ref,
@@ -21,28 +22,9 @@ import {
 } from "firebase/storage";
 import { db, storage } from "./core";
 import { v4 as uuidv4 } from "uuid";
-import type {
-  Product,
-  Persona,
-  SessionEvaluation,
-  Session,
-  CallSession,
-  CallStatus,
-  FeedbackReport,
-  TranscriptMessage,
-  UserMetrics,
-  TrainingTrackId,
-  Team,
-  TeamMember,
-  Invitation,
-  ProgressReport,
-  PersonalityType,
-  CoachDebriefResponse,
-  SkillEvaluation,
-  DifficultyLevel,
-} from "./core";
+import type { Session, CallSession, CallStatus } from "./core";
 
-// ─── Session Operations (Legacy) ───
+// ─── Session Operations (Old) ───
 
 export async function saveSession(session: Session): Promise<void> {
   await setDoc(doc(db, "sessions", session.id), session);
@@ -204,7 +186,7 @@ export function subscribeCallSessions(
   onData: (sessions: CallSession[]) => void,
   onError: (err: Error) => void,
 ) {
-  let q;
+  let q: Query;
   if (teamIds.length > 0) {
     q = query(
       collection(db, "callSessions"),
@@ -218,6 +200,7 @@ export function subscribeCallSessions(
       orderBy("createdAt", "desc"),
     );
   }
+  if (!q) return () => {}; // Fallback for type safety
   return onSnapshot(
     q,
     (snap) => {

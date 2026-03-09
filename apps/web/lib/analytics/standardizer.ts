@@ -17,14 +17,12 @@ export interface StandardizedScores {
 
 /**
  * Normalizes a score to a 0-100 scale.
- * If the value is >= 0 and <= 10, it's assumed to be on a 0-10 scale and is multiplied by 10.
- * Otherwise, it's assumed to be already on a 0-100 scale.
+ * Note: Legacy 0-10 scaling support was removed to prevent 0-100 scores from being inflated.
  */
 export function normalizeTo100(value: number | undefined | null): number {
   if (value === undefined || value === null) return 0;
-  // If the value is 10 or less, we assume it's on a 0-10 scale (common in legacy data)
-  // However, we need to be careful with 0.
-  if (value > 0 && value <= 10) return Math.round(value * 10);
+  // Previously we multiplied small values by 10, which caused 7/100 to become 70/100.
+  // We now strictly cap at 0-100 and round to nearest integer.
   return Math.round(Math.min(100, Math.max(0, value)));
 }
 

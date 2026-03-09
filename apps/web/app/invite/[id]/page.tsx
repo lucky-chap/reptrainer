@@ -138,7 +138,7 @@ export default function InvitePage() {
           <CardDescription>
             {status === "valid" ? (
               <>
-                You've been invited to join{" "}
+                You&apos;ve been invited to join{" "}
                 <strong>{team?.name || "a team"}</strong>
               </>
             ) : status === "accepted" ? (

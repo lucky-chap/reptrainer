@@ -1,0 +1,1 @@
+- https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api/start-manage-session#update_system_instructions_during_a_session
