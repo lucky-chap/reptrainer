@@ -1,7 +1,7 @@
 import {
   Persona,
   ScenarioTemplate,
-  Product,
+  KnowledgeMetadata,
   DifficultyLevel,
 } from "./types.js";
 
@@ -11,13 +11,14 @@ export class PersonaEngine {
    */
   static generatePrompt(
     persona: Persona,
-    product: Product,
+    metadata: KnowledgeMetadata,
     options: {
       scenario?: ScenarioTemplate;
       userName?: string;
+      companyName?: string;
     } = {},
   ): string {
-    const { scenario, userName } = options;
+    const { scenario, userName, companyName = "the company" } = options;
     const displayName = userName || "the sales rep";
 
     // Map difficulty and intensity
@@ -31,7 +32,8 @@ export class PersonaEngine {
 
     // Default values for missing rich fields
     const companyType = persona.companyType || "a prospect company";
-    const industry = persona.industry || product.industry || "the industry";
+    const industry =
+      persona.industry || metadata.productCategory || "the industry";
     const traits = persona.personalityTraits || [
       persona.personalityType?.replace("-", " ") || "professional",
     ];
@@ -58,7 +60,7 @@ export class PersonaEngine {
     const objections =
       persona.objections && persona.objections.length > 0
         ? persona.objections
-        : product.objections || [];
+        : metadata.objections || [];
 
     // Difficulty specific behavior rules
     const difficultyRulesConfig: Record<string, string> = {
@@ -117,8 +119,8 @@ ${difficultyRules}
 ${behaviors.map((b: string) => `- ${b}`).join("\n")}
 
 --- CONVERSATION CONTEXT ---
-You are meeting with "${displayName}" to discuss "${product.companyName}".
-Description: ${product.description}
+You are meeting with "${displayName}" to discuss "${companyName}".
+Description: ${metadata.productCategory}. ${metadata.valueProps.join(". ")}
 
 Key Objections to Raise:
 ${objections.map((o: string, i: number) => `${i + 1}. ${o}`).join("\n")}
@@ -150,6 +152,6 @@ You must maintain a high-immersion, realistic sales environment by occasionally 
    a) FIRST: Speak a complete, natural closing phrase out loud (e.g., "Thanks for your time, but I don't think this is for us").
    b) THEN: After you finish speaking, call the "end_roleplay" tool.
 
-Start by introducing yourself briefly, then ask ${displayName} to pitch ${product.companyName} to you.`;
+Start by introducing yourself briefly, then ask ${displayName} to pitch ${companyName} to you.`;
   }
 }

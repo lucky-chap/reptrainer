@@ -2,14 +2,23 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Sparkles, Loader2, Trash2, UserCircle, Plus, X } from "lucide-react";
-import type { Product, Persona } from "@/lib/db";
 import {
-  subscribeProducts,
+  Sparkles,
+  Loader2,
+  Trash2,
+  UserCircle,
+  Plus,
+  X,
+  Brain,
+} from "lucide-react";
+import type { Persona } from "@/lib/db";
+import {
   subscribePersonas,
   deletePersona,
   savePersona,
+  subscribeKnowledgeBase,
 } from "@/lib/db";
+import type { KnowledgeBase } from "@reptrainer/shared";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import { useBackgroundGeneration } from "@/hooks/use-background-generation";
@@ -68,11 +77,8 @@ const countryOptions = [
 
 export default function PersonasPage() {
   const { user } = useAuth();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [kb, setKb] = useState<KnowledgeBase | null>(null);
   const [personas, setPersonas] = useState<Persona[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null,
-  );
   const [selectedPersonality, setSelectedPersonality] = useState<string | null>(
     null,
   );
@@ -94,7 +100,6 @@ export default function PersonasPage() {
   const [manualRole, setManualRole] = useState("");
   const [manualStrategy, setManualStrategy] = useState("");
   const [manualIntensity, setManualIntensity] = useState(1);
-  const [manualProductId, setManualProductId] = useState("");
   const [manualGender, setManualGender] = useState<"male" | "female" | "other">(
     "female",
   );
@@ -139,17 +144,16 @@ export default function PersonasPage() {
 
   // Subscribe to data
   useEffect(() => {
-    if (!user || teamLoading || !isAdmin) return;
+    if (!user || teamLoading || !isAdmin || !selectedTeamId) return;
 
     const handleError = (err: Error) => {
       console.error("Personas page subscription error:", err);
       setLoading(false);
     };
 
-    const unsubProducts = subscribeProducts(
-      user.uid,
-      teamIds,
-      (data) => setProducts(data),
+    const unsubKb = subscribeKnowledgeBase(
+      selectedTeamId,
+      (data) => setKb(data),
       handleError,
     );
 
@@ -164,23 +168,21 @@ export default function PersonasPage() {
 
     return () => {
       clearTimeout(timer);
-      unsubProducts();
+      unsubKb();
       unsubPersonas();
     };
-  }, [user, teamIds, teamLoading, isAdmin]);
+  }, [user, teamIds, teamLoading, isAdmin, selectedTeamId]);
 
   const handleGenerate = () => {
-    if (!selectedProductId) return;
-    const product = products.find((p) => p.id === selectedProductId);
-    if (product) {
-      generatePersona(
-        product,
-        selectedPersonality || undefined,
-        selectedGender,
-        selectedCountry === "other" ? undefined : selectedCountry,
-        competitorUrl || undefined,
-      );
-    }
+    if (!selectedTeamId || !activeMembership) return;
+    generatePersona(
+      selectedTeamId,
+      activeMembership.name,
+      selectedPersonality || undefined,
+      selectedGender,
+      selectedCountry === "other" ? undefined : selectedCountry,
+      competitorUrl || undefined,
+    );
   };
 
   const handleDelete = (id: string) => {
@@ -198,7 +200,6 @@ export default function PersonasPage() {
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualProductId) return;
 
     if (!selectedTeamId) {
       alert("Please select a team before saving a persona.");
@@ -209,7 +210,6 @@ export default function PersonasPage() {
       id: uuidv4(),
       userId: user?.uid || "anonymous",
       teamId: selectedTeamId,
-      productId: manualProductId,
       name: manualName,
       role: manualRole,
       personalityPrompt: `You are ${manualName}, a ${manualRole}. Your strategy is ${manualStrategy}.`,
@@ -240,7 +240,6 @@ export default function PersonasPage() {
     setManualRole("");
     setManualStrategy("");
     setManualIntensity(1);
-    setManualProductId("");
     setManualCountry("other");
     setShowForm(false);
     setShowCreator(false);
@@ -312,36 +311,40 @@ export default function PersonasPage() {
               </div>
             </CardHeader>
             <CardContent className="flex-1">
-              {products.length === 0 ? (
+              {!kb || kb.documents.length === 0 ? (
                 <div className="py-6 text-center">
                   <p className="text-warm-gray mb-6 text-sm font-medium">
-                    Add a product first to generate personas.
+                    Upload your team's knowledge base first to generate
+                    personas.
                   </p>
                   <Button asChild variant="brandOutline" className="h-12">
-                    <Link href="/dashboard/products">Add a product</Link>
+                    <Link href="/dashboard/knowledge">
+                      Set up Knowledge Base
+                    </Link>
                   </Button>
                 </div>
               ) : (
                 <div className="w-full space-y-4">
                   <p className="text-warm-gray/80 text-sm leading-relaxed font-medium">
-                    Select a product and our AI will generate a realistic target
-                    buyer profile based on its features and industry.
+                    Our AI will analyze your{" "}
+                    <strong>Team Knowledge Base</strong> to generate a realistic
+                    target buyer profile based on your products and industry.
                   </p>
-                  <Select
-                    value={selectedProductId || ""}
-                    onValueChange={(val) => setSelectedProductId(val)}
-                  >
-                    <SelectTrigger className="h-12 w-full rounded-xl">
-                      <SelectValue placeholder="Select a product…" />
-                    </SelectTrigger>
-                    <SelectContent position="popper" className="rounded-xl">
-                      {products.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.companyName} — {p.industry}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+                  <div className="bg-charcoal/5 border-charcoal/10 mt-4 rounded-xl border p-4">
+                    <div className="flex items-center gap-3">
+                      <Brain className="text-charcoal size-5" />
+                      <div>
+                        <p className="text-charcoal text-xs font-bold tracking-wider uppercase">
+                          Active Knowledge Source
+                        </p>
+                        <p className="text-charcoal/70 text-sm">
+                          {kb.documents.length} document
+                          {kb.documents.length > 1 ? "s" : ""} indexed
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="pt-2">
                     <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
@@ -435,7 +438,7 @@ export default function PersonasPage() {
             <CardFooter>
               <Button
                 onClick={handleGenerate}
-                disabled={!selectedProductId || isGenerating}
+                disabled={!kb || kb.documents.length === 0 || isGenerating}
                 className="h-12 w-full rounded-full"
                 variant={"brand"}
               >
@@ -593,31 +596,13 @@ export default function PersonasPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label
-                  htmlFor="manualProductId"
-                  className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
-                >
-                  Associated Product
-                </Label>
-                <Select
-                  value={manualProductId}
-                  onValueChange={(val) => setManualProductId(val)}
-                >
-                  <SelectTrigger
-                    id="manualProductId"
-                    className="h-12 w-full rounded-xl"
-                  >
-                    <SelectValue placeholder="Link to a product…" />
-                  </SelectTrigger>
-                  <SelectContent position="popper" className="rounded-xl">
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.companyName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="bg-charcoal/5 border-charcoal/10 mt-2 rounded-xl border p-4">
+                <div className="flex items-center gap-3">
+                  <Brain className="text-charcoal size-4" />
+                  <p className="text-charcoal text-xs font-bold tracking-wider uppercase">
+                    Knowledge Base Active
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -665,7 +650,7 @@ export default function PersonasPage() {
               <Button
                 type="submit"
                 variant="brand"
-                disabled={!manualProductId || !selectedTeamId}
+                disabled={!selectedTeamId}
                 className="h-12 w-full rounded-xl text-sm font-bold tracking-widest uppercase"
               >
                 Save Persona
@@ -694,10 +679,8 @@ export default function PersonasPage() {
             <PersonaCard
               key={persona.id}
               persona={persona}
-              product={products.find((p) => p.id === persona.productId)}
               index={i}
               onDelete={handleDelete}
-              // Removed team-specific props as everything is team-centric now
             />
           ))}
         </div>

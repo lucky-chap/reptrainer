@@ -10,7 +10,13 @@ export function requireApiSecret(
   next: NextFunction,
 ): void {
   const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== `Bearer ${env.API_SECRET_KEY}`) {
+  const apiKeyHeader = req.headers["x-api-key"];
+
+  const isValid =
+    (authHeader && authHeader === `Bearer ${env.API_SECRET_KEY}`) ||
+    (apiKeyHeader && apiKeyHeader === env.API_SECRET_KEY);
+
+  if (!isValid) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }

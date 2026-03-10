@@ -11,15 +11,21 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google-cloud/aiplatform": "^6.5.0",
+    "@google-cloud/storage": "^7.19.0",
     "@google-cloud/text-to-speech": "^6.4.0",
     "@google/genai": "^1.43.0",
     "@reptrainer/shared": "workspace:*",
+    "@types/multer": "^2.1.0",
+    "@types/pdf-parse": "^1.1.5",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "firebase-admin": "^13.7.0",
     "google-auth-library": "^10.6.1",
     "helmet": "^8.1.0",
+    "multer": "^2.1.1",
+    "pdf-parse": "^2.4.5",
     "uuid": "^13.0.0",
     "ws": "^8.19.0",
     "zod": "^3.25.0"

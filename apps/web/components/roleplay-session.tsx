@@ -27,7 +27,7 @@ import { Card } from "@/components/ui/card";
 import { VibeMeter } from "@/components/vibe-meter";
 import { useGeminiLive } from "@/hooks/use-gemini-live";
 import { useCallTimer } from "@/hooks/use-call-timer";
-import type { Product, Persona, Session } from "@/lib/db";
+import type { Persona, Session, KnowledgeMetadata } from "@/lib/db";
 import { CoachDebriefResponse } from "@reptrainer/shared";
 import {
   saveSession,
@@ -52,14 +52,14 @@ import {
   PersonaEngine,
   type CallSession,
   type Persona as SharedPersona,
-  type Product as SharedProduct,
+  type KnowledgeMetadata as SharedKnowledgeMetadata,
   FEMALE_VOICES,
   MALE_VOICES,
 } from "@reptrainer/shared";
 
 interface RoleplaySessionProps {
   persona: Persona;
-  product: Product;
+  knowledgeMetadata?: KnowledgeMetadata;
   onBack: () => void;
   trackId?: TrainingTrackId;
   scenarioId?: string;
@@ -75,7 +75,7 @@ function formatTime(seconds: number): string {
 
 export function RoleplaySession({
   persona,
-  product,
+  knowledgeMetadata,
   onBack,
   trackId,
   scenarioId,
@@ -118,13 +118,14 @@ export function RoleplaySession({
   const systemPrompt = useMemo(() => {
     return PersonaEngine.generatePrompt(
       persona as unknown as SharedPersona,
-      product as unknown as SharedProduct,
+      knowledgeMetadata as unknown as SharedKnowledgeMetadata,
       {
         scenario: scenario || undefined,
         userName: sessionUserName.trim() || undefined,
+        companyName: knowledgeMetadata?.productCategory || undefined,
       },
     );
-  }, [persona, product, scenario, sessionUserName]);
+  }, [persona, knowledgeMetadata, scenario, sessionUserName]);
 
   // Map persona gender to a matching Gemini voice
   const femaleVoices = [...FEMALE_VOICES];
@@ -293,8 +294,8 @@ export function RoleplaySession({
       createCallSession({
         id: callSessionId,
         userId,
+        teamId: teamId || persona.teamId || "unknown",
         personaId: persona.id,
-        productId: product.id,
         userName: displayName,
         personaName: persona.name,
         personaRole: persona.role,
@@ -327,7 +328,6 @@ export function RoleplaySession({
     persona.name,
     persona.role,
     persona.avatarUrl,
-    product.id,
     displayName,
     callDurationMinutes,
     trackId,
@@ -422,7 +422,6 @@ export function RoleplaySession({
         userId: userId,
         personaId: persona.id,
         userName: displayName,
-        productId: product.id,
         personaName: persona.name,
         personaRole: persona.role,
         personaAvatarUrl: persona.avatarUrl,
@@ -433,7 +432,7 @@ export function RoleplaySession({
         objections: objections,
         moods: moods,
         debrief: feedbackResult,
-        teamId: teamId || persona.teamId || product.teamId,
+        teamId: teamId || persona.teamId,
         createdAt: new Date().toISOString(),
         audioUrl: audioUrl || undefined,
       };
@@ -496,7 +495,6 @@ export function RoleplaySession({
         userId: userId,
         personaId: persona.id,
         userName: displayName,
-        productId: product.id,
         personaName: persona.name,
         personaRole: persona.role,
         personaAvatarUrl: persona.avatarUrl,
@@ -504,7 +502,7 @@ export function RoleplaySession({
         durationSeconds: duration,
         evaluation: null,
         insights: insights,
-        teamId: teamId || persona.teamId || product.teamId,
+        teamId: teamId || persona.teamId,
         createdAt: new Date().toISOString(),
       };
       await saveSession(session);
@@ -662,9 +660,9 @@ export function RoleplaySession({
               <p className="text-warm-gray truncate text-xs">{persona.role}</p>
             </div>
             <div className="text-warm-gray-light bg-cream/50 border-border/20 rounded-full border px-3 py-1 text-[11px] font-medium">
-              {product?.companyName
-                ? `Evaluating ${product.companyName}`
-                : "Loading product…"}
+              {knowledgeMetadata?.productCategory
+                ? `Evaluating ${knowledgeMetadata.productCategory}`
+                : "General AI Coaching"}
             </div>
           </div>
         </Card>
@@ -750,9 +748,9 @@ export function RoleplaySession({
               <p className="text-warm-gray truncate text-xs">{persona.role}</p>
             </div>
             <div className="text-warm-gray-light bg-cream/50 border-border/20 rounded-full border px-3 py-1 text-[11px] font-medium">
-              {product?.companyName
-                ? `Evaluating ${product.companyName}`
-                : "Loading product…"}
+              {knowledgeMetadata?.productCategory
+                ? `Evaluating ${knowledgeMetadata.productCategory}`
+                : "General AI Coaching"}
             </div>
           </div>
         </Card>
@@ -1183,12 +1181,12 @@ export function RoleplaySession({
                 <strong className="text-charcoal">{persona.name}</strong> (
                 {persona.role}). This session is designed to test your pitch,
                 objection handling, and closing skills.
-                {product?.companyName && (
+                {knowledgeMetadata?.productCategory && (
                   <>
                     {" "}
                     You&apos;re pitching{" "}
                     <strong className="text-charcoal">
-                      {product.companyName}
+                      {knowledgeMetadata.productCategory}
                     </strong>
                     .
                   </>

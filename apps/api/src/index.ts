@@ -10,7 +10,7 @@ import { WebSocketServer } from "ws";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { personaRoutes } from "./routes/persona.js";
-import { productRoutes } from "./routes/product.js";
+import { knowledgeRoutes } from "./routes/knowledge.js";
 import { sessionRoutes } from "./routes/session.js";
 import { healthRoutes } from "./routes/health.js";
 import { registerLiveRoute } from "./routes/live.js";
@@ -33,7 +33,7 @@ app.use(requestLogger);
 
 app.use("/api/health", healthRoutes);
 app.use("/api/persona", personaRoutes);
-app.use("/api/product", productRoutes);
+app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/session", sessionRoutes);
 
 // ─── Error Handling ─────────────────────────────────────────────────────────

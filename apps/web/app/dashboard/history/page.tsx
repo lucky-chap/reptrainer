@@ -16,13 +16,12 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import type { Session, Persona, Product } from "@/lib/db";
+import type { Session, Persona } from "@/lib/db";
 import {
   deleteSession,
   deleteCallSession,
   subscribeSessions,
   subscribePersonas,
-  subscribeProducts,
   saveSession,
   updateCallSession,
   getUserTeams,
@@ -57,7 +56,6 @@ export default function HistoryPage() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [personas, setPersonas] = useState<Record<string, Persona>>({});
-  const [products, setProducts] = useState<Record<string, Product>>({});
   const [teamMembers, setTeamMembers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [generatingDebriefId, setGeneratingDebriefId] = useState<string | null>(
@@ -107,21 +105,9 @@ export default function HistoryPage() {
         handleError,
       );
 
-      const unsubProducts = subscribeProducts(
-        user.uid,
-        teamIds,
-        (data) => {
-          const productMap: Record<string, Product> = {};
-          data.forEach((p) => (productMap[p.id] = p));
-          setProducts(productMap);
-        },
-        handleError,
-      );
-
       return () => {
         unsubSessions();
         unsubPersonas();
-        unsubProducts();
       };
     };
 
@@ -251,7 +237,6 @@ export default function HistoryPage() {
         <div className="grid gap-4">
           {sessions.map((session, i) => {
             const persona = personas[session.personaId];
-            const product = products[session.productId];
             const evaluation = session.evaluation;
             const memberInfo = teamMembers[session.userId];
 

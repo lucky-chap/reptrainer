@@ -6,3 +6,4 @@ export * from "./db/sessions";
 export * from "./db/teams";
 export * from "./db/storage";
 export * from "./db/demo";
+export * from "./db/knowledge";

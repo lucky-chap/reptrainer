@@ -11,21 +11,20 @@ import React, {
 import { v4 as uuidv4 } from "uuid";
 import {
   generatePersona as generatePersonaAction,
-  generateProduct as generateProductAction,
   generatePersonaAvatar as generateAvatarAction,
 } from "@/app/actions/api";
-import { savePersona, saveProduct, updatePersona } from "@/lib/db";
-import type { Product, Persona } from "@/lib/db";
+import { savePersona, updatePersona } from "@/lib/db";
+import type { Persona } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { toast } from "sonner";
 
 export interface GenerationTask {
   id: string;
-  productId?: string;
-  productName?: string;
+  teamId?: string;
+  teamName?: string;
   status: "generating" | "completed" | "error";
   subStatus?: "analyzing" | "creating_traits" | "generating_avatar";
-  type: "persona" | "product";
+  type: "persona";
   personaName?: string;
   personaId?: string;
   error?: string;
@@ -36,17 +35,13 @@ export interface GenerationContextType {
   tasks: GenerationTask[];
   isGenerating: boolean;
   generatePersona: (
-    product: Product,
+    teamId: string,
+    teamName: string,
     personalityType?: string,
     gender?: "male" | "female" | "other",
     country?: string,
     competitorUrl?: string,
   ) => Promise<void>;
-  generateProduct: (data: {
-    companyName?: string;
-    briefDescription?: string;
-    teamId: string;
-  }) => Promise<void>;
   dismissTask: (taskId: string) => void;
 }
 
@@ -80,7 +75,8 @@ export function GenerationProvider({
 
   const generatePersona = useCallback(
     async (
-      product: Product,
+      teamId: string,
+      teamName: string,
       personalityType?: string,
       gender?: "male" | "female" | "other",
       country?: string,
@@ -90,8 +86,8 @@ export function GenerationProvider({
 
       const task: GenerationTask = {
         id: taskId,
-        productId: product.id,
-        productName: product.companyName,
+        teamId,
+        teamName,
         status: "generating",
         type: "persona",
         startedAt: Date.now(),
@@ -101,7 +97,7 @@ export function GenerationProvider({
       setTasks((prev) => [...prev, task]);
 
       const taskToastId = toast.loading(
-        `Generating persona for ${product.companyName}...`,
+        `Generating persona for ${teamName}...`,
       );
 
       try {
@@ -113,11 +109,7 @@ export function GenerationProvider({
         );
 
         const data = await generatePersonaAction({
-          companyName: product.companyName,
-          description: product.description,
-          targetCustomer: product.targetCustomer,
-          industry: product.industry,
-          objections: product.objections,
+          teamId,
           personalityType,
           gender,
           country,
@@ -135,18 +127,11 @@ export function GenerationProvider({
           ),
         );
 
-        if (!product.teamId) {
-          throw new Error(
-            "Product is missing a team association. Cannot generate persona.",
-          );
-        }
-
         const personaId = uuidv4();
         const persona: Persona = {
           id: personaId,
           userId: user?.uid || "anonymous",
-          teamId: product.teamId,
-          productId: product.id,
+          teamId: teamId,
           name: data.name,
           role: data.role,
           personalityPrompt: data.personalityPrompt,
@@ -204,7 +189,6 @@ export function GenerationProvider({
           });
 
           if (activeRef.current.get(taskId) && avatarData.avatarDataUrl) {
-            // Use the public URL from the backend directly
             await updatePersona(personaId, {
               avatarUrl: avatarData.avatarDataUrl,
             });
@@ -224,6 +208,7 @@ export function GenerationProvider({
                     ...t,
                     status: "completed" as const,
                     personaName: persona.name,
+                    personaId: persona.id,
                   }
                 : t,
             ),
@@ -260,95 +245,6 @@ export function GenerationProvider({
     [user],
   );
 
-  const generateProduct = useCallback(
-    async (data: {
-      companyName?: string;
-      briefDescription?: string;
-      teamId: string;
-    }) => {
-      const taskId = uuidv4();
-
-      const task: GenerationTask = {
-        id: taskId,
-        status: "generating",
-        type: "product",
-        startedAt: Date.now(),
-      };
-
-      activeRef.current.set(taskId, true);
-      setTasks((prev) => [...prev, task]);
-
-      const taskToastId = toast.loading("Generating product...");
-
-      try {
-        const generatedData = await generateProductAction(data);
-
-        if (!activeRef.current.get(taskId)) {
-          toast.dismiss(taskToastId);
-          return;
-        }
-
-        const product: Product = {
-          id: uuidv4(),
-          userId: user?.uid || "anonymous",
-          teamId: data.teamId,
-          companyName: generatedData.companyName,
-          description: generatedData.description,
-          targetCustomer: generatedData.targetCustomer,
-          industry: generatedData.industry,
-          objections: generatedData.objections,
-          createdAt: new Date().toISOString(),
-        };
-
-        await saveProduct(product);
-
-        if (activeRef.current.get(taskId)) {
-          toast.success(`Generated product: ${product.companyName}`, {
-            id: taskToastId,
-          });
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId
-                ? {
-                    ...t,
-                    status: "completed" as const,
-                    productName: product.companyName,
-                  }
-                : t,
-            ),
-          );
-        }
-      } catch (error) {
-        console.error("Failed to generate product:", error);
-        if (activeRef.current.get(taskId)) {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId
-                ? {
-                    ...t,
-                    status: "error" as const,
-                    error:
-                      error instanceof Error
-                        ? error.message
-                        : "Generation failed",
-                  }
-                : t,
-            ),
-          );
-        }
-        toast.error(
-          `Failed to generate product: ${error instanceof Error ? error.message : "Unknown error"}`,
-          {
-            id: taskToastId,
-          },
-        );
-      } finally {
-        activeRef.current.delete(taskId);
-      }
-    },
-    [user],
-  );
-
   const dismissTask = useCallback((taskId: string) => {
     activeRef.current.delete(taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
@@ -362,7 +258,6 @@ export function GenerationProvider({
         tasks,
         isGenerating,
         generatePersona,
-        generateProduct,
         dismissTask,
       }}
     >

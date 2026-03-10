@@ -1,12 +1,10 @@
 "use server";
 
 import { CoachDebriefResponse } from "@reptrainer/shared";
+import env from "@/config/env";
 
-const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const secretKey =
-  process.env.NEXT_PUBLIC_API_SECRET_KEY ||
-  process.env.API_SECRET_KEY ||
-  "reptrainer-secret-123";
+const baseUrl = env.NEXT_PUBLIC_API_URL;
+const secretKey = env.NEXT_PUBLIC_API_SECRET_KEY;
 
 const headers = {
   "Content-Type": "application/json",
@@ -14,11 +12,7 @@ const headers = {
 };
 
 export async function generatePersona(data: {
-  companyName: string;
-  description: string;
-  targetCustomer: string;
-  industry: string;
-  objections: string[];
+  teamId: string;
   personalityType?: string;
   gender?: "male" | "female" | "other";
   country?: string;
@@ -79,22 +73,6 @@ export async function generateFeedbackReport(data: {
 
   if (!res.ok) {
     throw new Error(`Failed to generate feedback report: ${res.statusText}`);
-  }
-  return res.json();
-}
-
-export async function generateProduct(data: {
-  companyName?: string;
-  briefDescription?: string;
-}) {
-  const res = await fetch(`${baseUrl}/api/product/generate`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(data),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to generate product: ${res.statusText}`);
   }
   return res.json();
 }

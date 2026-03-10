@@ -20,6 +20,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import { Button } from "@/components/ui/button";
+import { subscribeKnowledgeBase } from "@/lib/db/knowledge";
+import type { KnowledgeBase } from "@reptrainer/shared";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -106,13 +109,59 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     loading: teamLoading,
   } = useTeam();
 
+  const [kb, setKb] = React.useState<KnowledgeBase | null>(null);
+  const [kbLoading, setKbLoading] = React.useState(true);
+
+  // Subscribe to KB changes
+  useEffect(() => {
+    if (!activeMembership || !user) {
+      setKbLoading(false);
+      return;
+    }
+
+    setKbLoading(true);
+    const unsub = subscribeKnowledgeBase(
+      activeMembership.id,
+      (data) => {
+        setKb(data);
+        setKbLoading(false);
+      },
+      (error) => {
+        console.error("Error subscribing to knowledge base:", error);
+        setKbLoading(false);
+      },
+    );
+
+    return () => unsub();
+  }, [activeMembership, user]);
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth/signin");
-    } else if (!loading && user && !teamLoading) {
+    } else if (!loading && user && !teamLoading && !kbLoading) {
       if (memberships.length === 0) {
         router.push("/onboarding/team");
       } else {
+        // Enforce knowledge base and RAG initialization, but exclude team and knowledge routes
+        const isExemptRoute =
+          pathname.startsWith("/dashboard/knowledge") ||
+          pathname.startsWith("/dashboard/team");
+
+        if (!isExemptRoute && isAdmin) {
+          const hasDocs = kb && kb.documents && kb.documents.length > 0;
+          const isRagInitialized = !!kb?.ragCorpusId;
+
+          if (!hasDocs) {
+            toast.error("Please set up your knowledge base to continue.");
+            router.push("/dashboard/knowledge");
+            return;
+          } else if (!isRagInitialized) {
+            toast.error("Please initialize your RAG engine to continue.");
+            router.push("/dashboard/knowledge");
+            return;
+          }
+        }
+
         // Simple access control for admin-only routes
         const currentNavItem = navItems.find(
           (item) =>
@@ -123,9 +172,19 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [user, loading, memberships, teamLoading, router, pathname, isAdmin]);
+  }, [
+    user,
+    loading,
+    memberships,
+    teamLoading,
+    kbLoading,
+    kb,
+    isAdmin,
+    pathname,
+    router,
+  ]);
 
-  if (loading || teamLoading || !user) {
+  if (loading || teamLoading || kbLoading || !user) {
     return (
       <div className="bg-cream animate-fade-in flex min-h-screen flex-col items-center justify-center">
         <div className="border-charcoal/20 border-t-charcoal size-8 animate-spin rounded-full border-2" />

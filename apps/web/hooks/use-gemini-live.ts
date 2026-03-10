@@ -7,6 +7,7 @@ import {
   ObjectionLog,
   PersonaMood,
 } from "./gemini-types";
+import env from "@/config/env";
 
 export interface UseGeminiLiveOptions {
   systemPrompt: string;
@@ -19,17 +20,12 @@ export interface UseGeminiLiveOptions {
 
 // Build the WebSocket URL from the API URL
 function getWsUrl(systemPrompt: string, voiceName: string): string {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  const secretKey = process.env.NEXT_PUBLIC_API_SECRET_KEY;
+  const apiUrl = env.NEXT_PUBLIC_API_URL;
+  const secretKey = env.NEXT_PUBLIC_API_SECRET_KEY;
 
   if (!apiUrl) {
     throw new Error(
       "NEXT_PUBLIC_API_URL is not defined in environment variables",
-    );
-  }
-  if (!secretKey) {
-    throw new Error(
-      "NEXT_PUBLIC_API_SECRET_KEY is not defined in environment variables",
     );
   }
 

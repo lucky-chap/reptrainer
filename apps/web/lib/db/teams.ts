@@ -23,7 +23,6 @@ import {
 import { db, storage } from "./core";
 import { v4 as uuidv4 } from "uuid";
 import type {
-  Product,
   Persona,
   SessionEvaluation,
   Session,
@@ -44,66 +43,6 @@ import type {
 } from "./core";
 
 // ─── Real-time Subscriptions (cache-first) ───
-
-export function subscribeProducts(
-  userId: string,
-  teamIds: string[] = [],
-  onData: (products: Product[]) => void,
-  onError: (err: Error) => void,
-) {
-  const userQ = query(
-    collection(db, "products"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
-
-  let userProducts: Product[] = [];
-  let teamProducts: Product[] = [];
-
-  const update = () => {
-    const combined = [...userProducts, ...teamProducts];
-    const seen = new Set<string>();
-    const unique = combined
-      .filter((p) => {
-        if (seen.has(p.id)) return false;
-        seen.add(p.id);
-        return true;
-      })
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    onData(unique);
-  };
-
-  const unsubUser = onSnapshot(
-    userQ,
-    (snap) => {
-      userProducts = snap.docs.map((d) => d.data() as Product);
-      update();
-    },
-    onError,
-  );
-
-  let unsubTeam = () => {};
-  if (Array.isArray(teamIds) && teamIds.length > 0) {
-    const teamQ = query(
-      collection(db, "products"),
-      where("teamId", "in", teamIds),
-      orderBy("createdAt", "desc"),
-    );
-    unsubTeam = onSnapshot(
-      teamQ,
-      (snap) => {
-        teamProducts = snap.docs.map((d) => d.data() as Product);
-        update();
-      },
-      onError,
-    );
-  }
-
-  return () => {
-    unsubUser();
-    unsubTeam();
-  };
-}
 
 export function subscribePersonas(
   userId: string,
@@ -264,6 +203,7 @@ export async function createTeam(
     id: uuidv4(),
     name,
     ownerId,
+    hasKnowledgeBase: false,
     createdAt: new Date().toISOString(),
   };
   await setDoc(doc(db, "teams", team.id), team);

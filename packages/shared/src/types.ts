@@ -1,15 +1,33 @@
 // ─── Core Domain Types ──────────────────────────────────────────────────────
 
-export interface Product {
+export interface KnowledgeDocument {
   id: string;
-  userId: string;
-  teamId?: string;
-  companyName: string;
-  description: string;
-  targetCustomer: string;
-  industry: string;
-  objections: string[];
+  name: string;
+  type: string;
+  storageUrl: string;
   createdAt: string;
+  ragFileId?: string;
+}
+
+export interface KnowledgeBase {
+  teamId: string;
+  documents: KnowledgeDocument[];
+  embeddingsIndexStatus: "idle" | "processing" | "ready" | "failed";
+  vectorIndexId?: string;
+  ragCorpusId?: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeMetadata {
+  teamId: string;
+  productCategory: string;
+  icp: string; // Ideal Customer Profile
+  buyerRoles: string[];
+  competitors: string[];
+  differentiators: string[];
+  valueProps: string[];
+  objections: string[];
+  updatedAt: string;
 }
 
 export interface PersonaTraits {
@@ -55,9 +73,8 @@ export type DifficultyLevel = "easy" | "medium" | "hard";
 
 export interface Persona {
   id: string;
-  productId: string;
+  teamId: string;
   userId: string;
-  teamId?: string;
   name: string;
   role: string;
 
@@ -173,8 +190,7 @@ export interface TrainingTrack {
 export interface Session {
   id: string;
   personaId: string;
-  productId: string;
-  teamId?: string;
+  teamId: string;
   personaName?: string;
   personaRole?: string;
   personaAvatarUrl?: string;
@@ -194,9 +210,8 @@ export type CallStatus = "pending" | "active" | "ended";
 export interface CallSession {
   id: string;
   userId: string;
-  teamId?: string;
+  teamId: string;
   personaId: string;
-  productId: string;
   userName: string;
   personaName?: string;
   personaRole?: string;
@@ -263,15 +278,10 @@ export interface ProgressReport {
 // ─── API Request / Response Types ───────────────────────────────────────────
 
 export interface GeneratePersonaRequest {
-  companyName: string;
-  description: string;
-  targetCustomer: string;
-  industry: string;
-  objections: string[];
+  teamId: string;
   personalityType?: PersonalityType;
   gender?: "male" | "female" | "other";
   country?: string;
-  competitorUrl?: string;
 }
 
 export interface GeneratePersonaResponse {
@@ -329,19 +339,6 @@ export interface FeedbackReportRequest {
 
 export interface FeedbackReportResponse extends FeedbackReport {}
 
-export interface GenerateProductRequest {
-  companyName?: string;
-  briefDescription?: string;
-}
-
-export interface GenerateProductResponse {
-  companyName: string;
-  description: string;
-  targetCustomer: string;
-  industry: string;
-  objections: string[];
-}
-
 export interface ApiError {
   error: string;
   details?: string;
@@ -378,6 +375,7 @@ export interface Team {
   id: string;
   name: string;
   ownerId: string;
+  hasKnowledgeBase: boolean;
   createdAt: string;
 }
 

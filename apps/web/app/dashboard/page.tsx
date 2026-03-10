@@ -1,31 +1,40 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Activity } from "lucide-react";
-import type { Session, Persona, Product } from "@/lib/db";
 import {
-  subscribeProducts,
+  Activity,
+  Brain,
+  FileText,
+  PlusCircle,
+  ChevronRight,
+} from "lucide-react";
+import type { Session, Persona } from "@/lib/db";
+import {
   subscribePersonas,
   subscribeSessions,
   subscribeUserMetrics,
   getUserTeams,
 } from "@/lib/db";
-import { type UserMetrics } from "@reptrainer/shared";
+import { subscribeKnowledgeBase } from "@/lib/db/knowledge";
+import { type UserMetrics, type KnowledgeBase } from "@reptrainer/shared";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import { AdminDashboard } from "@/components/dashboard/admin-dashboard";
 import { MemberDashboard } from "@/components/dashboard/member-dashboard";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [kb, setKb] = useState<KnowledgeBase | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<UserMetrics | null>(null);
   const [teamIds, setTeamIds] = useState<string[]>([]);
-  const { isAdmin } = useTeam();
+  const { isAdmin, currentTeam } = useTeam();
+  const router = useRouter();
 
   useEffect(() => {
     if (!user) return;
@@ -48,12 +57,13 @@ export default function DashboardPage() {
           setLoading(false);
         };
 
-        const unsubProducts = subscribeProducts(
-          user.uid,
-          ids,
-          (data) => setProducts(data),
-          handleError,
-        );
+        const unsubKb = currentTeam
+          ? subscribeKnowledgeBase(
+              currentTeam.id,
+              (data) => setKb(data),
+              handleError,
+            )
+          : () => {};
 
         const unsubPersonas = subscribePersonas(
           user.uid,
@@ -76,7 +86,7 @@ export default function DashboardPage() {
         );
 
         return () => {
-          unsubProducts();
+          unsubKb();
           unsubPersonas();
           unsubSessions();
           unsubMetrics();
@@ -124,11 +134,36 @@ export default function DashboardPage() {
     );
   }
 
+  if (currentTeam && !currentTeam.hasKnowledgeBase) {
+    return (
+      <div className="animate-fade-in flex flex-col items-center justify-center py-20 text-center">
+        <div className="bg-charcoal/5 ring-charcoal/2 mb-6 rounded-full p-4 ring-8">
+          <Brain className="text-charcoal/40 size-12" />
+        </div>
+        <h2 className="text-charcoal mb-3 text-2xl font-bold">
+          Knowledge Base Required
+        </h2>
+        <p className="text-warm-gray mb-8 max-w-md leading-relaxed">
+          To generate training personas and simulations, your team first needs
+          to upload its knowledge base (product docs, playbooks, pitch decks).
+        </p>
+        <Button
+          onClick={() => router.push("/dashboard/knowledge")}
+          size="lg"
+          className="bg-charcoal text-cream hover:bg-charcoal-light rounded-full px-8 shadow-md"
+        >
+          Upload Knowledge
+          <ChevronRight className="ml-2 size-4" />
+        </Button>
+      </div>
+    );
+  }
+
   return isAdmin ? (
     <AdminDashboard
       sessions={sessions}
       personas={personas}
-      products={products}
+      team={currentTeam}
       metrics={metrics}
     />
   ) : (
@@ -136,7 +171,7 @@ export default function DashboardPage() {
       user={user}
       sessions={sessions}
       personas={personas}
-      products={products}
+      team={currentTeam}
       metrics={metrics}
     />
   );

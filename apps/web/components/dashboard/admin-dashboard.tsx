@@ -10,16 +10,21 @@ import {
   ArrowRight,
   BarChart3,
   UserCircle,
-  Package,
-  Star,
   Zap,
   Activity,
   Search,
   CheckCircle2,
   MessageSquare,
+  Database,
+  Brain,
+  Star,
 } from "lucide-react";
-import type { Session, Persona, Product } from "@/lib/db";
-import { type UserMetrics } from "@reptrainer/shared";
+import type { Session, Persona } from "@/lib/db";
+import {
+  type ProgressReport,
+  Team,
+  type UserMetrics,
+} from "@reptrainer/shared";
 import { useAuth } from "@/context/auth-context";
 import {
   Card,
@@ -46,14 +51,14 @@ import {
 interface AdminDashboardProps {
   sessions: Session[];
   personas: Persona[];
-  products: Product[];
+  team: Team | null;
   metrics: UserMetrics | null;
 }
 
 export function AdminDashboard({
   sessions: allSessions,
   personas,
-  products,
+  team,
   metrics,
 }: AdminDashboardProps) {
   const { user } = useAuth();
@@ -189,10 +194,10 @@ export function AdminDashboard({
           subtext="Buyer profiles generated"
         />
         <StatCard
-          icon={Package}
-          label="Products"
-          value={products.length.toString()}
-          subtext="Configured for training"
+          icon={Database}
+          label="Knowledge Base"
+          value={team?.hasKnowledgeBase ? "Active" : "Empty"}
+          subtext="Powering your training"
         />
       </div>
 
@@ -398,10 +403,10 @@ export function AdminDashboard({
             description="Jump into a live AI sales conversation"
           />
           <QuickAction
-            href="/dashboard/products"
-            icon={Package}
-            title="Add Product"
-            description="Configure a new product for training"
+            href="/dashboard/knowledge"
+            icon={Brain}
+            title="Update Knowledge"
+            description="Upload product docs to power AI"
           />
           <QuickAction
             href="/dashboard/personas"

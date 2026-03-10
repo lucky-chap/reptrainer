@@ -7,9 +7,9 @@ import { useTeam } from "@/context/team-context";
 import {
   subscribeSessions,
   subscribePersonas,
-  subscribeProducts,
+  subscribeKnowledgeMetadata,
 } from "@/lib/db";
-import type { Session, Persona, Product } from "@/lib/db";
+import type { Session, Persona, KnowledgeMetadata } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
 
 interface SessionDetailPageProps {
@@ -26,7 +26,8 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
 
   const [session, setSession] = useState<Session | null>(null);
   const [persona, setPersona] = useState<Persona | null>(null);
-  const [product, setProduct] = useState<Product | null>(null);
+  const [knowledgeMetadata, setKnowledgeMetadata] =
+    useState<KnowledgeMetadata | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -67,24 +68,18 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
       handleError,
     );
 
-    const unsubProducts = subscribeProducts(
-      user.uid,
-      teamIds,
-      (products) => {
-        if (session?.productId) {
-          const pr = products.find((pr) => pr.id === session.productId);
-          if (pr) setProduct(pr);
-        }
-      },
+    const unsubKnowledge = subscribeKnowledgeMetadata(
+      session?.teamId || teamIds[0] || "",
+      (data) => setKnowledgeMetadata(data),
       handleError,
     );
 
     return () => {
       unsubSessions();
       unsubPersonas();
-      unsubProducts();
+      unsubKnowledge();
     };
-  }, [user, id, teamIds, session?.personaId, session?.productId]);
+  }, [user, id, teamIds, session?.personaId, session?.teamId]);
 
   if (loading) {
     return (
@@ -113,7 +108,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
       <SessionResults
         session={session}
         persona={persona}
-        product={product}
+        productCategory={knowledgeMetadata?.productCategory}
         onBack={() => router.push("/dashboard/history")}
       />
     </div>

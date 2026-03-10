@@ -19,8 +19,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import type { User } from "firebase/auth";
-import type { Session, Persona, Product } from "@/lib/db";
-import { type UserMetrics } from "@reptrainer/shared";
+import type { Session, Persona } from "@/lib/db";
+import { type Team, type UserMetrics } from "@reptrainer/shared";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import {
@@ -50,7 +50,7 @@ interface MemberDashboardProps {
   user: User | null;
   sessions: Session[];
   personas: Persona[];
-  products: Product[];
+  team: Team | null;
   metrics: UserMetrics | null;
 }
 
@@ -58,7 +58,7 @@ export function MemberDashboard({
   user,
   sessions: allSessions,
   personas,
-  products,
+  team,
   metrics,
 }: MemberDashboardProps) {
   // Defensive filtering: ensure we only show the user's own sessions

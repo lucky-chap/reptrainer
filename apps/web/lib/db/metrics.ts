@@ -22,7 +22,6 @@ import {
 import { db, storage } from "./core";
 import { v4 as uuidv4 } from "uuid";
 import type {
-  Product,
   Persona,
   SessionEvaluation,
   Session,
@@ -42,9 +41,7 @@ import type {
   DifficultyLevel,
 } from "./core";
 
-
 // ─── Metrics Operations ───
-
 
 export async function getUserMetrics(
   userId: string,
@@ -71,4 +68,3 @@ export function subscribeUserMetrics(
     onError,
   );
 }
-

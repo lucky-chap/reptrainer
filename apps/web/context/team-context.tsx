@@ -11,6 +11,7 @@ import {
 interface TeamContextType {
   memberships: TeamWithRole[];
   activeMembership: TeamWithRole | null;
+  currentTeam: TeamWithRole | null;
   loading: boolean;
   isAdmin: boolean;
   refreshMemberships: () => Promise<void>;
@@ -73,6 +74,7 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
       value={{
         memberships,
         activeMembership,
+        currentTeam: activeMembership,
         loading,
         isAdmin,
         refreshMemberships,

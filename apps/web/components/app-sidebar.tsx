@@ -15,6 +15,7 @@ import {
   Settings,
   LogOut,
   ChevronUp,
+  Database,
 } from "lucide-react";
 
 import {
@@ -58,6 +59,12 @@ const navItems = [
     adminOnly: true,
   },
   {
+    label: "Knowledge Base",
+    href: "/dashboard/knowledge",
+    icon: Database,
+    adminOnly: true,
+  },
+  {
     label: "Personas",
     href: "/dashboard/personas",
     icon: UserCircle,
@@ -78,12 +85,6 @@ const navItems = [
     label: "Analytics",
     href: "/dashboard/analytics",
     icon: Activity,
-  },
-  {
-    label: "Team Settings",
-    href: "/dashboard/team/settings",
-    icon: Settings,
-    adminOnly: true,
   },
 ];
 
@@ -192,17 +193,6 @@ export function AppSidebar() {
                 side="top"
                 className="w-[--radix-popper-anchor-width] min-w-56 rounded-lg bg-white p-1 shadow-lg"
               >
-                {isAdmin && (
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href="/dashboard/team/settings"
-                      className="flex cursor-pointer items-center gap-2"
-                    >
-                      <Settings className="size-4" />
-                      <span>Team Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuItem
                   onClick={() => logout()}
                   className="text-destructive focus:text-destructive flex cursor-pointer items-center gap-2"

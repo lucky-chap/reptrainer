@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Users,
 } from "lucide-react";
-import type { Persona, Product } from "@/lib/db";
+import type { Persona } from "@/lib/db";
 import { useGeneration } from "@/context/generation-context";
 import {
   Card,
@@ -40,7 +40,6 @@ const intensityLabels = [
 
 interface PersonaCardProps {
   persona: Persona;
-  product?: Product;
   index: number;
   onDelete: (id: string) => void;
   teams?: any[];
@@ -49,7 +48,6 @@ interface PersonaCardProps {
 
 export function PersonaCard({
   persona,
-  product,
   index,
   onDelete,
   teams = [],
@@ -149,20 +147,6 @@ export function PersonaCard({
             </span>
           </div>
         </div>
-
-        {product && (
-          <div className="bg-charcoal/5 border-border/5 flex items-center gap-2 rounded-xl border p-3">
-            <Building2 className="text-charcoal/40 size-4" />
-            <div className="min-w-0">
-              <p className="text-warm-gray/40 text-[9px] font-bold tracking-widest uppercase">
-                Product Context
-              </p>
-              <p className="text-charcoal truncate text-[11px] font-bold">
-                {product.companyName}
-              </p>
-            </div>
-          </div>
-        )}
 
         <p className="text-warm-gray line-clamp-2 text-xs leading-relaxed font-medium italic">
           "{persona.objectionStrategy}"

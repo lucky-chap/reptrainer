@@ -7,12 +7,13 @@ import {
   Mail,
   Shield,
   User,
-  Clock,
-  Trash2,
-  Copy,
   Check,
   Sparkles,
   Loader2,
+  Settings,
+  Trash2,
+  Clock,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,11 +23,15 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
+  CardFooter,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { InviteMemberModal } from "@/components/team/invite-member-modal";
 import { useTeam } from "@/context/team-context";
 import { useAuth } from "@/context/auth-context";
 import {
+  updateTeam,
   getTeamMembers,
   getPendingInvitations,
   removeTeamMember,
@@ -46,6 +51,8 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [teamName, setTeamName] = useState(activeMembership?.name || "");
+  const [isSavingName, setIsSavingName] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
 
   const hasDemoData = members.some((m) => m.userName === "Amara Okafor");
@@ -69,6 +76,31 @@ export default function TeamPage() {
   useEffect(() => {
     fetchData();
   }, [activeMembership]);
+
+  useEffect(() => {
+    if (activeMembership) {
+      setTeamName(activeMembership.name);
+    }
+  }, [activeMembership]);
+
+  const handleSaveTeamName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeMembership || !teamName.trim()) return;
+
+    setIsSavingName(true);
+    try {
+      await updateTeam(activeMembership.id, {
+        name: teamName.trim(),
+      });
+      toast.success("Team settings updated successfully");
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to update team:", error);
+      toast.error("Failed to update team settings");
+    } finally {
+      setIsSavingName(false);
+    }
+  };
 
   const copyInvitationLink = (id: string) => {
     const link = `${window.location.origin}/invite/${id}`;
@@ -369,6 +401,52 @@ export default function TeamPage() {
           </CardContent>
         </Card>
       </div>
+
+      {isAdmin && (
+        <div className="grid gap-8 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <form onSubmit={handleSaveTeamName}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="size-5" />
+                  Team Settings
+                </CardTitle>
+                <CardDescription>
+                  Update your team&apos;s name. This will be visible to all
+                  members.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="teamName" className="text-sm font-medium">
+                    Workspace Name
+                  </Label>
+                  <Input
+                    id="teamName"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="e.g. Acme Corp Sales"
+                    required
+                  />
+                </div>
+              </CardContent>
+              <CardFooter className="bg-muted/50 mt-2 flex justify-end rounded-b-xl px-6 py-4">
+                <Button
+                  type="submit"
+                  variant="brand"
+                  disabled={
+                    isSavingName ||
+                    !teamName.trim() ||
+                    teamName.trim() === activeMembership.name
+                  }
+                >
+                  {isSavingName ? "Saving..." : "Save Changes"}
+                </Button>
+              </CardFooter>
+            </form>
+          </Card>
+        </div>
+      )}
 
       <InviteMemberModal
         isOpen={isInviteModalOpen}

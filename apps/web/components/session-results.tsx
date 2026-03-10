@@ -21,7 +21,7 @@ import {
   Handshake,
   Ear,
 } from "lucide-react";
-import type { Session, Persona, Product } from "@/lib/db";
+import type { Session, Persona } from "@/lib/db";
 import {
   saveSession,
   updateCallSession,
@@ -63,7 +63,7 @@ import {
 interface SessionResultsProps {
   session: Session;
   persona?: Persona | null;
-  product: Product | null;
+  productCategory?: string | null;
   onBack: () => void;
 }
 
@@ -139,7 +139,7 @@ function ScoreIndicator({
 export function SessionResults({
   session,
   persona,
-  product,
+  productCategory,
   onBack,
 }: SessionResultsProps) {
   const [debriefData, setDebriefData] = useState<CoachDebriefResponse | null>(
@@ -546,10 +546,10 @@ export function SessionResults({
                 </div>
                 <div className="space-y-1">
                   <span className="text-warm-gray text-[10px] font-bold tracking-widest uppercase">
-                    Product
+                    Industry / Category
                   </span>
                   <div className="text-charcoal truncate font-semibold">
-                    {product?.companyName || "N/A"}
+                    {productCategory || "General Coaching"}
                   </div>
                 </div>
               </div>

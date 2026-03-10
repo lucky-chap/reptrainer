@@ -3,12 +3,13 @@
 import { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Phone, Target } from "lucide-react";
-import type { Product, Persona } from "@/lib/db";
+import type { Persona } from "@/lib/db";
 import {
-  subscribeProducts,
   subscribePersonas,
   subscribeUserMetrics,
+  subscribeKnowledgeMetadata,
   type UserMetrics,
+  type KnowledgeMetadata,
 } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
@@ -32,16 +33,13 @@ type TrainStep = "configure" | "track-select" | "session";
 function TrainPageContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
-  const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null,
-  );
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(
     null,
   );
   const [activePersona, setActivePersona] = useState<Persona | null>(null);
-  const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [knowledgeMetadata, setKnowledgeMetadata] =
+    useState<KnowledgeMetadata | null>(null);
   const [metrics, setMetrics] = useState<UserMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,7 +55,12 @@ function TrainPageContent() {
   );
 
   const { tasks, isGenerating, dismissTask } = useBackgroundGeneration();
-  const { memberships, isAdmin, loading: teamLoading } = useTeam();
+  const {
+    memberships,
+    activeMembership,
+    isAdmin,
+    loading: teamLoading,
+  } = useTeam();
   const teamIds = useMemo(() => memberships.map((m) => m.id), [memberships]);
 
   // 1. Data Subscriptions (Only depends on User and Team IDs)
@@ -72,13 +75,6 @@ function TrainPageContent() {
       setLoading(false);
     };
 
-    const unsubProducts = subscribeProducts(
-      user.uid,
-      teamIds,
-      (data) => setProducts(data),
-      handleError,
-    );
-
     const unsubPersonas = subscribePersonas(
       user.uid,
       teamIds,
@@ -92,13 +88,24 @@ function TrainPageContent() {
       handleError,
     );
 
+    // Subscribe to knowledge metadata if exactly one team selected or just general teamIds
+    // For simplicity, we'll subscribe to activeMembership if it exists
+    let unsubKb = () => {};
+    if (activeMembership?.id) {
+      unsubKb = subscribeKnowledgeMetadata(
+        activeMembership.id,
+        (data) => setKnowledgeMetadata(data),
+        handleError,
+      );
+    }
+
     return () => {
       clearTimeout(timer);
-      unsubProducts();
       unsubPersonas();
       unsubMetrics();
+      unsubKb();
     };
-  }, [user, teamIds, teamLoading]);
+  }, [user, teamIds, teamLoading, activeMembership?.id]);
 
   // 2. Query Parameter Pre-selection (Depends on the data being loaded)
   useEffect(() => {
@@ -109,21 +116,15 @@ function TrainPageContent() {
       const persona = personas.find((p) => p.id === queryPersonaId);
       if (persona) {
         setSelectedPersonaId(queryPersonaId);
-        // Also pre-select the associated product
-        if (persona.productId) {
-          setSelectedProductId(persona.productId);
-        }
       }
     }
   }, [searchParams, personas, selectedPersonaId]);
 
   const handleStartRoleplay = () => {
-    if (!selectedPersonaId || !selectedProductId) return;
+    if (!selectedPersonaId) return;
     const persona = personas.find((p) => p.id === selectedPersonaId);
-    const product = products.find((p) => p.id === selectedProductId);
-    if (persona && product) {
+    if (persona) {
       setActivePersona(persona);
-      setActiveProduct(product);
       // Move to track selection step
       setStep("track-select");
     }
@@ -149,7 +150,6 @@ function TrainPageContent() {
 
   const handleBackToConfig = () => {
     setActivePersona(null);
-    setActiveProduct(null);
     setSelectedTrackId(null);
     setSelectedScenarioId(null);
     setCustomScenario(null);
@@ -157,7 +157,7 @@ function TrainPageContent() {
   };
 
   // ─── Step: Training Track Selection ───────────────────────────────────
-  if (step === "track-select" && activePersona && activeProduct) {
+  if (step === "track-select" && activePersona) {
     return (
       <>
         <div className="mx-auto max-w-4xl py-6">
@@ -172,12 +172,12 @@ function TrainPageContent() {
   }
 
   // ─── Step: Active Roleplay Session ────────────────────────────────────
-  if (step === "session" && activePersona && activeProduct) {
+  if (step === "session" && activePersona) {
     return (
       <>
         <RoleplaySession
           persona={activePersona}
-          product={activeProduct}
+          knowledgeMetadata={knowledgeMetadata || undefined}
           teamId={activePersona.teamId}
           trackId={selectedTrackId ?? undefined}
           scenarioId={selectedScenarioId ?? undefined}
@@ -242,17 +242,17 @@ function TrainPageContent() {
           </CardHeader>
 
           <CardContent className="p-8 pt-4">
-            {products.length === 0 || personas.length === 0 ? (
+            {(!knowledgeMetadata && !isAdmin) || personas.length === 0 ? (
               <div className="py-8 text-center">
                 <p className="text-warm-gray mb-6 text-sm">
                   {isAdmin
-                    ? "You need at least one persona and one product to start a session."
-                    : "Your team hasn't set up any training products or personas yet. Please notify your team leader to create them so you can start practicing."}
+                    ? "You need at least one persona and processed knowledge to start a session."
+                    : "Your team hasn't set up any training knowledge or personas yet. Please notify your team leader to create them so you can start practicing."}
                 </p>
                 {isAdmin && (
                   <div className="flex items-center justify-center gap-4">
                     <Button asChild variant="brand" className="h-12 px-6">
-                      <Link href="/dashboard/products">Manage Products</Link>
+                      <Link href="/dashboard/knowledge">Manage Knowledge</Link>
                     </Button>
                     <Button
                       asChild
@@ -265,74 +265,47 @@ function TrainPageContent() {
                 )}
               </div>
             ) : (
-              <div className="flex flex-col gap-4 sm:flex-row">
-                {/* Product Select (Higher precedence now) */}
+              <div className="flex flex-col gap-4">
+                {/* Persona Select (Now top level) */}
                 <div className="flex-1 space-y-2">
                   <label className="text-charcoal text-xs font-medium tracking-wider uppercase opacity-60">
-                    Product to Pitch
-                  </label>
-                  <select
-                    value={selectedProductId || ""}
-                    disabled={!!searchParams.get("personaId")}
-                    onChange={(e) => {
-                      const newProductId = e.target.value || null;
-                      setSelectedProductId(newProductId);
-                      // Clear persona if it's not for this product
-                      if (selectedPersonaId) {
-                        const persona = personas.find(
-                          (p) => p.id === selectedPersonaId,
-                        );
-                        if (persona && persona.productId !== newProductId) {
-                          setSelectedPersonaId(null);
-                        }
-                      }
-                    }}
-                    className="border-border/60 bg-cream text-charcoal focus:ring-charcoal/20 disabled:bg-warm-gray/5 h-12 w-full rounded-xl border px-4 text-sm transition-all focus:ring-2 focus:outline-none disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select a product to pitch…</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.companyName} — {p.industry}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Persona Select (Filtered by product) */}
-                <div className="flex-1 space-y-2">
-                  <label className="text-charcoal text-xs font-medium tracking-wider uppercase opacity-60">
-                    Buyer Persona
+                    Choose Your Partner (Persona)
                   </label>
                   <select
                     value={selectedPersonaId || ""}
                     onChange={(e) =>
                       setSelectedPersonaId(e.target.value || null)
                     }
-                    disabled={!selectedProductId}
                     className="border-border/60 bg-cream text-charcoal focus:ring-charcoal/20 disabled:bg-warm-gray/5 h-12 w-full rounded-xl border px-4 text-sm transition-all focus:ring-2 focus:outline-none disabled:cursor-not-allowed"
                   >
-                    {!selectedProductId ? (
-                      <option value="">Select a product first…</option>
-                    ) : (
-                      <>
-                        <option value="">Select a persona…</option>
-                        {personas
-                          .filter((p) => p.productId === selectedProductId)
-                          .map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} — {p.role}
-                            </option>
-                          ))}
-                      </>
-                    )}
+                    <option value="">Select a persona…</option>
+                    {personas.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — {p.role}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                <div className="flex items-end">
+
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-warm-gray text-xs font-medium">
+                    {knowledgeMetadata ? (
+                      <span className="flex items-center gap-2">
+                        <span className="size-2 rounded-full bg-emerald-500" />
+                        Using {knowledgeMetadata.productCategory} Knowledge
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2 text-rose-500">
+                        <span className="size-2 rounded-full bg-rose-500" />
+                        No processed knowledge found for this team.
+                      </span>
+                    )}
+                  </div>
                   <Button
                     onClick={handleStartRoleplay}
                     disabled={
-                      !selectedProductId ||
                       !selectedPersonaId ||
+                      !knowledgeMetadata ||
                       tasks.some(
                         (t) =>
                           t.personaId === selectedPersonaId &&
@@ -340,7 +313,7 @@ function TrainPageContent() {
                       )
                     }
                     variant="brand"
-                    className="h-12 min-w-[180px] px-4"
+                    className="h-12 min-w-[220px] px-6"
                   >
                     <Target className="mr-2 size-4" />
                     {tasks.some(

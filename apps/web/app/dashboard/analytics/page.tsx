@@ -19,12 +19,11 @@ import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import {
   subscribeSessions,
-  subscribeProducts,
   subscribePersonas,
   subscribeTeamMembers,
   subscribeSessionsByUserIds,
 } from "@/lib/db";
-import type { Session, Product, Persona, TeamMember } from "@/lib/db";
+import type { Session, Persona, TeamMember } from "@/lib/db";
 import {
   Select,
   SelectContent,
@@ -72,7 +71,6 @@ import {
 export default function AnalyticsPage() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +96,6 @@ export default function AnalyticsPage() {
   // Filters
   const [timeframe, setTimeframe] = useState<string>("all");
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>("all");
-  const [selectedProductId, setSelectedProductId] = useState<string>("all");
   const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
 
   useEffect(() => {
@@ -124,13 +121,6 @@ export default function AnalyticsPage() {
       );
     }
 
-    const unsubProducts = subscribeProducts(
-      user.uid,
-      activeMembership?.id ? [activeMembership.id] : teamIds,
-      (data) => setProducts(data),
-      (err) => console.error("Analytics products error:", err),
-    );
-
     const unsubPersonas = subscribePersonas(
       user.uid,
       activeMembership?.id ? [activeMembership.id] : teamIds,
@@ -141,7 +131,6 @@ export default function AnalyticsPage() {
     return () => {
       clearTimeout(timer);
       unsubSessions();
-      unsubProducts();
       unsubPersonas();
     };
   }, [user, teamIds, teamLoading, viewMode, teamMembers, activeMembership?.id]);
@@ -174,30 +163,9 @@ export default function AnalyticsPage() {
         if (sessionDate < cutoff) return false;
       }
 
-      // Product filter
-      if (selectedProductId !== "all" && s.productId !== selectedProductId) {
-        return false;
-      }
-
-      // Persona filter
-      if (selectedPersonaId !== "all" && s.personaId !== selectedPersonaId) {
-        return false;
-      }
-
-      // Member filter
-      if (selectedMemberId !== "all" && s.userId !== selectedMemberId) {
-        return false;
-      }
-
       return true;
     });
-  }, [
-    sessions,
-    timeframe,
-    selectedPersonaId,
-    selectedProductId,
-    selectedMemberId,
-  ]);
+  }, [sessions, timeframe, selectedPersonaId, selectedMemberId]);
 
   // Compute Analytics based on filtered sessions
   const evaluatedSessions = useMemo(
@@ -256,16 +224,12 @@ export default function AnalyticsPage() {
     [filteredSessions],
   );
   const coverageData = useMemo(
-    () => calculateTeamCoverage(filteredSessions, products, personas),
-    [filteredSessions, products, personas],
+    () => calculateTeamCoverage(filteredSessions, personas),
+    [filteredSessions, personas],
   );
   const personaScores = useMemo(
     () => calculateCategoryScores(filteredSessions, "persona"),
     [filteredSessions],
-  );
-  const productScores = useMemo(
-    () => calculateCategoryScores(filteredSessions, "product", products),
-    [filteredSessions, products],
   );
 
   // Unique members for filter
@@ -406,24 +370,6 @@ export default function AnalyticsPage() {
             </SelectContent>
           </Select>
 
-          {/* Product Filter */}
-          <Select
-            value={selectedProductId}
-            onValueChange={setSelectedProductId}
-          >
-            <SelectTrigger className="bg-cream/20 w-[180px] font-medium">
-              <SelectValue placeholder="Select Product" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Products</SelectItem>
-              {products.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.companyName || p.id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {/* Persona Filter */}
           <Select
             value={selectedPersonaId}
@@ -464,7 +410,6 @@ export default function AnalyticsPage() {
 
           {(timeframe !== "all" ||
             selectedPersonaId !== "all" ||
-            selectedProductId !== "all" ||
             selectedMemberId !== "all") && (
             <Button
               variant="ghost"
@@ -472,7 +417,6 @@ export default function AnalyticsPage() {
               onClick={() => {
                 setTimeframe("all");
                 setSelectedPersonaId("all");
-                setSelectedProductId("all");
                 setSelectedMemberId("all");
               }}
               className="text-warm-gray hover:text-charcoal text-xs"
@@ -755,26 +699,28 @@ export default function AnalyticsPage() {
             <div className="space-y-4">
               {coverageData.length > 0 ? (
                 coverageData.map((item) => (
-                  <div key={item.productName} className="space-y-2">
+                  <div key={item.personaName} className="space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-bold tracking-widest uppercase">
                       <span className="text-charcoal truncate pr-2">
-                        {item.productName}
+                        {item.personaName}
                       </span>
                       <span className="text-warm-gray shrink-0">
-                        {item.practicedPersonas}/{item.totalPersonas} Personas
+                        {item.practiced
+                          ? `${item.score}% Mastery`
+                          : "Not Practiced"}
                       </span>
                     </div>
                     <div className="group relative">
-                      <Progress value={item.coverage} className="h-1.5" />
-                      <div className="text-warm-gray invisible absolute -top-4 right-0 block text-[8px] font-bold group-hover:visible">
-                        {item.coverage}%
-                      </div>
+                      <Progress
+                        value={item.practiced ? item.score : 0}
+                        className="h-1.5"
+                      />
                     </div>
                   </div>
                 ))
               ) : (
                 <p className="text-warm-gray text-xs italic">
-                  No product mapping data available.
+                  No persona mapping data available.
                 </p>
               )}
             </div>
@@ -887,7 +833,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Category Performance */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6">
         <Card className="border-border/60 min-w-0 bg-white shadow-none">
           <CardHeader>
             <CardTitle className="text-base font-bold">
@@ -923,46 +869,6 @@ export default function AnalyticsPage() {
             ) : (
               <p className="text-warm-gray text-xs italic">
                 No persona data available.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 min-w-0 bg-white shadow-none">
-          <CardHeader>
-            <CardTitle className="text-base font-bold">
-              Product Performance
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Average score per product/category
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[250px] pt-4">
-            {productScores.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={productScores} layout="vertical">
-                  <XAxis type="number" domain={[0, 100]} hide />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    width={100}
-                    fontSize={10}
-                    tick={{ fill: "#4B5563" }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#FFF",
-                      borderRadius: "8px",
-                      border: "1px solid #E5E7EB",
-                      fontSize: "10px",
-                    }}
-                  />
-                  <Bar dataKey="score" fill="#9CA3AF" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-warm-gray text-xs italic">
-                No product data available.
               </p>
             )}
           </CardContent>

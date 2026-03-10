@@ -6,8 +6,6 @@ import {
   type GeneratePersonaResponse,
   type EvaluateSessionRequest,
   type EvaluateSessionResponse,
-  type GenerateProductRequest,
-  type GenerateProductResponse,
   GEMINI_TEXT_MODEL,
   GEMINI_EVALUATION_MODEL,
   GEMINI_LIVE_MODEL,
@@ -17,6 +15,8 @@ import {
   type CompetitorContext,
 } from "@reptrainer/shared";
 import { uploadAvatar } from "./storage.js";
+import { getKnowledgeMetadata } from "./knowledge.js";
+import { ragService } from "./rag.js";
 
 // Initialize Vertex AI using GoogleGenAI SDK
 const genAI = new GoogleGenAI({
@@ -90,75 +90,45 @@ export async function researchCompetitor(
   return JSON.parse(jsonStr) as CompetitorContext;
 }
 
-/**
- * Generate a product profile using Vertex AI.
- */
-export async function generateProduct(
-  input: GenerateProductRequest,
-): Promise<GenerateProductResponse> {
-  const { companyName, briefDescription } = input;
-
-  const prompt = `You are a product marketing and innovation expert. Generate a detailed, realistic product or service profile.
-${briefDescription ? `- Context/Description: ${briefDescription}` : "- Context: [Generate a highly creative and diverse product/service across industries like Health, Energy, Finance, Sports, Luxury, or Infrastructure]"}
-
-Generate a product profile with the following JSON structure. Return ONLY valid JSON:
-{
-  "companyName": "Generate a creative, professional, and memorable company name that fits the product description.",
-  "description": "A concise, high-impact 2-3 sentence description of the product and its value proposition.",
-  "targetCustomer": "A specific description of the ideal customer profile.",
-  "industry": "A single, broad industry category (e.g., 'Aerospace', 'Agriculture', 'SaaS', 'Healthcare', 'Cybersecurity', 'Logistics', 'Professional Services').",
-  "objections": ["3-5 realistic sales objections this product typically faces"]
-}
-
-IMPORTANT:
-- If company name/description are not provided, be creative but stay professional and realistic.
-- DIVERSIFY everything. Do NOT default to "sales training", "AI platform" or "CRM" unless explicitly requested.
-- Explore industries like Manufacturing, Biotech, or Real Estate. Avoid defaulting to "AI-powered" for every generation.
-- The objections should be challenging and specific to the product's likely friction points.`;
-
-  const response = await genAI.models.generateContent({
-    model: TEXT_MODEL,
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    config: { temperature: 1.0 },
-  });
-
-  const text = response.text || "";
-  const jsonStr = extractJson(text);
-
-  if (!jsonStr) {
-    throw Object.assign(
-      new Error("Failed to generate product. Invalid JSON response from AI."),
-      { statusCode: 502 },
-    );
-  }
-
-  return JSON.parse(jsonStr) as GenerateProductResponse;
-}
-
 export async function generatePersona(
   input: GeneratePersonaRequest,
 ): Promise<GeneratePersonaResponse> {
+  const { teamId, personalityType, gender: preferredGender, country } = input;
+
+  const metadata = await getKnowledgeMetadata(teamId);
+  if (!metadata) {
+    throw new Error(
+      "No knowledge base found for this team. Upload knowledge first.",
+    );
+  }
+
   const {
-    companyName,
-    description,
-    targetCustomer,
-    industry,
+    productCategory,
+    icp: targetCustomer,
+    buyerRoles,
+    competitors,
+    valueProps,
     objections,
-    personalityType,
-    gender: preferredGender,
-    country,
-    competitorUrl,
-  } = input;
+  } = metadata;
+
+  // Retrieve granular context from RAG
+  const ragContext = await ragService.retrieve(
+    teamId,
+    `product features, value proposition, target audience, common objections for ${productCategory}`,
+    10,
+  );
+
+  const ragContextString =
+    ragContext.length > 0
+      ? `\n─── ADDITIONAL PRODUCT KNOWLEDGE (RAG) ───\n${ragContext.join("\n\n")}\n`
+      : "";
+
+  const companyName = "the company"; // We can improve this by storing company name in metadata
+  const description = valueProps.join(". ");
+  const industry = productCategory;
 
   let competitorContext: CompetitorContext | undefined;
-  if (competitorUrl) {
-    try {
-      competitorContext = await researchCompetitor(competitorUrl);
-    } catch (e) {
-      console.error("Failed to research competitor:", e);
-      // Continue without competitor context if research fails
-    }
-  }
+  // competitorUrl is currently disabled in the new flow
 
   // Handle gender randomization if "other" is chosen
   const finalGender =
@@ -195,6 +165,7 @@ Context:
 - Target Customer: ${targetCustomer}
 - Industry: ${industry}
 - Common Objections: ${objections.join(", ")}${personalityContext}
+${ragContextString}
 ${
   competitorContext
     ? `

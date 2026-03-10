@@ -1,12 +1,12 @@
-import type { Session, CallSession, Product, Persona } from "../db";
+import type { Session, CallSession, Persona } from "../db";
 import { getOverallScore } from "./scoring";
+
 /**
- * Calculates average scores per category (persona or product).
+ * Calculates average scores per persona.
  */
 export function calculateCategoryScores(
   sessions: (Session | CallSession)[],
-  category: "product" | "persona",
-  products?: Product[],
+  category: "persona",
 ): { name: string; score: number }[] {
   const scores: Record<string, { total: number; count: number }> = {};
 
@@ -14,20 +14,13 @@ export function calculateCategoryScores(
     const evaluation = "evaluation" in s ? s.evaluation : s.legacyEvaluation;
     if (!evaluation) return;
 
-    let name = "Unknown";
-    if (category === "product") {
-      const productId = "productId" in s ? s.productId : "default";
-      const product = products?.find((p) => p.id === productId);
-      name = product?.companyName || productId;
-      if (name === "default") name = "Standard Drill";
-    } else {
-      name = s.personaName || "Default Persona";
-    }
+    const name = s.personaName || "Default Persona";
 
     if (!scores[name]) {
       scores[name] = { total: 0, count: 0 };
     }
-    scores[name].total += getOverallScore(evaluation);
+    const scoreVal = getOverallScore(evaluation);
+    scores[name].total += scoreVal;
     scores[name].count += 1;
   });
 
@@ -41,49 +34,37 @@ export function calculateCategoryScores(
 }
 
 /**
- * Calculates team training coverage across products and personas.
+ * Calculates team training coverage across personas.
  */
 export function calculateTeamCoverage(
   sessions: (Session | CallSession)[],
-  products: Product[],
   personas: Persona[],
 ): {
-  productName: string;
-  coverage: number;
-  totalPersonas: number;
-  practicedPersonas: number;
+  personaName: string;
+  practiced: boolean;
+  score: number;
 }[] {
-  if (products.length === 0) return [];
+  if (personas.length === 0) return [];
 
-  return products.map((product) => {
-    const productPersonas = personas.filter((p) => p.productId === product.id);
-    if (productPersonas.length === 0) {
-      return {
-        productName: product.companyName,
-        coverage: 0,
-        totalPersonas: 0,
-        practicedPersonas: 0,
-      };
-    }
+  return personas.map((persona) => {
+    const personaSessions = sessions.filter((s) => s.personaId === persona.id);
+    const practiced = personaSessions.length > 0;
 
-    const practicedPersonaIds = new Set(
-      sessions
-        .filter((s) => s.productId === product.id)
-        .map((s) => s.personaId),
-    );
+    let totalScore = 0;
+    let evalCount = 0;
 
-    const practicedCount = productPersonas.filter((p) =>
-      practicedPersonaIds.has(p.id),
-    ).length;
-    const coverage = Math.round(
-      (practicedCount / productPersonas.length) * 100,
-    );
+    personaSessions.forEach((s) => {
+      const evaluation = "evaluation" in s ? s.evaluation : s.legacyEvaluation;
+      if (evaluation) {
+        totalScore += getOverallScore(evaluation);
+        evalCount++;
+      }
+    });
 
     return {
-      productName: product.companyName,
-      coverage,
-      totalPersonas: productPersonas.length,
-      practicedPersonas: practicedCount,
+      personaName: persona.name,
+      practiced,
+      score: evalCount > 0 ? Math.round(totalScore / evalCount) : 0,
     };
   });
 }

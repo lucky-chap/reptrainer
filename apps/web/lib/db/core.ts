@@ -19,27 +19,17 @@ import type {
   UserMetrics,
   TrainingTrackId,
   ProgressReport,
+  KnowledgeBase,
+  KnowledgeMetadata,
+  KnowledgeDocument,
 } from "@reptrainer/shared";
 
 // ─── Data Models ───
-
-export interface Product {
-  id: string;
-  userId: string;
-  teamId: string;
-  companyName: string;
-  description: string;
-  targetCustomer: string;
-  industry: string;
-  objections: string[];
-  createdAt: string;
-}
 
 export interface Persona {
   id: string;
   userId: string;
   teamId: string;
-  productId: string;
   name: string;
   role: string;
   personalityPrompt: string;
@@ -93,9 +83,8 @@ export interface Session {
   id: string;
   userId: string;
   personaId: string;
-  teamId?: string;
+  teamId: string;
   userName?: string;
-  productId: string;
   personaName?: string;
   personaRole?: string;
   personaAvatarUrl?: string;
@@ -126,4 +115,7 @@ export type {
   UserMetrics,
   TrainingTrackId,
   ProgressReport,
+  KnowledgeBase,
+  KnowledgeMetadata,
+  KnowledgeDocument,
 };
