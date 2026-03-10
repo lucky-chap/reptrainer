@@ -52,14 +52,18 @@ const intensityLabels = [
   "Hostile Gatekeeper",
 ];
 
-const ethnicityOptions = [
+const countryOptions = [
   { value: "other", label: "AI Selects (Randomized)" },
-  { value: "african", label: "African/Black" },
-  { value: "asian", label: "Asian" },
-  { value: "caucasian", label: "Caucasian/White" },
-  { value: "hispanic", label: "Hispanic/Latino" },
-  { value: "middle-eastern", label: "Middle Eastern" },
-  { value: "south-asian", label: "South Asian" },
+  { value: "United States", label: "United States" },
+  { value: "United Kingdom", label: "United Kingdom" },
+  { value: "Canada", label: "Canada" },
+  { value: "Australia", label: "Australia" },
+  { value: "India", label: "India" },
+  { value: "Germany", label: "Germany" },
+  { value: "France", label: "France" },
+  { value: "Japan", label: "Japan" },
+  { value: "Brazil", label: "Brazil" },
+  { value: "Nigeria", label: "Nigeria" },
 ];
 
 export default function PersonasPage() {
@@ -94,13 +98,13 @@ export default function PersonasPage() {
   const [manualGender, setManualGender] = useState<"male" | "female" | "other">(
     "female",
   );
-  const [manualEthnicity, setManualEthnicity] = useState<string>("other");
+  const [manualCountry, setManualCountry] = useState<string>("other");
 
   // AI Generation State
   const [selectedGender, setSelectedGender] = useState<
     "male" | "female" | "other"
   >("other");
-  const [selectedEthnicity, setSelectedEthnicity] = useState<string>("other");
+  const [selectedCountry, setSelectedCountry] = useState<string>("other");
   const [competitorUrl, setCompetitorUrl] = useState("");
 
   const { isGenerating, generatePersona } = useBackgroundGeneration();
@@ -173,7 +177,7 @@ export default function PersonasPage() {
         product,
         selectedPersonality || undefined,
         selectedGender,
-        selectedEthnicity === "other" ? undefined : selectedEthnicity,
+        selectedCountry === "other" ? undefined : selectedCountry,
         competitorUrl || undefined,
       );
     }
@@ -227,7 +231,7 @@ export default function PersonasPage() {
               ? "budget-focused"
               : "analytical",
       },
-      ethnicity: manualEthnicity === "other" ? undefined : manualEthnicity,
+      country: manualCountry === "other" ? undefined : manualCountry,
       createdAt: new Date().toISOString(),
     };
 
@@ -237,7 +241,7 @@ export default function PersonasPage() {
     setManualStrategy("");
     setManualIntensity(1);
     setManualProductId("");
-    setManualEthnicity("other");
+    setManualCountry("other");
     setShowForm(false);
     setShowCreator(false);
   };
@@ -391,17 +395,17 @@ export default function PersonasPage() {
 
                   <div className="pt-2">
                     <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
-                      Ethnicity
+                      Country of Origin
                     </Label>
                     <Select
-                      value={selectedEthnicity}
-                      onValueChange={(val) => setSelectedEthnicity(val)}
+                      value={selectedCountry}
+                      onValueChange={(val) => setSelectedCountry(val)}
                     >
                       <SelectTrigger className="h-12 w-full rounded-xl">
                         <SelectValue placeholder="AI Selects" />
                       </SelectTrigger>
                       <SelectContent position="popper" className="rounded-xl">
-                        {ethnicityOptions.map((opt) => (
+                        {countryOptions.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>
@@ -563,23 +567,23 @@ export default function PersonasPage() {
 
                 <div className="space-y-2">
                   <Label
-                    htmlFor="manualEthnicity"
+                    htmlFor="manualCountry"
                     className="text-warm-gray/80 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase"
                   >
-                    Ethnicity
+                    Country of Origin
                   </Label>
                   <Select
-                    value={manualEthnicity}
-                    onValueChange={(val) => setManualEthnicity(val)}
+                    value={manualCountry}
+                    onValueChange={(val) => setManualCountry(val)}
                   >
                     <SelectTrigger
-                      id="manualEthnicity"
+                      id="manualCountry"
                       className="h-12 rounded-xl"
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      {ethnicityOptions.map((opt) => (
+                      {countryOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
                         </SelectItem>

@@ -78,15 +78,30 @@ export function calculateSessionMetrics(
 
     return {
       overall: calculatedOverall,
-      discovery: normalizeTo100(e.discovery?.score) || calculatedOverall,
+      discovery:
+        e.discovery?.score !== undefined
+          ? normalizeTo100(e.discovery.score)
+          : calculatedOverall,
       objection_handling:
-        normalizeTo100(e.objectionHandling?.score) || calculatedOverall,
+        e.objectionHandling?.score !== undefined
+          ? normalizeTo100(e.objectionHandling.score)
+          : calculatedOverall,
       positioning:
-        normalizeTo100(e.productPositioning?.score) || calculatedOverall,
-      closing: normalizeTo100(e.closing?.score) || calculatedOverall,
-      listening: normalizeTo100(e.activeListening?.score) || calculatedOverall,
+        e.productPositioning?.score !== undefined
+          ? normalizeTo100(e.productPositioning.score)
+          : calculatedOverall,
+      closing:
+        e.closing?.score !== undefined
+          ? normalizeTo100(e.closing.score)
+          : calculatedOverall,
+      listening:
+        e.activeListening?.score !== undefined
+          ? normalizeTo100(e.activeListening.score)
+          : calculatedOverall,
       confidence:
-        normalizeTo100(e.productPositioning?.score) || calculatedOverall,
+        e.productPositioning?.score !== undefined
+          ? normalizeTo100(e.productPositioning.score)
+          : calculatedOverall,
     };
   }
 

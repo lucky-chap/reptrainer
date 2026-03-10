@@ -13,6 +13,7 @@ export const authRoutes: Router = Router();
 
 const auth = new GoogleAuth({
   scopes: "https://www.googleapis.com/auth/cloud-platform",
+  projectId: env.GOOGLE_CLOUD_PROJECT,
 });
 
 /**

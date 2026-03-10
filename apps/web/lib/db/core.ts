@@ -46,7 +46,8 @@ export interface Persona {
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female" | "other";
-  ethnicity?: string;
+  country?: string;
+  languageCode?: string;
   voiceName?: string;
   personalityType?: PersonalityType;
   avatarUrl?: string;

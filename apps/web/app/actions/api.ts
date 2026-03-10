@@ -10,22 +10,6 @@ const headers = {
   Authorization: `Bearer ${secretKey}`,
 };
 
-export async function fetchAuthToken(
-  systemPrompt?: string,
-  voiceName?: string,
-) {
-  const res = await fetch(`${baseUrl}/api/auth/token`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ systemPrompt, voiceName }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch auth token: ${res.statusText}`);
-  }
-  return res.json();
-}
-
 export async function generatePersona(data: {
   companyName: string;
   description: string;
@@ -34,7 +18,7 @@ export async function generatePersona(data: {
   objections: string[];
   personalityType?: string;
   gender?: "male" | "female" | "other";
-  ethnicity?: string;
+  country?: string;
   competitorUrl?: string;
 }) {
   const res = await fetch(`${baseUrl}/api/persona/generate`, {
@@ -115,6 +99,7 @@ export async function generateProduct(data: {
 export async function generatePersonaAvatar(data: {
   gender: "male" | "female" | "other";
   role: string;
+  country?: string;
 }) {
   const res = await fetch(`${baseUrl}/api/persona/generate-avatar`, {
     method: "POST",

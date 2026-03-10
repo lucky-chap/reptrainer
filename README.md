@@ -79,10 +79,61 @@ reptrainer/
 
 - **Node.js**: ≥ 20.x
 - **pnpm**: ≥ 9.x
+- **Docker & Docker Compose**: (Optional, for containerized setup)
 - **Google Cloud Project**: With Vertex AI and Cloud TTS enabled.
-- **Gemini API Key**: From [Google AI Studio](https://aistudio.google.com/).
+- **Firebase Project**: With Auth, Firestore, and Storage enabled.
 
-### Installation
+### ⚙️ Services Setup
+
+#### 1. Google Cloud Platform
+
+- Create a project in [Google Cloud Console](https://console.cloud.google.com/).
+- Enable the following APIs:
+  - **Vertex AI API**
+  - **Cloud Text-to-Speech API**
+- Create a Service Account with `Vertex AI User` and `Cloud Test-to-Speech User` roles.
+- Download the JSON key and set `GOOGLE_APPLICATION_CREDENTIALS` if running outside of GCP.
+- Get a Gemini API Key from [Google AI Studio](https://aistudio.google.com/).
+
+#### 2. Firebase
+
+- Create a project in [Firebase Console](https://console.firebase.google.com/).
+- **Authentication**: Enable Google Sign-In.
+- **Firestore**: Create a database in Native mode.
+- **Storage**: Enable Firebase Storage.
+- **Web App**: Register a new Web App to get your Firebase config keys.
+- **CORS**: Configure CORS for Firebase Storage to allow your local/production domain:
+  ```json
+  [
+    {
+      "origin": ["http://localhost:3000"],
+      "method": ["GET"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+  ```
+  Apply using `gsutil cors set cors.json gs://your-bucket-name`.
+
+#### 3. Deploying Rules and Indices
+
+The project includes pre-configured security rules and Firestore indices in `apps/web`.
+
+1. **Install Firebase CLI**:
+   ```bash
+   npm install -g firebase-tools
+   ```
+2. **Login and Select Project**:
+   ```bash
+   firebase login
+   cd apps/web
+   firebase use --add  # Select your project ID
+   ```
+3. **Deploy**:
+   ```bash
+   firebase deploy --only firestore:rules,firestore:indexes,storage
+   ```
+
+### 💻 Local Installation
 
 1. **Clone the repository**:
 
@@ -99,41 +150,33 @@ reptrainer/
 
 3. **Configure Environment Variables**:
 
-   **Backend (`apps/api/.env`)**:
+   Copy `.env.example` to `.env` (or `.env.local` for web) in both `apps/api` and `apps/web`:
 
-   ```env
-   PORT=4000
-   GEMINI_API_KEY=your_key
-   CORS_ORIGIN=http://localhost:3000
+   ```bash
+   cp apps/api/.env.example apps/api/.env
+   cp apps/web/.env.example apps/web/.env.local
    ```
 
-   **Frontend (`apps/web/.env.local`)**:
+4. **Running Locally**:
 
-   ```env
-   # API URL
-   NEXT_PUBLIC_API_URL=http://localhost:4000
-   GEMINI_API_KEY=your_key
-
-   # Vertex AI
-   GOOGLE_CLOUD_PROJECT=your_project_id
-   GOOGLE_CLOUD_LOCATION=us-central1
-
-   # Firebase
-   NEXT_PUBLIC_FIREBASE_API_KEY=xxx
-   NEXT_PUBLIC_FIREBASE_PROJECT_ID=xxx
-   # ... add other firebase keys
+   ```bash
+   # Start the monorepo in dev mode
+   pnpm dev
    ```
 
-### Running Locally
+### 🐳 Docker Setup
 
-```bash
-# Start both Web and API concurrently
-pnpm dev
+If you prefer using Docker, ensure you have your `.env` files configured in the root or appropriate app directories.
 
-# Individual components
-pnpm dev:web    # http://localhost:3000
-pnpm dev:api    # http://localhost:4000
-```
+1. **Build and start services**:
+
+   ```bash
+   docker-compose up --build
+   ```
+
+2. **Access the application**:
+   - Frontend: [http://localhost:3000](http://localhost:3000)
+   - API: [http://localhost:4000](http://localhost:4000)
 
 ---
 

@@ -7,7 +7,7 @@ import {
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
 import { requireApiSecret } from "../middleware/auth.js";
-import { generateProduct } from "../services/gemini.js";
+import { generateProduct } from "../services/vertex.js";
 
 export const productRoutes: Router = Router();
 

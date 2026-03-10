@@ -1,29 +1,24 @@
-import {
-  VertexAI,
-  GenerationConfig,
-  type ModelParams,
-} from "@google-cloud/vertexai";
 import { GoogleGenAI, type LiveConnectConfig } from "@google/genai";
+import { FEMALE_VOICES, MALE_VOICES } from "@reptrainer/shared";
 import { env } from "../config/env.js";
 import {
-  GeneratePersonaRequest,
-  GeneratePersonaResponse,
-  EvaluateSessionRequest,
-  EvaluateSessionResponse,
+  type GeneratePersonaRequest,
+  type GeneratePersonaResponse,
+  type EvaluateSessionRequest,
+  type EvaluateSessionResponse,
+  type GenerateProductRequest,
+  type GenerateProductResponse,
   GEMINI_TEXT_MODEL,
   GEMINI_EVALUATION_MODEL,
   GEMINI_LIVE_MODEL,
   GEMINI_IMAGE_MODEL,
+  PROSPECT_PERSONALITY_TEMPLATES,
+  type ProspectPersonalityTemplate,
   type CompetitorContext,
 } from "@reptrainer/shared";
 import { uploadAvatar } from "./storage.js";
 
-// Initialize Vertex AI
-const vertexAI = new VertexAI({
-  project: env.GOOGLE_CLOUD_PROJECT,
-  location: env.GOOGLE_CLOUD_LOCATION,
-});
-
+// Initialize Vertex AI using GoogleGenAI SDK
 const genAI = new GoogleGenAI({
   vertexai: true,
   project: env.GOOGLE_CLOUD_PROJECT,
@@ -32,42 +27,6 @@ const genAI = new GoogleGenAI({
 
 const TEXT_MODEL = GEMINI_TEXT_MODEL; // Stable Vertex model
 const EVALUATION_MODEL = GEMINI_EVALUATION_MODEL; // Stable Vertex model
-
-const FEMALE_VOICES = [
-  "Zephyr",
-  "Kore",
-  "Leda",
-  "Aoede",
-  "Callirrhoe",
-  "Autonoe",
-  "Despina",
-  "Erinome",
-  "Laomedeia",
-  "Achernar",
-  "Pulcherrima",
-  "Achird",
-  "Vindemiatrix",
-  "Sulafat",
-];
-
-const MALE_VOICES = [
-  "Puck",
-  "Charon",
-  "Fenrir",
-  "Orus",
-  "Enceladus",
-  "Iapetus",
-  "Umbriel",
-  "Algieba",
-  "Algenib",
-  "Rasalgethi",
-  "Alnilam",
-  "Schedar",
-  "Gacrux",
-  "Zubenelgenubi",
-  "Sadachbia",
-  "Sadaltager",
-];
 
 /**
  * Extracts JSON from a potentially markdown-wrapped AI response.
@@ -108,7 +67,11 @@ export async function researchCompetitor(
       tools: [
         {
           // @ts-ignore - googleSearch is a valid tool in @google/genai for Vertex AI grounding
-          googleSearch: {},
+          googleSearch: {
+            searchTypes: {
+              webSearch: true,
+            },
+          },
         },
       ],
     },
@@ -128,8 +91,50 @@ export async function researchCompetitor(
 }
 
 /**
- * Generate a buyer persona using Vertex AI based on product context.
+ * Generate a product profile using Vertex AI.
  */
+export async function generateProduct(
+  input: GenerateProductRequest,
+): Promise<GenerateProductResponse> {
+  const { companyName, briefDescription } = input;
+
+  const prompt = `You are a product marketing and innovation expert. Generate a detailed, realistic product or service profile.
+${briefDescription ? `- Context/Description: ${briefDescription}` : "- Context: [Generate a highly creative and diverse product/service across industries like Health, Energy, Finance, Sports, Luxury, or Infrastructure]"}
+
+Generate a product profile with the following JSON structure. Return ONLY valid JSON:
+{
+  "companyName": "Generate a creative, professional, and memorable company name that fits the product description.",
+  "description": "A concise, high-impact 2-3 sentence description of the product and its value proposition.",
+  "targetCustomer": "A specific description of the ideal customer profile.",
+  "industry": "A single, broad industry category (e.g., 'Aerospace', 'Agriculture', 'SaaS', 'Healthcare', 'Cybersecurity', 'Logistics', 'Professional Services').",
+  "objections": ["3-5 realistic sales objections this product typically faces"]
+}
+
+IMPORTANT:
+- If company name/description are not provided, be creative but stay professional and realistic.
+- DIVERSIFY everything. Do NOT default to "sales training", "AI platform" or "CRM" unless explicitly requested.
+- Explore industries like Manufacturing, Biotech, or Real Estate. Avoid defaulting to "AI-powered" for every generation.
+- The objections should be challenging and specific to the product's likely friction points.`;
+
+  const response = await genAI.models.generateContent({
+    model: TEXT_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: { temperature: 1.0 },
+  });
+
+  const text = response.text || "";
+  const jsonStr = extractJson(text);
+
+  if (!jsonStr) {
+    throw Object.assign(
+      new Error("Failed to generate product. Invalid JSON response from AI."),
+      { statusCode: 502 },
+    );
+  }
+
+  return JSON.parse(jsonStr) as GenerateProductResponse;
+}
+
 export async function generatePersona(
   input: GeneratePersonaRequest,
 ): Promise<GeneratePersonaResponse> {
@@ -139,16 +144,48 @@ export async function generatePersona(
     targetCustomer,
     industry,
     objections,
-    gender,
+    personalityType,
+    gender: preferredGender,
+    country,
+    competitorUrl,
   } = input;
 
-  const model = vertexAI.getGenerativeModel({
-    model: TEXT_MODEL,
-    generationConfig: {
-      temperature: 1.2,
-      responseMimeType: "application/json",
-    } as GenerationConfig,
-  });
+  let competitorContext: CompetitorContext | undefined;
+  if (competitorUrl) {
+    try {
+      competitorContext = await researchCompetitor(competitorUrl);
+    } catch (e) {
+      console.error("Failed to research competitor:", e);
+      // Continue without competitor context if research fails
+    }
+  }
+
+  // Handle gender randomization if "other" is chosen
+  const finalGender =
+    preferredGender === "other"
+      ? Math.random() > 0.5
+        ? "male"
+        : "female"
+      : preferredGender;
+
+  const template = personalityType
+    ? (PROSPECT_PERSONALITY_TEMPLATES.find(
+        (t) => t.type === personalityType,
+      ) as ProspectPersonalityTemplate)
+    : null;
+
+  const personalityContext = template
+    ? `
+─── PERSONALITY TEMPLATE: ${template.name} ───
+- Behavioral Profile: ${template.behavioralProfile}
+- Tone: ${template.tone}
+- Patience: ${template.patience}
+- Verbosity: ${template.verbosity}
+- Objection Likelihood: ${template.objectionLikelihood}
+- Preferred Selling Points: ${template.preferredSellingPoints.join(", ")}
+- Emotional Triggers: ${template.emotionalTriggers.join(", ")}
+`
+    : "";
 
   const prompt = `You are a sales training AI. Generate a realistic, challenging buyer persona for a high-pressure sales roleplay session.
 
@@ -157,32 +194,82 @@ Context:
 - Product: ${description}
 - Target Customer: ${targetCustomer}
 - Industry: ${industry}
-- Common Objections: ${objections.join(", ")}
+- Common Objections: ${objections.join(", ")}${personalityContext}
+${
+  competitorContext
+    ? `
+─── CURRENT SOLUTION INFORMATION (COMPETITOR) ───
+This persona currently uses: ${competitorContext.website}
+Competitor Product: ${competitorContext.productDescription}
+Pricing/Positioning: ${competitorContext.pricingPositioning}
+Pain Points with Current Solution: ${competitorContext.painPoints.join(", ")}
+Complaints: ${competitorContext.complaints.join(", ")}
+
+The persona should be a current user of this competitor and should naturally reference it during the pitch.
+`
+    : ""
+}
+${finalGender ? `- Preferred Gender: ${finalGender}` : ""}
+${country ? `- Origin Country: ${country}` : ""}
+
+SUPPORTED LANGUAGES & BCP-47 CODES (Gemini Live):
+Afrikaans (af), Albanian (sq), Amharic (am), Arabic (ar), Armenian (hy), Assamese (as), Azerbaijani (az), Basque (eu), Belarusian (be), Bengali (bn), Bosnian (bs), Bulgarian (bg), Catalan (ca), Chinese (zh), Croatian (hr), Czech (cs), Danish (da), Dutch (nl), English (en), Estonian (et), Filipino (fil), Finnish (fi), French (fr), Galician (gl), Georgian (ka), German (de), Greek (el), Gujarati (gu), Hebrew (iw), Hindi (hi), Hungarian (hu), Icelandic (is), Indonesian (id), Italian (it), Japanese (ja), Kannada (kn), Kazakh (kk), Khmer (km), Korean (ko), Lao (lo), Latvian (lv), Lithuanian (lt), Macedonian (mk), Malay (ms), Malayalam (ml), Marathi (mr), Mongolian (mn), Nepali (ne), Norwegian (no), Odia (or), Polish (pl), Portuguese (pt), Punjabi (pa), Romanian (ro), Russian (ru), Serbian (sr), Slovak (sk), Slovenian (sl), Spanish (es), Swahili (sw), Swedish (sv), Tamil (ta), Telugu (te), Thai (th), Turkish (tr), Ukrainian (uk), Urdu (ur), Uzbek (uz), Vietnamese (vi), Zulu (zu).
 
 Generate a buyer persona with the following JSON structure. Return ONLY valid JSON:
 {
-  "name": "A realistic, memorable full name. Use culturally diverse names — mix ethnicities and backgrounds. Examples: 'Priya Raghavan', 'Marcus Okonkwo', 'Elena Vasquez', 'James Whitfield', 'Aisha Patel', 'Tomoko Nakamura', 'David Kofi Mensah', 'Carolina Ferro'. Avoid generic names like 'John Smith' or 'Jane Doe'. The name should feel like a real executive you'd meet at a Fortune 500 company.",
+  "name": "A realistic, memorable full name${finalGender ? ` for a ${finalGender} executive` : ""}${country ? ` from ${country}` : ""}. Use culturally diverse names appropriate to the origin country.",
   "role": "A specific, realistic job title (e.g., 'SVP of Revenue Operations', 'Chief Data Officer', 'Director of IT Infrastructure'). Avoid generic titles like 'Manager'.",
-  "gender": "male" or "female" (must match the name),
-  "voiceName": "Choose one from the context-appropriate list based on the gender: ${gender === "male" ? MALE_VOICES.join(", ") : gender === "female" ? FEMALE_VOICES.join(", ") : [...MALE_VOICES, ...FEMALE_VOICES].join(", ")}",
-  "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. Include: their communication style (direct, analytical, impatient, etc.), what triggers their skepticism, specific pet peeves in sales pitches (e.g., 'hates buzzwords', 'demands ROI before features'), their decision-making approach (consensus-driven, data-driven, gut-feel), and what would make them end a meeting early. Make the persona feel like a real, specific person with strong opinions.",
-  "intensityLevel": 1-5 (1=friendly skeptic, 3=tough negotiator, 5=hostile gatekeeper),
-  "objectionStrategy": "A specific 2-3 sentence strategy this persona uses to push back. E.g., 'Opens with budget concerns, then escalates to questioning whether the product solves a real problem. Will demand competitive comparisons and walk if the rep can't provide them.'",
+  "gender": "${finalGender || '"male" or "female"'} (must match the name)",
+  "languageCode": "The BCP-47 code for the primary language spoken in their country (must be one of the supported codes listed above).",
+  "companyType": "A realistic description of their company (e.g., 'Fortune 500 Fintech', 'Seed-stage AI startup', 'Mid-market manufacturing giant')",
+  "industry": "${industry || "General Industry"}",
+  "seniorityLevel": "e.g., Senior Executive, C-suite, VP-level decision maker",
+  "personalityTraits": ["3-4 specific personality traits"],
+  "personalityType": "${personalityType || "custom"}",
+  "motivations": ["2-3 core business motivations for this person"],
+  "objections": ["3-5 specific objections this person would raise during a pitch"],
   "traits": {
-    "aggressiveness": 1-3,
-    "interruptionFrequency": "low" | "medium" | "high",
-    "objectionStyle": "analytical" | "emotional" | "authority-based" | "budget-focused"
-  }
+    "aggressiveness": 1-10,
+    "interruptionFrequency": "low, medium, or high",
+    "objectionStyle": "analytical, emotional, authority-based, or budget-focused"
+  },
+  "speakingStyle": "Describe their verbal pattern (e.g., 'fast-paced and data-driven', 'slow, skeptical and deliberate'). Include how their native language/culture influences their style.",
+  "accent": "Specify a natural regional accent based on their country: ${country || "Global"}",
+  "voiceName": "Choose one from the context-appropriate list based on the gender: ${finalGender === "male" ? MALE_VOICES.join(", ") : finalGender === "female" ? FEMALE_VOICES.join(", ") : [...MALE_VOICES, ...FEMALE_VOICES].join(", ")}",
+  "communicationStyle": "professional",
+  "emotionalState": "e.g., Skeptical, Busy, Curiously optimistic, Guarded",
+  "environmentContext": "Where they are (e.g., noisy open office, quiet executive suite, airport lounge)",
+  "timePressure": "e.g., 'Hurry, has 5 mins', 'Calm, has 30 mins but hates fluff'",
+  "conversationBehavior": ["2-3 specific conversational patterns/habits"],
+  "buyingAttitude": "e.g., Skeptical but open if high value, Tech-first early adopter, Highly price-sensitive",
+  "difficultyLevel": "medium",
+  "intensityLevel": 1-5 (1=Friendly, 3=Tough, 5=Hostile),
+  "patience": "medium",
+  "verbosity": "medium",
+  "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. ${template ? `IT MUST INCORPORATE THE BEHAVIORAL PROFILE, TONE, AND TRIGGERS FROM THE ${template.name} TEMPLATE.` : "Include: communication style, skepticism triggers, pet peeves, and decision-making approach."}",
+  "objectionStrategy": "A specific 2-3 sentence strategy this persona uses to push back. This MUST be dynamic and specific to the product context.",
+  "competitorContext": ${competitorContext ? JSON.stringify(competitorContext, null, 2) : "null"}
 }
 
 IMPORTANT:
-- Vary the gender across generations — create a realistic mix of male and female personas.
+- ${finalGender ? `The name and gender MUST be ${finalGender}.` : "Vary the gender across generations — create a realistic mix of male and female personas."}
 - The name MUST clearly match the gender field.
+- "intensityLevel" MUST be an integer between 1 and 5 (1=Friendly, 3=Tough, 5=Hostile).
+- "objectionStrategy" MUST be unique and reflect the persona's specific role and context.
+- "traits" object MUST be fully populated with realistic values matching the personality.
 - Make the name MEMORABLE and DISTINCT.
-- Vary cultural backgrounds. Do NOT default to generic Anglo-Saxon names every time.`;
+- Vary cultural backgrounds. ${country ? `Prioritize the specified country (${country}) for the name, background, and accent.` : "Do NOT default to generic Anglo-Saxon names every time."}
+- "languageCode" MUST be a valid BCP-47 code from the provided list.`;
 
-  const response = await model.generateContent(prompt);
-  const text = response.response.candidates?.[0].content.parts?.[0].text ?? "";
+  const response = await genAI.models.generateContent({
+    model: TEXT_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      temperature: 1.2,
+      responseMimeType: "application/json",
+    },
+  });
+  const text = response.text || "";
   const jsonStr = extractJson(text);
 
   if (!jsonStr) {
@@ -208,13 +295,6 @@ export async function evaluateSession(
     intensityLevel,
     durationSeconds,
   } = input;
-
-  const model = vertexAI.getGenerativeModel({
-    model: EVALUATION_MODEL,
-    generationConfig: {
-      responseMimeType: "application/json",
-    } as GenerationConfig,
-  });
 
   const prompt = `You are an expert sales performance evaluator and coach. Analyze the following sales roleplay transcript and provide a structured evaluation.
 
@@ -258,8 +338,14 @@ Return ONLY valid JSON in this format:
   "improvementTips": ["<tip 1>", "<tip 2>", "<tip 3>"]
 }`;
 
-  const response = await model.generateContent(prompt);
-  const text = response.response.candidates?.[0].content.parts?.[0].text ?? "";
+  const response = await genAI.models.generateContent({
+    model: EVALUATION_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      responseMimeType: "application/json",
+    },
+  });
+  const text = response.text || "";
   const jsonStr = extractJson(text);
 
   if (!jsonStr) {
@@ -362,64 +448,45 @@ export function getLiveSetupConfig(
 }
 
 /**
- * Generate an image using Imagen 3 via Vertex AI REST API
+ * Generate an image using Imagen 3 via @google/genai SDK
  * Returns the image buffer.
  */
 async function generateImage(prompt: string): Promise<Buffer> {
-  const project = env.GOOGLE_CLOUD_PROJECT;
-  const location = env.GOOGLE_CLOUD_LOCATION;
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${GEMINI_IMAGE_MODEL}:predict`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${await getAccessToken()}`,
-      "Content-Type": "application/json; charset=utf-8",
+  const response = await genAI.models.generateImages({
+    model: GEMINI_IMAGE_MODEL,
+    prompt,
+    config: {
+      numberOfImages: 1,
+      aspectRatio: "1:1",
     },
-    body: JSON.stringify({
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: 1,
-        // Imagen 3 supports different aspect ratios, we'll use 1:1 for avatars
-        aspectRatio: "1:1",
-      },
-    }),
   });
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error("Imagen API Error:", errorBody);
-    throw new Error(`Failed to generate image: ${response.statusText}`);
+  const imageData = response.generatedImages?.[0]?.image?.imageBytes;
+
+  if (imageData) {
+    return Buffer.from(imageData, "base64");
   }
 
-  const data = (await response.json()) as {
-    predictions?: Array<{
-      bytesBase64Encoded?: string;
-    }>;
-  };
-
-  const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
-
-  if (!base64Image) {
-    console.error(
-      "No image data in first prediction. Keys found:",
-      Object.keys(data.predictions?.[0] || {}),
-    );
-    throw new Error("No image data returned from Imagen API");
-  }
-
-  return Buffer.from(base64Image, "base64");
+  console.error(
+    "Imagen API Response did not contain image data:",
+    JSON.stringify(response, null, 2),
+  );
+  throw new Error("No image data returned from Imagen API via SDK");
 }
 
 /**
- * Generate a persona avatar image using Gemini 3.1 Flash Image Preview and store in Firebase.
+ * Generate a persona avatar image using Imagen 3 and store in Firebase.
  * Returns the permanent storage URL.
  */
 export async function generatePersonaAvatar(
   gender: string,
   role: string,
+  country?: string,
 ): Promise<string> {
-  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their early 40s, job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
+  const countryContext = country
+    ? ` from ${country}, with culturally appropriate physical features and characteristics`
+    : "";
+  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their early 40s${countryContext}. Job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
 
   console.log(`Generating avatar for ${gender} ${role}...`);
   const imageBuffer = await generateImage(prompt);
@@ -427,72 +494,40 @@ export async function generatePersonaAvatar(
   console.log("Uploading avatar to Firebase Storage...");
   const publicUrl = await uploadAvatar(imageBuffer);
 
+  console.log("Avatar upload done...");
+
   return publicUrl;
 }
 
 /**
- * Generate a coaching infographic using Vertex AI Imagen 4.0.
- * Returns the base64 encoded image or a public URL.
+ * Generate a coaching infographic using Imagen 4.0 via SDK.
+ * Returns the base64 encoded image string or a public URL.
  */
 export async function generateSlideInfographic(
   visualDescription: string,
 ): Promise<string> {
-  const project = env.GOOGLE_CLOUD_PROJECT;
-  const location = env.GOOGLE_CLOUD_LOCATION;
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${GEMINI_IMAGE_MODEL}:predict`;
-
   const stylePrefix =
     "modern SaaS dashboard infographic, flat design, minimal, clean UI, vector style, white background, subtle purple and blue accents, startup analytics aesthetic. ";
   const prompt = stylePrefix + visualDescription;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${await getAccessToken()}`,
-      "Content-Type": "application/json; charset=utf-8",
+  const response = await genAI.models.generateImages({
+    model: GEMINI_IMAGE_MODEL,
+    prompt,
+    config: {
+      numberOfImages: 1,
+      // @ts-ignore
+      mimeType: "image/jpeg",
+      compressionQuality: 80,
     },
-    body: JSON.stringify({
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: 1,
-        mimeType: "image/jpeg",
-        compressionQuality: 80,
-      },
-    }),
   });
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error("Imagen API Error:", errorBody);
-    throw new Error(`Failed to generate infographic: ${response.statusText}`);
+  const imageData = response.generatedImages?.[0]?.image?.imageBytes;
+
+  if (imageData) {
+    return `data:image/jpeg;base64,${imageData}`;
   }
 
-  const data = (await response.json()) as {
-    predictions?: Array<{
-      bytesBase64?: string;
-      bytesBase64Encoded?: string;
-    }>;
-  };
-
-  const base64Image =
-    data.predictions?.[0]?.bytesBase64Encoded ||
-    data.predictions?.[0]?.bytesBase64;
-
-  if (!base64Image) {
-    throw new Error("No image data returned from Imagen API");
-  }
-
-  return `data:image/jpeg;base64,${base64Image}`;
-}
-
-async function getAccessToken() {
-  const { GoogleAuth } = await import("google-auth-library");
-  const auth = new GoogleAuth({
-    scopes: "https://www.googleapis.com/auth/cloud-platform",
-  });
-  const client = await auth.getClient();
-  const token = await client.getAccessToken();
-  return token.token;
+  throw new Error("No image data returned from Imagen API via SDK");
 }
 
 /**
@@ -503,13 +538,6 @@ export async function generateCoachDebrief(
   personaName: string,
   personaRole: string,
 ): Promise<any[]> {
-  const model = vertexAI.getGenerativeModel({
-    model: EVALUATION_MODEL,
-    generationConfig: {
-      responseMimeType: "application/json",
-    } as GenerationConfig,
-  });
-
   const prompt = `You are a world-class sales coach creating a short "Coach Debrief" presentation for a sales rep after a practice call.
 
 Persona Context:
@@ -573,13 +601,19 @@ The visual should be a side-by-side comparison infographic showing:
 Slide 4 (type: drill)
 Give the rep one actionable practice drill they can do before their next call.
 The drill should be specific and practical.
-The visual should be a simple practice framework diagram or step-by-step coaching card showing how to rehearse the skill.
+The visual should be a practice framework diagram or step-by-step coaching card showing how to rehearse the skill.
 
 Return ONLY a valid JSON array of 4 slide objects.
 Do not include explanations or extra text.`;
 
-  const response = await model.generateContent(prompt);
-  const text = response.response.candidates?.[0].content.parts?.[0].text ?? "";
+  const response = await genAI.models.generateContent({
+    model: EVALUATION_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      responseMimeType: "application/json",
+    },
+  });
+  const text = response.text || "";
   const jsonStr = extractJson(text);
 
   if (!jsonStr) {

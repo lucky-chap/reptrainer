@@ -7,8 +7,7 @@ import {
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
 import { requireApiSecret } from "../middleware/auth.js";
-import { generatePersona } from "../services/gemini.js";
-import { generatePersonaAvatar } from "../services/vertex.js";
+import { generatePersona, generatePersonaAvatar } from "../services/vertex.js";
 
 export const personaRoutes: Router = Router();
 
@@ -19,7 +18,7 @@ const generatePersonaSchema = z.object({
   industry: z.string().min(1),
   objections: z.array(z.string()).min(1),
   gender: z.enum(["male", "female", "other"]).optional(),
-  ethnicity: z.string().optional(),
+  country: z.string().optional(),
   competitorUrl: z.string().url().optional(),
 });
 
@@ -44,6 +43,7 @@ personaRoutes.post(
 const generateAvatarSchema = z.object({
   gender: z.enum(["male", "female"]),
   role: z.string().min(1),
+  country: z.string().optional(),
 });
 
 /**
@@ -56,8 +56,8 @@ personaRoutes.post(
   validateBody(generateAvatarSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { gender, role } = req.body;
-      const avatarDataUrl = await generatePersonaAvatar(gender, role);
+      const { gender, role, country } = req.body;
+      const avatarDataUrl = await generatePersonaAvatar(gender, role, country);
       res.json({ avatarDataUrl });
     } catch (error) {
       next(error);

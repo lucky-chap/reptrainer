@@ -182,6 +182,8 @@ export function RoleplaySession({
     personaLeft,
     connect,
     disconnect,
+    isMuted,
+    toggleMic,
     getDuration,
     logManualInsight,
     isRecording,
@@ -227,14 +229,17 @@ export function RoleplaySession({
 
   // ─── Persona Avatar Logic ────────────────────────────────────────────
   const getAvatarUrl = () => {
-    // Mapping personas to generated images for the demo
+    // Priority: use the generated avatar URL if it exists
+    if (persona.avatarUrl) return persona.avatarUrl;
+
+    // Mapping personas to fallback images for the demo
     const name = persona.name.toLowerCase();
     if (name.includes("margaret") || name.includes("cfo"))
-      return "/home/obed/.gemini/antigravity/brain/26f6e2ab-6bb7-4968-8780-8eafd8ad77ee/skeptical_cfo_avatar_1772681589501.png";
+      return "/avatars/skeptical_cfo.png";
     if (name.includes("founder") || name.includes("eager"))
-      return "/home/obed/.gemini/antigravity/brain/26f6e2ab-6bb7-4968-8780-8eafd8ad77ee/eager_founder_avatar_1772681609647.png";
+      return "/avatars/eager_founder.png";
     if (name.includes("architect") || name.includes("analytical"))
-      return "/home/obed/.gemini/antigravity/brain/26f6e2ab-6bb7-4968-8780-8eafd8ad77ee/analytical_architect_avatar_1772681629525.png";
+      return "/avatars/analytical_architect.png";
     return null;
   };
 
@@ -252,36 +257,18 @@ export function RoleplaySession({
   }, []);
 
   const {
+    elapsed,
     isRunning: isTimerRunning,
     warningTriggered,
     isTimeUp,
     start: startTimer,
     formattedRemaining,
+    formattedElapsed,
   } = useCallTimer({
     durationMinutes: callDurationMinutes,
     onWarning: handleTimerWarning,
     onTimeUp: handleTimeUp,
   });
-
-  // ─── Timer ─────────────────────────────────────────────────────────────
-  const [callDuration, setCallDuration] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval>>(null);
-
-  useEffect(() => {
-    if (isConnected) {
-      timerRef.current = setInterval(() => {
-        setCallDuration(getDuration());
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isConnected, getDuration]);
 
   // Handle auto-recording
   useEffect(() => {
@@ -922,24 +909,24 @@ export function RoleplaySession({
                     className={`size-2 rounded-full ${personaLeft ? "bg-rose-500" : "animate-pulse bg-emerald-500"}`}
                   />
                   <span className="text-charcoal font-mono text-xs font-medium">
-                    {formatTime(callDuration)}
+                    {formatTime(elapsed)}
                   </span>
                 </div>
 
                 {/* Coach Debrief Countdown */}
-                {callDuration < 180 && !personaLeft && (
+                {elapsed < 180 && !personaLeft && (
                   <div className="bg-charcoal/5 border-charcoal/10 flex items-center gap-2 rounded-full border px-3 py-1.5">
                     <Zap className="size-3 text-amber-600" />
                     <span className="text-charcoal/60 text-[10px] font-bold tracking-tight uppercase">
-                      Debrief Unlocks in {formatTime(180 - callDuration)}
+                      Debrief Unlocks in {formatTime(180 - elapsed)}
                     </span>
                   </div>
                 )}
-                {callDuration >= 180 && !personaLeft && (
+                {elapsed >= 180 && !personaLeft && (
                   <div className="animate-in fade-in zoom-in-95 flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 duration-500">
                     <Zap className="size-3 fill-emerald-600 text-emerald-600" />
                     <span className="text-[10px] font-bold tracking-tight text-emerald-600 uppercase">
-                      Coach Debrief Ready
+                      Debrief Unlocked
                     </span>
                   </div>
                 )}
@@ -1152,13 +1139,18 @@ export function RoleplaySession({
             <div className="flex shrink-0 items-center justify-center gap-3 py-2">
               {/* Mic toggle */}
               <button
-                className="border-border/40 hover:bg-cream text-charcoal flex size-11 items-center justify-center rounded-full border bg-white shadow-sm transition-colors"
-                disabled={inputLocked}
+                onClick={toggleMic}
+                className={`border-border/40 flex size-11 items-center justify-center rounded-full border shadow-sm transition-colors ${
+                  isMuted
+                    ? "border-rose-200 bg-rose-50 text-rose-600"
+                    : "text-charcoal hover:bg-cream bg-white"
+                }`}
+                disabled={inputLocked || !isConnected}
               >
-                {isConnected ? (
+                {isConnected && !isMuted ? (
                   <Mic className="size-5" />
                 ) : (
-                  <MicOff className="text-warm-gray size-5" />
+                  <MicOff className="size-5" />
                 )}
               </button>
 

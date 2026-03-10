@@ -85,7 +85,8 @@ export interface Persona {
   intensityLevel: number; // 1-3
   objectionStrategy: string;
   gender: "male" | "female";
-  ethnicity?: string;
+  country?: string;
+  languageCode?: string;
   voiceName?: string;
   avatarUrl?: string; // Added avatarUrl as it's used in RoleplaySession
   traits: PersonaTraits;
@@ -265,7 +266,7 @@ export interface GeneratePersonaRequest {
   objections: string[];
   personalityType?: PersonalityType;
   gender?: "male" | "female" | "other";
-  ethnicity?: string;
+  country?: string;
   competitorUrl?: string;
 }
 
@@ -279,6 +280,7 @@ export interface GeneratePersonaResponse {
   intensityLevel: number;
   objectionStrategy: string;
   traits: PersonaTraits;
+  languageCode: string; // The BCP-47 language code for Gemini Live (e.g., 'en', 'es', 'ja')
 
   // Rich Persona Fields
   companyType: string;

@@ -58,13 +58,13 @@ const testCases = [
       },
     },
     expected: {
-      overall: 3, // (8 + 6 + 0 + 0 + 0) / 5 = 2.8 -> 3
+      overall: 7, // (8 + 6) / 2 = 7
       discovery: 8,
       objection_handling: 6,
-      positioning: 3, // defaults to overall
-      closing: 3,
-      listening: 3,
-      confidence: 3,
+      positioning: 7,
+      closing: 7,
+      listening: 7,
+      confidence: 7,
     },
   },
   {
@@ -77,7 +77,7 @@ const testCases = [
     },
     expected: {
       overall: 4, // (5+8+0)/3 = 4.33 -> 4
-      discovery: 2, // (5+0)/2 = 2.5 -> 3? Wait, 2.5 rounds to 3.
+      discovery: 3, // (5+0)/2 = 2.5 -> 3
       objection_handling: 5,
       positioning: 8,
       closing: 8,
@@ -95,13 +95,13 @@ const testCases = [
       },
     },
     expected: {
-      overall: 12, // (0+10+0+0+0)/5 = 2
+      overall: 5, // (0+10)/2 = 5
       discovery: 0,
       objection_handling: 10,
-      positioning: 12,
-      closing: 12,
-      listening: 12,
-      confidence: 12,
+      positioning: 5,
+      closing: 5,
+      listening: 5,
+      confidence: 5,
     },
   },
 ];

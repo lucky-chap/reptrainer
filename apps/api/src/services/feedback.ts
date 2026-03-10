@@ -1,4 +1,4 @@
-import { VertexAI, GenerationConfig } from "@google-cloud/vertexai";
+import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import {
   GEMINI_EVALUATION_MODEL,
@@ -7,8 +7,9 @@ import {
   type FeedbackReport,
 } from "@reptrainer/shared";
 
-// Initialize Vertex AI
-const vertexAI = new VertexAI({
+// Initialize Vertex AI using GoogleGenAI SDK
+const genAI = new GoogleGenAI({
+  vertexai: true,
   project: env.GOOGLE_CLOUD_PROJECT,
   location: env.GOOGLE_CLOUD_LOCATION,
 });
@@ -72,14 +73,6 @@ export async function generateFeedbackReport(
     scenarioId,
   } = input;
 
-  const model = vertexAI.getGenerativeModel({
-    model: GEMINI_EVALUATION_MODEL,
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.3, // Lower temperature for more deterministic output
-    } as GenerationConfig,
-  });
-
   const trackContext = buildTrackContext(trackId, scenarioId);
 
   const prompt = `You are a **Senior Enterprise Sales Coach** with 20+ years of experience training top-performing B2B sales reps at Fortune 500 companies. You have coached reps at Salesforce, Oracle, and HubSpot.
@@ -132,12 +125,15 @@ CRITICAL RULES:
 - Scores should be integers.
 - overall_score should be a weighted reflection of the sub-scores, not just an average.`;
 
-  console.log(
-    `[feedback] Sending transcript (${transcript.length} chars) to ${GEMINI_EVALUATION_MODEL} for feedback`,
-  );
-
-  const response = await model.generateContent(prompt);
-  const text = response.response.candidates?.[0].content.parts?.[0].text ?? "";
+  const response = await genAI.models.generateContent({
+    model: GEMINI_EVALUATION_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      responseMimeType: "application/json",
+      temperature: 0.3, // Lower temperature for more deterministic output
+    },
+  });
+  const text = response.text || "";
   const jsonStr = extractJson(text);
 
   if (!jsonStr) {
