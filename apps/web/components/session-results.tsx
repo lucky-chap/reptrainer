@@ -161,6 +161,8 @@ export function SessionResults({
         personaName: persona?.name || session.personaName || "Unknown",
         personaRole: persona?.role || session.personaRole || "AI Persona",
         durationSeconds: session.durationSeconds,
+        objections: (session as any).objections || [],
+        moods: (session as any).moods || [],
       });
 
       // Update local state immediately with base64 for instant preview if needed

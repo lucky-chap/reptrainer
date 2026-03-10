@@ -24,19 +24,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { VibeMeter } from "@/components/vibe-meter";
 import { useGeminiLive } from "@/hooks/use-gemini-live";
 import { useCallTimer } from "@/hooks/use-call-timer";
 import type { Product, Persona, Session } from "@/lib/db";
+import { CoachDebriefResponse } from "@reptrainer/shared";
 import {
   saveSession,
   uploadSessionAudio,
-  createCallSession,
   updateCallSession,
+  createCallSession,
 } from "@/lib/db";
 import { CallDurationSelector } from "@/components/call-duration-selector";
 import {
   evaluateSession as evaluateSessionAction,
-  generateFeedbackReport,
   generateCoachDebrief,
 } from "@/app/actions/api";
 import { useAuth } from "@/context/auth-context";
@@ -179,6 +180,8 @@ export function RoleplaySession({
     isConnecting,
     transcript,
     insights,
+    objections,
+    moods,
     personaLeft,
     connect,
     disconnect,
@@ -389,14 +392,13 @@ export function RoleplaySession({
           trackId,
           scenarioId,
         }),
-        generateFeedbackReport({
+        generateCoachDebrief({
           transcript: transcriptText,
           personaName: persona.name,
           personaRole: persona.role,
-          intensityLevel: persona.intensityLevel,
           durationSeconds: duration,
-          trackId,
-          scenarioId,
+          objections,
+          moods,
         }),
       ]);
 
@@ -407,7 +409,7 @@ export function RoleplaySession({
         evaluation.status === "fulfilled" ? evaluation.value : null;
       const feedbackResult =
         feedback.status === "fulfilled"
-          ? (feedback.value as FeedbackReport)
+          ? (feedback.value as CoachDebriefResponse)
           : null;
 
       if (feedback.status === "rejected") {
@@ -428,6 +430,9 @@ export function RoleplaySession({
         durationSeconds: duration,
         evaluation: evalResult,
         insights: insights,
+        objections: objections,
+        moods: moods,
+        debrief: feedbackResult,
         teamId: teamId || persona.teamId || product.teamId,
         createdAt: new Date().toISOString(),
         audioUrl: audioUrl || undefined,
@@ -445,7 +450,7 @@ export function RoleplaySession({
       await updateCallSession(callSessionId, {
         callEndTime: new Date().toISOString(),
         callStatus: "ended",
-        feedbackReport: feedbackResult,
+        debrief: feedbackResult,
         legacyEvaluation: evalResult,
         insights: insights.map((i) => ({
           insight: i.insight,
@@ -1223,6 +1228,11 @@ export function RoleplaySession({
                 </div>
               )}
             </div>
+
+            {/* Vibe Meter */}
+            {isConnected && !personaLeft && (
+              <VibeMeter mood={moods[moods.length - 1]} />
+            )}
 
             {/* Coach Mode static panel removed (moved to sidebar tabs) */}
 

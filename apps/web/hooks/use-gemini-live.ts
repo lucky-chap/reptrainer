@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useRef, useState, useEffect } from "react";
-import { TranscriptEntry, SalesInsight } from "./gemini-types";
+import {
+  TranscriptEntry,
+  SalesInsight,
+  ObjectionLog,
+  PersonaMood,
+} from "./gemini-types";
 
 export interface UseGeminiLiveOptions {
   systemPrompt: string;
@@ -33,7 +38,7 @@ function getWsUrl(systemPrompt: string, voiceName: string): string {
 
   const params = new URLSearchParams({
     apiKey: secretKey,
-    systemPrompt,
+    // systemPrompt is now sent via 'setup' message to avoid URL length limits
     voiceName,
   });
 
@@ -51,6 +56,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const [personaLeft, setPersonaLeft] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [insights, setInsights] = useState<SalesInsight[]>([]);
+  const [objections, setObjections] = useState<ObjectionLog[]>([]);
+  const [moods, setMoods] = useState<PersonaMood[]>([]);
   const [isMuted, setIsMuted] = useState(false);
 
   // --- Refs ---
@@ -308,9 +315,48 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
                 },
               ]);
             }
+            if (msg.name === "log_objection") {
+              setObjections((prev) => [
+                ...prev,
+                {
+                  objectionType: msg.args.objectionType,
+                  repResponse: msg.args.repResponse,
+                  sentiment: msg.args.sentiment,
+                  timestamp: Date.now() - (startTimeRef.current ?? 0),
+                },
+              ]);
+            }
+            if (msg.name === "update_persona_mood") {
+              setMoods((prev) => [
+                ...prev,
+                {
+                  trust: msg.args.trust,
+                  interest: msg.args.interest,
+                  frustration: msg.args.frustration,
+                  dealLikelihood: msg.args.dealLikelihood,
+                  timestamp: Date.now() - (startTimeRef.current ?? 0),
+                },
+              ]);
+            }
             if (msg.name === "end_roleplay") {
-              setPersonaLeft(true);
-              optionsRef.current.onPersonaLeft?.();
+              // Wait for all buffered audio to finish playing before ending
+              const waitForAudioDrain = async () => {
+                const maxWait = 15000; // safety cap: 15 seconds
+                const start = Date.now();
+                while (
+                  (isPlayingRef.current ||
+                    audioQueueRef.current.length > 0 ||
+                    pendingBuffersRef.current > 0) &&
+                  Date.now() - start < maxWait
+                ) {
+                  await new Promise((r) => setTimeout(r, 200));
+                }
+                // Give a small extra buffer for the last chunk to finish
+                await new Promise((r) => setTimeout(r, 1000));
+                setPersonaLeft(true);
+                optionsRef.current.onPersonaLeft?.();
+              };
+              waitForAudioDrain();
             }
             break;
 
@@ -382,6 +428,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           setPersonaLeft(false);
           setTranscript([]);
           setInsights([]);
+          setObjections([]);
+          setMoods([]);
           startTimeRef.current = Date.now();
           audioQueueRef.current = [];
           reconnectAttemptsRef.current = 0;
@@ -473,7 +521,15 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log("[GeminiLive] WebSocket connection to backend opened.");
+          console.log(
+            "[GeminiLive] WebSocket connection to backend opened. Sending setup…",
+          );
+          const setupMsg = {
+            type: "setup",
+            systemPrompt: optionsRef.current.systemPrompt,
+            voiceName: optionsRef.current.voiceName || "Kore",
+          };
+          ws.send(JSON.stringify(setupMsg));
         };
 
         ws.onmessage = (e) => {
@@ -618,6 +674,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     connectionError,
     transcript,
     insights,
+    objections,
+    moods,
     personaLeft,
     connect,
     disconnect,

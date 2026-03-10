@@ -106,6 +106,8 @@ export interface Session {
   insights?: { insight: string; timestamp: number }[];
   audioUrl?: string; // Changed from audioBlob for Firestore/Storage
   debrief?: CoachDebriefResponse | null;
+  objections?: any[];
+  moods?: any[];
 }
 
 // Re-export shared types for convenience

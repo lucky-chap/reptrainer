@@ -31,17 +31,12 @@ export function registerLiveRoute(wss: WebSocketServer): void {
       return;
     }
 
-    // Read config from query params
-    const systemPrompt = url.searchParams.get("systemPrompt") || "";
-    const voiceName = url.searchParams.get("voiceName") || "Kore";
-
-    if (!systemPrompt) {
-      ws.close(4002, "Missing systemPrompt");
-      return;
-    }
+    // Read config from query params (optional if sending via 'setup' message)
+    const systemPrompt = url.searchParams.get("systemPrompt");
+    const voiceName = url.searchParams.get("voiceName");
 
     console.log(
-      `[Live] New WebSocket connection — voice=${voiceName}, promptLength=${systemPrompt.length}`,
+      `[Live] New WebSocket connection — voice=${voiceName || "default"}, promptLength=${systemPrompt?.length || 0}`,
     );
 
     const proxy = new GeminiLiveProxy(ws, systemPrompt, voiceName);

@@ -26,6 +26,7 @@ import {
   saveSession,
   updateCallSession,
   getUserTeams,
+  getTeamMembers,
 } from "@/lib/db";
 import { recalculateUserMetrics } from "@/lib/progress-service";
 import { generateCoachDebrief } from "@/app/actions/api";
@@ -57,6 +58,7 @@ export default function HistoryPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [personas, setPersonas] = useState<Record<string, Persona>>({});
   const [products, setProducts] = useState<Record<string, Product>>({});
+  const [teamMembers, setTeamMembers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [generatingDebriefId, setGeneratingDebriefId] = useState<string | null>(
     null,
@@ -71,6 +73,21 @@ export default function HistoryPage() {
       const userTeams = await getUserTeams(user.uid);
       setTeams(userTeams);
       const teamIds = userTeams.map((t) => t.id);
+
+      if (isAdmin && teamIds.length > 0) {
+        try {
+          const membersPromises = teamIds.map((id) => getTeamMembers(id));
+          const membersArrays = await Promise.all(membersPromises);
+          const membersList = membersArrays.flat();
+          const memberMap: Record<string, any> = {};
+          membersList.forEach((m) => {
+            memberMap[m.userId] = m;
+          });
+          setTeamMembers(memberMap);
+        } catch (err) {
+          console.error("Failed to load team members:", err);
+        }
+      }
 
       const unsubSessions = subscribeSessions(
         user.uid,
@@ -236,6 +253,7 @@ export default function HistoryPage() {
             const persona = personas[session.personaId];
             const product = products[session.productId];
             const evaluation = session.evaluation;
+            const memberInfo = teamMembers[session.userId];
 
             const overallScore = evaluation ? getOverallScore(evaluation) : 0;
 
@@ -247,99 +265,88 @@ export default function HistoryPage() {
                 style={{ animationDelay: `${i * 60}ms` }}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
+                  <div className="flex w-full flex-col gap-3">
+                    <div className="flex w-full items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="bg-charcoal text-cream flex size-10 items-center justify-center rounded-xl text-sm font-bold">
-                          {persona?.avatarUrl ? (
-                            <div className="h-full w-full rounded-full">
+                        <div className="bg-charcoal text-cream flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold">
+                          {isAdmin ? (
+                            memberInfo?.userAvatarUrl ? (
                               <Image
-                                src={persona?.avatarUrl}
-                                alt={persona?.name}
+                                src={memberInfo.userAvatarUrl}
+                                alt={
+                                  memberInfo.userName ||
+                                  session.userName ||
+                                  "Unknown"
+                                }
                                 className="h-full w-full rounded-full object-cover"
                                 width={48}
                                 height={48}
                               />
-                            </div>
+                            ) : (
+                              (session.userName?.charAt(0) || "U").toUpperCase()
+                            )
+                          ) : persona?.avatarUrl ? (
+                            <Image
+                              src={persona?.avatarUrl}
+                              alt={persona?.name}
+                              className="h-full w-full rounded-full object-cover"
+                              width={48}
+                              height={48}
+                            />
                           ) : (
-                            persona?.name.charAt(0) ||
-                            session.personaName?.charAt(0) ||
-                            "?"
+                            (
+                              persona?.name.charAt(0) ||
+                              session.personaName?.charAt(0) ||
+                              "?"
+                            ).toUpperCase()
                           )}
                         </div>
                         <div>
-                          <p className="text-charcoal text-base font-bold">
-                            {persona?.name || session.personaName || "Unknown"}
+                          <p className="text-charcoal flex items-center gap-2 text-base font-bold">
+                            {isAdmin
+                              ? session.userName || "Unknown Member"
+                              : persona?.name ||
+                                session.personaName ||
+                                "Unknown"}
+
+                            {isAdmin && (
+                              <span className="text-warm-gray text-xs font-medium">
+                                w/{" "}
+                                {persona?.name ||
+                                  session.personaName ||
+                                  "Unknown"}
+                              </span>
+                            )}
                           </p>
-                          <div className="text-warm-gray/60 mt-0.5 flex items-center gap-3 text-[10px] font-bold tracking-wider uppercase">
+                          <div className="text-warm-gray mt-1 flex items-center gap-4 text-xs font-medium">
                             <span className="flex items-center gap-1.5">
-                              <Clock className="size-3" />
+                              <Clock className="size-3.5" />
                               {Math.floor(session.durationSeconds / 60)}m{" "}
                               {session.durationSeconds % 60}s
                             </span>
-                            <span>
-                              {new Date(session.createdAt).toLocaleDateString()}
+                            <span className="flex items-center gap-1.5">
+                              {new Date(session.createdAt).toLocaleDateString(
+                                undefined,
+                                {
+                                  month: "long",
+                                  day: "numeric",
+                                  year: "numeric",
+                                },
+                              )}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="mr-4 flex items-center gap-3">
                         <div className="shrink-0 text-right">
-                          <span className="text-charcoal text-xl font-bold">
-                            {overallScore}
-                          </span>
-                          <span className="text-warm-gray/60 text-[10px] font-bold">
+                          <Badge>{overallScore}</Badge>
+                          <span className="text-warm-gray/60 ml-2 text-[10px] font-bold">
                             Points
                           </span>
                         </div>
                       </div>
                     </div>
-
-                    {evaluation && (
-                      <div className="bg-cream/30 flex items-center gap-6 rounded-xl p-3">
-                        <div className="space-y-1">
-                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
-                            Disc.
-                          </span>
-                          <p className="text-charcoal text-sm font-bold">
-                            {(evaluation as any).discovery?.score ?? 0}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
-                            Obj.
-                          </span>
-                          <p className="text-charcoal text-sm font-bold">
-                            {(evaluation as any).objectionHandling?.score ?? 0}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
-                            Pos.
-                          </span>
-                          <p className="text-charcoal text-sm font-bold">
-                            {(evaluation as any).productPositioning?.score ?? 0}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
-                            List.
-                          </span>
-                          <p className="text-charcoal text-sm font-bold">
-                            {(evaluation as any).activeListening?.score ?? 0}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-warm-gray-light block text-[9px] font-bold tracking-widest uppercase">
-                            Close
-                          </span>
-                          <p className="text-charcoal text-sm font-bold">
-                            {(evaluation as any).closing?.score ?? 0}
-                          </p>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -377,7 +384,8 @@ export default function HistoryPage() {
                       </DropdownMenu>
                     )}
                     {isAdmin && (
-                      <button
+                      <Button
+                        variant={"ghost"}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDelete(session.id, session.userId);
@@ -385,7 +393,7 @@ export default function HistoryPage() {
                         className="text-warm-gray-light hover:text-rose-glow p-2 opacity-0 transition-all group-hover:opacity-100"
                       >
                         <Trash2 className="size-4" />
-                      </button>
+                      </Button>
                     )}
                     <div className="bg-cream-dark flex size-8 items-center justify-center rounded-full transition-transform group-hover:translate-x-1">
                       <ChevronRight className="text-charcoal size-4" />

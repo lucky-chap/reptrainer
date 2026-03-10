@@ -125,6 +125,8 @@ export async function generateCoachDebrief(data: {
   personaName: string;
   personaRole: string;
   durationSeconds: number;
+  objections?: any[];
+  moods?: any[];
 }): Promise<CoachDebriefResponse> {
   const res = await fetch(`${baseUrl}/api/session/debrief`, {
     method: "POST",

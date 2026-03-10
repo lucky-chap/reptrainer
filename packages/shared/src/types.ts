@@ -182,6 +182,8 @@ export interface Session {
   durationSeconds: number;
   evaluation: SessionEvaluation | null;
   debrief?: CoachDebriefResponse | null;
+  objections?: any[];
+  moods?: any[];
   createdAt: string;
 }
 
@@ -224,7 +226,8 @@ export interface CallSession {
   audioUrl?: string;
 
   debrief?: CoachDebriefResponse | null;
-
+  objections?: any[];
+  moods?: any[];
   durationSeconds?: number;
 
   createdAt: string;

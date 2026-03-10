@@ -43,7 +43,9 @@ const debriefSchema = z.object({
   transcript: z.string().min(1),
   personaName: z.string().min(1),
   personaRole: z.string().min(1),
-  durationSeconds: z.number().min(180), // Duration guard
+  durationSeconds: z.number().min(0),
+  objections: z.array(z.any()).optional(),
+  moods: z.array(z.any()).optional(),
 });
 
 /**
@@ -70,6 +72,8 @@ sessionRoutes.post(
           transcript,
           personaName,
           personaRole,
+          req.body.objections,
+          req.body.moods,
         );
         console.log(
           `[debrief] Successfully generated ${slides.length} slides for ${personaName}`,

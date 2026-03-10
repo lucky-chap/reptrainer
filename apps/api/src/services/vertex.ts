@@ -393,7 +393,23 @@ export function getLiveSetupConfig(
       system_instruction: {
         parts: [
           {
-            text: "You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions. Never repeat the same response or sentence twice. If you already answered something, continue the conversation naturally instead of repeating yourself.\n\nCRITICAL TOOL USAGE: Throughout the conversation, if the user makes a great point, handles an objection poorly, or does something notable, you MUST use the `log_sales_insight` tool to record it *before* you respond. Do this naturally throughout the call.",
+            text: `You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions.
+
+ANTI-REPETITION RULES (CRITICAL):
+- NEVER repeat a sentence, phrase, or point you have already said. If you already made a point, move the conversation forward.
+- After a tool call returns, CONTINUE from exactly where you left off. Do NOT re-say anything you already spoke before the tool call.
+- If you feel stuck or unsure, ask a NEW question instead of re-stating a previous one.
+
+TOOL USAGE RULES (CRITICAL):
+- All tool calls are INVISIBLE background operations. They happen silently.
+- NEVER say "let me check", "one moment", "hold on", or any phrase that narrates a tool call. Just call the tool and keep talking naturally.
+- NEVER mention tool names, parameters, or results in your speech.
+- Do NOT pause your speech to call a tool. Call it seamlessly mid-conversation.
+
+When to call tools:
+1. Use \`log_sales_insight\` FREQUENTLY — after almost every user response. Log coaching tips proactively: what they should say next, what they did well, what they missed, their tone, their pacing, filler words, missed opportunities, etc. Aim for at least one insight every 1-2 turns. Be a world-class sales coach whispering in their ear.
+2. Use \`log_objection\` when you raise an objection or when the user responds to one.
+3. Use \`update_persona_mood\` every 3-4 turns to reflect your internal emotional state.`,
           },
           { text: systemPrompt },
         ],
@@ -423,13 +439,66 @@ export function getLiveSetupConfig(
                     description:
                       "The description of the sales insight. The description should be geared towards the user, in a form of advice. Use pronouns like 'you'. Directly address the user.",
                   },
-                  timestamp: {
-                    type: "number",
-                    description:
-                      "The timestamp in seconds from the start of the call.",
-                  },
                 },
                 required: ["insight"],
+              },
+            },
+            {
+              name: "log_objection",
+              description:
+                "Log a specific objection raised by the persona and how the user handled it.",
+              parameters: {
+                type: "object",
+                properties: {
+                  objectionType: {
+                    type: "string",
+                    description:
+                      "The category of objection (e.g., 'Pricing', 'Integration', 'Timing', 'Competitor').",
+                  },
+                  repResponse: {
+                    type: "string",
+                    description: "A brief summary of how the rep handled it.",
+                  },
+                  sentiment: {
+                    type: "string",
+                    enum: ["positive", "neutral", "negative"],
+                    description: "How well the objection was handled.",
+                  },
+                },
+                required: ["objectionType", "repResponse", "sentiment"],
+              },
+            },
+            {
+              name: "update_persona_mood",
+              description:
+                "Update the internal emotional state of the persona.",
+              parameters: {
+                type: "object",
+                properties: {
+                  trust: {
+                    type: "number",
+                    description: "Trust level (0-100).",
+                  },
+                  interest: {
+                    type: "number",
+                    description: "Interest level (0-100).",
+                  },
+                  frustration: {
+                    type: "number",
+                    description: "Frustration level (0-100).",
+                  },
+                  dealLikelihood: {
+                    type: "number",
+                    description:
+                      "Probability of closing the deal (0.0 to 1.0).",
+                  },
+                },
+                required: [
+                  "trust",
+                  "interest",
+                  "frustration",
+                  "dealLikelihood",
+                ],
               },
             },
             {
@@ -544,6 +613,8 @@ export async function generateCoachDebrief(
   transcript: string,
   personaName: string,
   personaRole: string,
+  objections: any[] = [],
+  moods: any[] = [],
 ): Promise<any[]> {
   const prompt = `You are a world-class sales coach creating a short "Coach Debrief" presentation for a sales rep after a practice call.
 
@@ -553,6 +624,10 @@ Persona Context:
 
 Transcript:
 ${transcript}
+
+Session Data:
+- Objections Logged: ${JSON.stringify(objections, null, 2)}
+- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}
 
 Your job is to produce a concise, insightful 4-slide coaching presentation.
 
@@ -589,14 +664,15 @@ Slide Requirements:
 Slide 1 (type: overview)
 Provide a high-level summary of the call.
 The visual should be a coaching analytics dashboard or conversation performance heatmap showing stages like:
-Introduction, Discovery, Pitch, Objection Handling, Closing.
+Introduction, Discovery, Pitch, Objection Handling, Closing. 
+Incorporate the "Mood Trends" into this visual description (e.g. "a line graph showing trust increasing during discovery but dipping during pricing").
 
 Slide 2 (type: problem)
 Identify the SINGLE biggest mistake or friction point in the conversation.
 Quote or reference the rep's words if possible.
 The visual should highlight the problematic moment, such as:
-- a conversation timeline with a red drop in engagement
-- a highlighted objection moment
+- a conversation timeline with a red drop in engagement (reference specific mood data if trust/interest dropped)
+- a highlighted objection moment (reference one of the logged objections)
 - a comparison chart showing strong vs weak moments.
 
 Slide 3 (type: correction)

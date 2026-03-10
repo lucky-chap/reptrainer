@@ -18,3 +18,18 @@ export interface SalesInsight {
   insight: string;
   timestamp: number;
 }
+
+export interface ObjectionLog {
+  objectionType: string;
+  repResponse: string;
+  sentiment: "positive" | "neutral" | "negative";
+  timestamp: number;
+}
+
+export interface PersonaMood {
+  trust: number;
+  interest: number;
+  frustration: number;
+  dealLikelihood: number;
+  timestamp: number;
+}

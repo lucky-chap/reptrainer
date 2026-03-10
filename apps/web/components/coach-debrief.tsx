@@ -13,7 +13,9 @@ import {
   Zap,
   RotateCcw,
   SkipForward,
+  Mic2,
 } from "lucide-react";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -263,6 +265,37 @@ export function CoachDebrief({
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Narrator Pulse Indicator */}
+          <AnimatePresence>
+            {isPlaying && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="bg-cream/10 flex items-center gap-2 rounded-full border border-white/10 px-3 py-1.5"
+              >
+                <div className="flex h-3 items-end gap-0.5">
+                  {[1, 2, 3, 4].map((i) => (
+                    <motion.div
+                      key={i}
+                      animate={{
+                        height: [4, 12, 4],
+                      }}
+                      transition={{
+                        duration: 0.5,
+                        repeat: Infinity,
+                        delay: i * 0.1,
+                      }}
+                      className="bg-cream w-0.5 rounded-full"
+                    />
+                  ))}
+                </div>
+                <span className="text-[10px] font-bold tracking-widest uppercase opacity-60">
+                  Narrator
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <Button
             variant="ghost"
             size="icon"
@@ -293,14 +326,19 @@ export function CoachDebrief({
           !hasInteracted && "scale-95 opacity-20 blur-sm",
         )}
       >
-        {/* Visual Component */}
-        <div className="group flex aspect-video w-full shrink-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/5 bg-white/5 shadow-2xl sm:rounded-[40px] md:w-3/5">
+        <motion.div
+          key={currentSlideIndex}
+          initial={{ opacity: 0, x: 20, scale: 0.95 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="group flex aspect-video w-full shrink-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/5 bg-white/5 shadow-2xl sm:rounded-[40px] md:w-3/5"
+        >
           <VisualDiagram
             type={currentSlide.type}
             description={currentSlide.visual}
             visualUrl={currentSlide.visualUrl}
           />
-        </div>
+        </motion.div>
 
         {/* Text Area */}
         <div className="flex w-full flex-col justify-center space-y-8 sm:space-y-10 md:w-2/5 md:pl-8">

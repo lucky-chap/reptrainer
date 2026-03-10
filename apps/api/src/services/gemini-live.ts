@@ -13,10 +13,14 @@ import type { WebSocket } from "ws";
 export class GeminiLiveProxy {
   private session: any = null;
   private ws: WebSocket;
-  private systemPrompt: string;
-  private voiceName: string;
+  private systemPrompt: string | null;
+  private voiceName: string | null;
 
-  constructor(ws: WebSocket, systemPrompt: string, voiceName: string) {
+  constructor(
+    ws: WebSocket,
+    systemPrompt: string | null,
+    voiceName: string | null,
+  ) {
     this.ws = ws;
     this.systemPrompt = systemPrompt;
     this.voiceName = voiceName;
@@ -32,6 +36,11 @@ export class GeminiLiveProxy {
       location: env.GOOGLE_CLOUD_LOCATION,
     });
 
+    if (!this.systemPrompt || !this.voiceName) {
+      console.log("[GeminiLiveProxy] Waiting for setup message…");
+      return;
+    }
+
     const { setup } = getLiveSetupConfig(
       env.GOOGLE_CLOUD_PROJECT,
       env.GOOGLE_CLOUD_LOCATION,
@@ -39,99 +48,128 @@ export class GeminiLiveProxy {
       this.voiceName,
     );
 
-    console.log("[GeminiLiveProxy] Connecting to Gemini Live…");
+    console.log(
+      "[GeminiLiveProxy] Connecting to Gemini Live with model:",
+      setup.model,
+    );
 
-    this.session = await genAI.live.connect({
-      model: setup.model,
-      config: {
-        systemInstruction: setup.system_instruction,
-        tools: setup.tools.map((tool: any) => ({
-          functionDeclarations: tool.function_declarations,
-        })),
-        inputAudioTranscription: setup.input_audio_transcription,
-        outputAudioTranscription: setup.output_audio_transcription,
-        realtimeInputConfig: {
-          automaticActivityDetection: {
-            prefixPaddingMs:
-              setup.realtime_input_config.automatic_activity_detection
-                .prefix_padding_ms,
-            silenceDurationMs:
-              setup.realtime_input_config.automatic_activity_detection
-                .silence_duration_ms,
-            startOfSpeechSensitivity: setup.realtime_input_config
-              .automatic_activity_detection.start_of_speech_sensitivity as any,
-            endOfSpeechSensitivity: setup.realtime_input_config
-              .automatic_activity_detection.end_of_speech_sensitivity as any,
+    try {
+      this.session = await genAI.live.connect({
+        model: setup.model,
+        config: {
+          systemInstruction: setup.system_instruction,
+          tools: setup.tools.map((tool: any) => ({
+            functionDeclarations: tool.function_declarations,
+          })),
+          inputAudioTranscription: setup.input_audio_transcription,
+          outputAudioTranscription: setup.output_audio_transcription,
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              prefixPaddingMs:
+                setup.realtime_input_config.automatic_activity_detection
+                  .prefix_padding_ms,
+              silenceDurationMs:
+                setup.realtime_input_config.automatic_activity_detection
+                  .silence_duration_ms,
+              startOfSpeechSensitivity: setup.realtime_input_config
+                .automatic_activity_detection
+                .start_of_speech_sensitivity as any,
+              endOfSpeechSensitivity: setup.realtime_input_config
+                .automatic_activity_detection.end_of_speech_sensitivity as any,
+            },
           },
-        },
-        responseModalities: setup.generation_config.response_modalities as any,
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName:
-                setup.generation_config.speech_config.voice_config
-                  .prebuilt_voice_config.voice_name,
+          responseModalities: setup.generation_config
+            .response_modalities as any,
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName:
+                  setup.generation_config.speech_config.voice_config
+                    .prebuilt_voice_config.voice_name,
+              },
             },
           },
         },
-      },
-      callbacks: {
-        onopen: () => {
-          console.log("[GeminiLiveProxy] Gemini session opened");
+        callbacks: {
+          onopen: () => {
+            console.log("[GeminiLiveProxy] Gemini session opened");
+          },
+          onmessage: (msg: any) => {
+            // console.log("[GeminiLiveProxy] Received message from Gemini");
+            this.handleGeminiMessage(msg);
+          },
+          onclose: (e: any) => {
+            console.log(
+              `[GeminiLiveProxy] Gemini session closed: code=${e?.code} reason=${e?.reason}`,
+            );
+            this.send({ type: "closed", code: e?.code, reason: e?.reason });
+          },
+          onerror: (err: any) => {
+            console.error("[GeminiLiveProxy] Gemini error:", err);
+            this.send({
+              type: "error",
+              message: "AI session encountered an error.",
+            });
+          },
         },
-        onmessage: (msg: any) => {
-          // console.log("[GeminiLiveProxy] Received message from Gemini");
-          this.handleGeminiMessage(msg);
-        },
-        onclose: (e: any) => {
-          console.log(
-            `[GeminiLiveProxy] Gemini session closed: code=${e?.code} reason=${e?.reason}`,
-          );
-          this.send({ type: "closed", code: e?.code, reason: e?.reason });
-        },
-        onerror: (err: any) => {
-          console.error("[GeminiLiveProxy] Gemini error:", err);
-          this.send({
-            type: "error",
-            message: "AI session encountered an error.",
-          });
-        },
-      },
-    });
+      });
 
-    console.log("[GeminiLiveProxy] Session established");
+      console.log("[GeminiLiveProxy] Session established successfully");
 
-    // Once session is established, send the initial greeting
-    this.session.sendClientContent({
-      turns: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: "Hello! Please start the conversation now based on the persona and scenario in your instructions.",
-            },
-          ],
-        },
-      ],
-      turnComplete: true,
-    });
+      // Once session is established, send the initial greeting
+      this.session.sendClientContent({
+        turns: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: "Hello! Please start the conversation now based on the persona and scenario in your instructions.",
+              },
+            ],
+          },
+        ],
+        turnComplete: true,
+      });
 
-    // Wait briefly to ensure client is ready for the "connected" signal
-    setTimeout(() => {
-      if (this.ws.readyState === 1) {
-        this.send({ type: "connected" });
-      }
-    }, 100);
+      // Wait briefly to ensure client is ready for the "connected" signal
+      setTimeout(() => {
+        if (this.ws.readyState === 1) {
+          console.log("[GeminiLiveProxy] Sending 'connected' signal to client");
+          this.send({ type: "connected" });
+        }
+      }, 100);
+    } catch (err) {
+      console.error("[GeminiLiveProxy] Failed to connect to Gemini Live:", err);
+      this.send({
+        type: "error",
+        message:
+          "Failed to connect to AI: " +
+          (err instanceof Error ? err.message : String(err)),
+      });
+    }
   }
 
   /**
    * Handles an incoming message from the frontend WebSocket client.
    */
   handleClientMessage(data: string): void {
-    if (!this.session) return;
-
     try {
       const msg = JSON.parse(data);
+
+      if (msg.type === "setup") {
+        console.log(
+          `[GeminiLiveProxy] Received setup message — voice=${msg.voiceName}, promptLength=${msg.systemPrompt?.length}`,
+        );
+        this.systemPrompt = msg.systemPrompt;
+        this.voiceName = msg.voiceName;
+        this.connect();
+        return;
+      }
+
+      if (!this.session) {
+        // Silently drop non-setup messages if session isn't ready
+        return;
+      }
 
       switch (msg.type) {
         case "audio":
@@ -139,7 +177,7 @@ export class GeminiLiveProxy {
           if (Math.random() < 0.02)
             console.log(`[GeminiLiveProxy] Relaying client audio chunk`);
 
-          this.session.sendRealtimeInput({
+          this.session?.sendRealtimeInput({
             audio: { data: msg.data, mimeType: "audio/pcm;rate=16000" },
           });
           break;
@@ -245,7 +283,7 @@ export class GeminiLiveProxy {
       }
     }
 
-    // Output transcription (model's speech → text)
+    // Output transcription (model's speech to text)
     const outputTx =
       msg.serverContent?.outputTranscription ||
       msg.serverContent?.output_audio_transcription;
@@ -256,9 +294,21 @@ export class GeminiLiveProxy {
         console.log(
           `[GeminiLiveProxy] Output transcription: "${outputTx.text.substring(0, 60)}..." isFinal=${isFinal}`,
         );
+        // some of the tool call output was interfering with the transcription
+        let cleanText = outputTx.text;
+
+        // Strip tool call artifacts like update_persona_mood{...} or results like {success:true}
+        cleanText = cleanText.replace(/(\w+)\{.*?\}/g, "");
+        cleanText = cleanText.replace(/\{success:true\}/g, "");
+        // Strip control tokens or weird sequences like <ctrl43> (they kept appearing in the transcription)
+        cleanText = cleanText.replace(/<.*?>/g, "");
+
+        // If the entire text was just tool metadata, don't send an empty transcription
+        if (!cleanText.trim()) return;
+
         this.send({
           type: "output_transcription",
-          text: outputTx.text,
+          text: cleanText,
           isFinal,
         });
       }
