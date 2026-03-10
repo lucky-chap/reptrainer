@@ -464,28 +464,6 @@ export function RoleplaySession({
           ),
         );
 
-      // ─── Generate Coach Debrief if duration >= 3 mins ───────────────────
-      if (duration >= 180) {
-        try {
-          console.log("[RoleplaySession] Fetching Coach Debrief...");
-          const debrief = await generateCoachDebrief({
-            transcript: transcriptText,
-            personaName: persona.name,
-            personaRole: persona.role,
-            durationSeconds: duration,
-          });
-
-          // Persist debrief to Firestore
-          console.log("[RoleplaySession] Persisting debrief to Firestore...");
-          await Promise.all([
-            updateCallSession(callSessionId, { debrief }),
-            saveSession({ ...session, debrief }),
-          ]).catch((err) => console.error("Failed to persist debrief:", err));
-        } catch (debriefError) {
-          console.error("Coach Debrief generation failed:", debriefError);
-        }
-      }
-
       setLoadingProgress(100);
       // ─── Update User Metrics ──────────────────────────────────────────
       if (user) {
@@ -1168,7 +1146,7 @@ export function RoleplaySession({
               {/* Start / End Call */}
               {!isConnected && !isConnecting && !personaLeft ? (
                 <button
-                  onClick={connect}
+                  onClick={() => connect()}
                   disabled={inputLocked}
                   className="bg-charcoal text-cream hover:bg-charcoal-light group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium transition-all duration-200 disabled:opacity-50"
                 >

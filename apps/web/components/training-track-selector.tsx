@@ -214,6 +214,17 @@ export function TrainingTrackSelector({
 
   return (
     <div className="animate-fade-up space-y-6">
+      <div className="pb-4 text-center">
+        <Button
+          variant="ghost"
+          onClick={onSkip}
+          className="text-warm-gray hover:text-charcoal gap-2 text-sm"
+        >
+          <Zap className="size-4" />
+          Skip — Free Roleplay
+        </Button>
+      </div>
+
       <div className="mb-8 text-center">
         <div className="bg-cream mb-4 inline-flex items-center gap-2 rounded-full px-4 py-2">
           <Target className="text-charcoal size-4" />
@@ -292,20 +303,6 @@ export function TrainingTrackSelector({
             </button>
           );
         })}
-      </div>
-
-      <div className="pt-4 text-center">
-        <Button
-          variant="ghost"
-          onClick={onSkip}
-          className="text-warm-gray hover:text-charcoal gap-2 text-sm"
-        >
-          <Zap className="size-4" />
-          Skip — Free Roleplay
-        </Button>
-        <p className="text-warm-gray-light mt-2 text-[11px]">
-          Or jump straight into an unstructured roleplay session
-        </p>
       </div>
     </div>
   );

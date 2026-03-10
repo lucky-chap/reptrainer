@@ -163,11 +163,13 @@ export function MemberDashboard({
             skills.
           </p>
         </div>
-        <Button asChild variant="brand" className="h-12 px-6">
-          <Link href="/dashboard/train" className="gap-2">
-            <Swords className="size-4" />
-            Start Training
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+        <Button
+          asChild
+          className="bg-charcoal text-cream hover:bg-charcoal/90 h-auto rounded-full px-8 py-4 text-sm font-bold shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0"
+        >
+          <Link href="/dashboard/analytics" className="flex items-center gap-2">
+            View Deep Insights
+            <TrendingUp className="size-4" />
           </Link>
         </Button>
       </div>

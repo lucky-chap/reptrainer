@@ -74,6 +74,7 @@ export interface Persona {
   conversationBehavior?: string[];
   buyingAttitude?: string;
   difficultyLevel?: DifficultyLevel;
+  physicalDescription?: string;
 }
 
 export interface SessionEvaluation {

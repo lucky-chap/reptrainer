@@ -89,6 +89,7 @@ export interface Persona {
   languageCode?: string;
   voiceName?: string;
   avatarUrl?: string; // Added avatarUrl as it's used in RoleplaySession
+  physicalDescription?: string;
   traits: PersonaTraits;
   createdAt: string;
 }
@@ -298,6 +299,7 @@ export interface GeneratePersonaResponse {
   conversationBehavior: string[];
   buyingAttitude: string;
   difficultyLevel: DifficultyLevel;
+  physicalDescription: string;
 }
 
 export interface EvaluateSessionRequest {

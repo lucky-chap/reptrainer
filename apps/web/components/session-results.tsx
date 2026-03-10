@@ -464,8 +464,8 @@ export function SessionResults({
           </div>
 
           {/* Pro Tips */}
-          <Card className="border-border/60 overflow-hidden shadow-none">
-            <CardHeader className="bg-amber-500/5 pb-4">
+          <Card className="border-border/60 overflow-hidden pt-0 shadow-none">
+            <CardHeader className="bg-amber-500/5 py-4">
               <div className="flex items-center gap-2">
                 <div className="flex size-8 items-center justify-center rounded-lg bg-amber-500/10">
                   <Lightbulb className="size-4 text-amber-600" />
@@ -483,7 +483,7 @@ export function SessionResults({
                     className="rounded-xl border border-amber-500/10 bg-amber-500/5 p-4"
                   >
                     <p className="text-warm-gray text-sm leading-relaxed italic">
-                      &quot;{t}&quot;
+                      {t}
                     </p>
                   </div>
                 ))}
@@ -554,19 +554,21 @@ export function SessionResults({
 
               {audioUrl && (
                 <div className="border-border/40 border-t pt-6">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-center sm:gap-0">
                     <h5 className="text-warm-gray flex items-center gap-2 text-xs font-bold tracking-widest uppercase">
                       <Headphones className="size-3.5" />
                       Recording
                     </h5>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleDownloadAudio}
-                      className="h-7 px-2 text-xs"
-                    >
-                      <Download className="mr-1.5 h-3 w-3" /> Download
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDownloadAudio}
+                        className="h-8 px-3 text-xs"
+                      >
+                        <Download className="mr-1.5 h-3.5 w-3.5" /> Download
+                      </Button>
+                    </div>
                   </div>
 
                   <audio
@@ -575,15 +577,15 @@ export function SessionResults({
                     src={audioUrl}
                     className="accent-charcoal h-10 w-full"
                   />
-                  <div className="mt-8 rounded-2xl bg-white/50 p-1">
-                    <ObjectionHeatmap
-                      insights={session.insights || []}
-                      durationSeconds={session.durationSeconds}
-                      onSeek={handleSeek}
-                    />
-                  </div>
                 </div>
               )}
+
+              {/* Objection Heatmap Section */}
+              <ObjectionHeatmap
+                insights={session.insights || []}
+                durationSeconds={session.durationSeconds}
+                onSeek={handleSeek}
+              />
 
               {/* Coach Debrief Section */}
               <div className="border-border/40 border-t pt-6">

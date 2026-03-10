@@ -246,6 +246,7 @@ Generate a buyer persona with the following JSON structure. Return ONLY valid JS
   "intensityLevel": 1-5 (1=Friendly, 3=Tough, 5=Hostile),
   "patience": "medium",
   "verbosity": "medium",
+  "physicalDescription": "A detailed 1-sentence description of this person's physical appearance, ensuring it is culturally and ethnically appropriate for someone from ${country || "their background"}. Include specific details like skin tone (e.g., 'dark chocolate skin', 'olive complexion', 'fair skin'), typical hair style or features common to that region to ensure the AI image generator produces an accurate representation. FOR EXAMPLE: A Nigerian persona MUST have dark skin.",
   "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. ${template ? `IT MUST INCORPORATE THE BEHAVIORAL PROFILE, TONE, AND TRIGGERS FROM THE ${template.name} TEMPLATE.` : "Include: communication style, skepticism triggers, pet peeves, and decision-making approach."}",
   "objectionStrategy": "A specific 2-3 sentence strategy this persona uses to push back. This MUST be dynamic and specific to the product context.",
   "competitorContext": ${competitorContext ? JSON.stringify(competitorContext, null, 2) : "null"}
@@ -392,7 +393,7 @@ export function getLiveSetupConfig(
       system_instruction: {
         parts: [
           {
-            text: "You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions. Never repeat the same response or sentence twice. If you already answered something, continue the conversation naturally instead of repeating yourself.",
+            text: "You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions. Never repeat the same response or sentence twice. If you already answered something, continue the conversation naturally instead of repeating yourself.\n\nCRITICAL TOOL USAGE: Throughout the conversation, if the user makes a great point, handles an objection poorly, or does something notable, you MUST use the `log_sales_insight` tool to record it *before* you respond. Do this naturally throughout the call.",
           },
           { text: systemPrompt },
         ],
@@ -402,9 +403,9 @@ export function getLiveSetupConfig(
       realtime_input_config: {
         automatic_activity_detection: {
           prefix_padding_ms: 20,
-          silence_duration_ms: 100,
-          start_of_speech_sensitivity: "START_SENSITIVITY_LOW",
-          end_of_speech_sensitivity: "END_SENSITIVITY_LOW",
+          silence_duration_ms: 300,
+          start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
+          end_of_speech_sensitivity: "END_SENSITIVITY_HIGH",
         },
       },
       tools: [
@@ -482,11 +483,17 @@ export async function generatePersonaAvatar(
   gender: string,
   role: string,
   country?: string,
+  physicalDescription?: string,
 ): Promise<string> {
-  const countryContext = country
-    ? ` from ${country}, with culturally appropriate physical features and characteristics`
-    : "";
-  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their early 40s${countryContext}. Job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed features.`;
+  const countryContext = country ? ` from ${country}` : "";
+
+  const appearanceContext = physicalDescription
+    ? `, ${physicalDescription}`
+    : country
+      ? `, with culturally appropriate physical features and characteristics matching someone from ${country}`
+      : "";
+
+  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their early 40s${countryContext}${appearanceContext}. Job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed and realistic features.`;
 
   console.log(`Generating avatar for ${gender} ${role}...`);
   const imageBuffer = await generateImage(prompt);

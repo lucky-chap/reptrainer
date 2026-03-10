@@ -182,6 +182,7 @@ export function GenerationProvider({
           conversationBehavior: data.conversationBehavior,
           buyingAttitude: data.buyingAttitude,
           difficultyLevel: data.difficultyLevel,
+          physicalDescription: data.physicalDescription,
           createdAt: new Date().toISOString(),
         };
 
@@ -199,6 +200,7 @@ export function GenerationProvider({
             gender: persona.gender,
             role: persona.role,
             country: persona.country,
+            physicalDescription: persona.physicalDescription,
           });
 
           if (activeRef.current.get(taskId) && avatarData.avatarDataUrl) {

@@ -9,6 +9,7 @@ export interface TranscriptEntry {
   role: "user" | "model";
   text: string;
   timestamp: number;
+  startTime?: number; // When this entry started (for user slow reveal)
   isStreaming?: boolean;
   isInterrupted?: boolean;
 }

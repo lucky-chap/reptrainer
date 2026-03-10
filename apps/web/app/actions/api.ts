@@ -3,7 +3,10 @@
 import { CoachDebriefResponse } from "@reptrainer/shared";
 
 const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const secretKey = process.env.API_SECRET_KEY || "reptrainer-secret-123";
+const secretKey =
+  process.env.NEXT_PUBLIC_API_SECRET_KEY ||
+  process.env.API_SECRET_KEY ||
+  "reptrainer-secret-123";
 
 const headers = {
   "Content-Type": "application/json",
@@ -100,6 +103,7 @@ export async function generatePersonaAvatar(data: {
   gender: "male" | "female" | "other";
   role: string;
   country?: string;
+  physicalDescription?: string;
 }) {
   const res = await fetch(`${baseUrl}/api/persona/generate-avatar`, {
     method: "POST",

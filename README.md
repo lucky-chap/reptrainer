@@ -14,6 +14,8 @@ Reptrainer is an AI-powered sales roleplay platform that allows sales representa
 - **📊 Coaching Insights**: Advanced analytics that identify skill gaps (Discovery, Closing, Listening, etc) and trends across your team.
 - **🎞️ AI Debrief**: Post-session debriefs featuring synchronized audio narration, visual slides, and interactive objection heatmaps.
 - **👥 Team Management**: Role-based access control for Admins (Team Leaders) and Members, with aggregated team performance dashboards.
+- **🔄 Automatic Reconnection**: WebSocket connection with exponential backoff reconnection for reliable real-time sessions.
+- **📝 Live Transcript**: Real-time transcript display with word-by-word reveal synced to audio playback.
 
 ---
 
@@ -35,7 +37,7 @@ This architectural decision ensures that every roleplay session is highly releva
 
 ## 🏗️ Monorepo Structure
 
-```text
+```
 reptrainer/
 ├── apps/
 │   ├── web/          → Next.js frontend (TypeScript, Tailwind, shadcn/ui)
@@ -87,36 +89,41 @@ reptrainer/
 
 #### 1. Google Cloud Platform
 
-- Create a project in [Google Cloud Console](https://console.cloud.google.com/).
-- Enable the following APIs:
-  - **Vertex AI API**
-  - **Cloud Text-to-Speech API**
-- Create a Service Account with `Vertex AI User` and `Cloud Test-to-Speech User` roles.
-- Download the JSON key and set `GOOGLE_APPLICATION_CREDENTIALS` if running outside of GCP.
-- Get a Gemini API Key from [Google AI Studio](https://aistudio.google.com/).
+1. Create a project in [Google Cloud Console](https://console.cloud.google.com/).
+2. Enable the following APIs:
+   - **Vertex AI API**
+   - **Cloud Text-to-Speech API**
+3. Create a Service Account with `Vertex AI User` and `Cloud Text-to-Speech User` roles.
+4. Download the JSON key and set `GOOGLE_APPLICATION_CREDENTIALS` if running outside of GCP.
+5. Get a Gemini API Key from [Google AI Studio](https://aistudio.google.com/).
 
 #### 2. Firebase
 
-- Create a project in [Firebase Console](https://console.firebase.google.com/).
-- **Authentication**: Enable Google Sign-In.
-- **Firestore**: Create a database in Native mode.
-- **Storage**: Enable Firebase Storage.
-- **Web App**: Register a new Web App to get your Firebase config keys.
-- **CORS**: Configure CORS for Firebase Storage to allow your local/production domain:
-  ```json
-  [
-    {
-      "origin": ["http://localhost:3000"],
-      "method": ["GET"],
-      "maxAgeSeconds": 3600
-    }
-  ]
-  ```
-  Apply using `gsutil cors set cors.json gs://your-bucket-name`.
+1. Create a project in [Firebase Console](https://console.firebase.google.com/).
+2. **Authentication**: Enable Google Sign-In.
+3. **Firestore**: Create a database in Native mode.
+4. **Storage**: Enable Firebase Storage.
+5. **Web App**: Register a new Web App to get your Firebase config keys.
+6. **CORS**: Configure CORS for Firebase Storage:
+
+```json
+[
+  {
+    "origin": ["http://localhost:3000", "https://your-domain.com"],
+    "method": ["GET", "PUT", "POST", "DELETE"],
+    "maxAgeSeconds": 3600
+  }
+]
+```
+
+Save as `cors.json` and apply:
+```bash
+gsutil cors set cors.json gs://your-bucket-name
+```
 
 #### 3. Deploying Rules and Indices
 
-The project includes pre-configured security rules and Firestore indices in `apps/web`.
+The project includes pre-configured security rules and Firestore indices.
 
 1. **Install Firebase CLI**:
    ```bash
@@ -133,50 +140,115 @@ The project includes pre-configured security rules and Firestore indices in `app
    firebase deploy --only firestore:rules,firestore:indexes,storage
    ```
 
-### 💻 Local Installation
+---
 
-1. **Clone the repository**:
+## 💻 Environment Variables
 
+### API Backend (`apps/api/.env`)
+
+```bash
+# Environment
+PORT=4000
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:3000
+API_SECRET_KEY=your-secure-secret-key-here
+
+# Gemini API
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Google Cloud
+GOOGLE_CLOUD_PROJECT=your_project_id
+GOOGLE_CLOUD_LOCATION=us-central1
+
+# Optional: Google Application Credentials (if running outside GCP)
+# GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+```
+
+### Web Frontend (`apps/web/.env.local`)
+
+```bash
+# API URL
+NEXT_PUBLIC_API_URL=http://localhost:4000
+
+# Secret Key (must match API_SECRET_KEY in backend)
+NEXT_PUBLIC_API_SECRET_KEY=your-secure-secret-key-here
+
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
+
+### Required Environment Variables Summary
+
+| Variable | Location | Description |
+|----------|----------|-------------|
+| `PORT` | API | Server port (default: 4000) |
+| `API_SECRET_KEY` | API + Web | Secret key for WebSocket authentication |
+| `GEMINI_API_KEY` | API | Google AI Studio API key |
+| `GOOGLE_CLOUD_PROJECT` | API | GCP project ID |
+| `GOOGLE_CLOUD_LOCATION` | API | GCP region (e.g., us-central1) |
+| `NEXT_PUBLIC_API_URL` | Web | Backend API URL |
+| `NEXT_PUBLIC_API_SECRET_KEY` | Web | Must match API's secret key |
+| `NEXT_PUBLIC_FIREBASE_*` | Web | Firebase web app config |
+
+---
+
+## 🏃 Running the Application
+
+### Local Development
+
+1. **Clone and install**:
    ```bash
    git clone https://github.com/your-username/reptrainer.git
    cd reptrainer
-   ```
-
-2. **Install dependencies**:
-
-   ```bash
    pnpm install
    ```
 
-3. **Configure Environment Variables**:
-
-   Copy `.env.example` to `.env` (or `.env.local` for web) in both `apps/api` and `apps/web`:
-
+2. **Configure environment variables**:
    ```bash
    cp apps/api/.env.example apps/api/.env
    cp apps/web/.env.example apps/web/.env.local
+   # Edit both files with your configuration
    ```
 
-4. **Running Locally**:
-
+3. **Start development servers**:
    ```bash
-   # Start the monorepo in dev mode
    pnpm dev
    ```
 
-### 🐳 Docker Setup
+4. **Access the application**:
+   - Frontend: http://localhost:3000
+   - API: http://localhost:4000
 
-If you prefer using Docker, ensure you have your `.env` files configured in the root or appropriate app directories.
+### Docker Setup
 
-1. **Build and start services**:
+1. **Configure environment variables**:
+   ```bash
+   # Create apps/api/.env and apps/web/.env.local with your config
+   ```
 
+2. **Build and start**:
    ```bash
    docker-compose up --build
    ```
 
-2. **Access the application**:
-   - Frontend: [http://localhost:3000](http://localhost:3000)
-   - API: [http://localhost:4000](http://localhost:4000)
+3. **Access the application**:
+   - Frontend: http://localhost:3000
+   - API: http://localhost:4000
+
+### Production Build
+
+```bash
+# Build all packages
+pnpm build
+
+# Start production servers
+pnpm start
+```
 
 ---
 
@@ -190,6 +262,118 @@ The application includes a sophisticated analytics engine that uses pattern reco
 - **Closing**: Moving the deal towards the next step.
 
 Managers can view **Team Weakness** alerts to identify where group training is needed most.
+
+---
+
+## 🔌 WebSocket Protocol
+
+The real-time communication uses WebSockets at `/api/live`.
+
+### Client → Server Messages
+
+| Type | Description |
+|------|-------------|
+| `audio` | Base64-encoded PCM audio (16kHz, mono) |
+| `text` | Text input from user |
+| `log_insight` | Request manual insight logging |
+
+### Server → Client Messages
+
+| Type | Description |
+|------|-------------|
+| `connected` | Session established |
+| `audio` | Base64-encoded AI response audio |
+| `turn_complete` | AI finished speaking |
+| `input_transcription` | User's speech transcribed |
+| `output_transcription` | AI's speech transcribed |
+| `interrupted` | AI was interrupted by user |
+| `tool_call` | AI triggered a tool (e.g., `log_sales_insight`) |
+| `error` | Error message |
+| `closed` | Session closed |
+
+---
+
+## 🔐 Security Rules
+
+### Firestore Rules (`apps/web/firestore.rules`)
+
+The database uses role-based access control:
+- Users can only read/write their own data
+- Team admins can read/write team data
+- All reads/writes require authentication
+
+### Storage Rules (`apps/web/storage.rules`)
+
+- Users can only upload to their own folder
+- Audio recordings stored as `audio/{userId}/{sessionId}.webm`
+- Avatar images stored as `avatars/{productId}/{personaId}.png`
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run linting
+pnpm lint
+
+# Run type checking
+pnpm typecheck
+```
+
+---
+
+## 📁 Project Structure
+
+```
+apps/
+├── api/
+│   ├── src/
+│   │   ├── config/          # Environment configuration
+│   │   ├── routes/          # Express routes
+│   │   │   ├── auth.ts      # Authentication routes
+│   │   │   ├── live.ts      # WebSocket live session
+│   │   │   └── ...
+│   │   ├── services/         # Business logic
+│   │   │   ├── gemini-live.ts    # Gemini Live proxy
+│   │   │   ├── vertex.ts        # Vertex AI helpers
+│   │   │   └── ...
+│   │   └── index.ts         # Express app entry
+│   └── package.json
+│
+└── web/
+    ├── components/          # React components
+    │   ├── roleplay-session.tsx
+    │   └── ...
+    ├── hooks/               # Custom React hooks
+    │   ├── use-gemini-live.ts   # Live session hook
+    │   └── ...
+    ├── lib/                 # Utilities
+    ├── app/                 # Next.js App Router
+    ├── public/              # Static assets
+    └── package.json
+
+packages/
+└── shared/
+    └── src/
+        ├── constants.ts     # Shared constants
+        └── types.ts         # TypeScript types
+```
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 

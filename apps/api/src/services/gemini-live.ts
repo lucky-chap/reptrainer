@@ -188,6 +188,7 @@ export class GeminiLiveProxy {
       msg.serverContent?.inputTranscription ? "inputTranscription" : null,
       msg.serverContent?.outputTranscription ? "outputTranscription" : null,
       msg.toolCall ? "toolCall" : null,
+      msg.toolCallCancellation ? "toolCallCancellation" : null,
     ].filter(Boolean);
     if (types.length > 0) {
       console.log(`[GeminiLiveProxy] Message types: ${types.join(", ")}`);
@@ -205,47 +206,60 @@ export class GeminiLiveProxy {
             dataToSend = Buffer.from(dataToSend).toString("base64");
           }
 
-          console.log(
-            `[GeminiLiveProxy] Relaying audio chunk: size=${dataToSend.length}, mime=${part.inlineData.mimeType}`,
-          );
           this.send({
             type: "audio",
             data: dataToSend,
             mimeType: part.inlineData.mimeType || "audio/pcm",
           });
-        } else {
-          console.log(
-            `[GeminiLiveProxy] Part without inlineData:`,
-            Object.keys(part),
-          );
         }
-      }
-
-      if (msg.serverContent.turnComplete) {
-        this.send({ type: "turn_complete" });
       }
     }
 
-    // Input transcription
-    if (msg.serverContent?.inputTranscription) {
-      const tx = msg.serverContent.inputTranscription;
-      if (tx.text) {
+    // Turn complete — can arrive with or without modelTurn
+    if (msg.serverContent?.turnComplete) {
+      this.send({ type: "turn_complete" });
+    }
+
+    // Interrupted — AI was cut off by user
+    if (msg.serverContent?.interrupted) {
+      console.log(`[GeminiLiveProxy] AI was interrupted!`);
+      this.send({ type: "interrupted" });
+    }
+
+    // Input transcription (user's speech → text)
+    const inputTx =
+      msg.serverContent?.inputTranscription ||
+      msg.serverContent?.input_audio_transcription;
+    if (inputTx) {
+      if (inputTx.text) {
+        // Handle both camelCase (SDK) and snake_case (REST) for isFinal
+        const isFinal = !!(inputTx.isFinal ?? inputTx.is_final);
+        console.log(
+          `[GeminiLiveProxy] Input transcription: "${inputTx.text.substring(0, 60)}..." isFinal=${isFinal}`,
+        );
         this.send({
           type: "input_transcription",
-          text: tx.text,
-          isFinal: !!tx.is_final,
+          text: inputTx.text,
+          isFinal,
         });
       }
     }
 
-    // Output transcription
-    if (msg.serverContent?.outputTranscription) {
-      const tx = msg.serverContent.outputTranscription;
-      if (tx.text) {
+    // Output transcription (model's speech → text)
+    const outputTx =
+      msg.serverContent?.outputTranscription ||
+      msg.serverContent?.output_audio_transcription;
+    if (outputTx) {
+      if (outputTx.text) {
+        // Handle both camelCase (SDK) and snake_case (REST) for isFinal
+        const isFinal = !!(outputTx.isFinal ?? outputTx.is_final);
+        console.log(
+          `[GeminiLiveProxy] Output transcription: "${outputTx.text.substring(0, 60)}..." isFinal=${isFinal}`,
+        );
         this.send({
           type: "output_transcription",
-          text: tx.text,
-          isFinal: !!tx.is_final,
+          text: outputTx.text,
+          isFinal,
         });
       }
     }
@@ -253,6 +267,9 @@ export class GeminiLiveProxy {
     // Tool calls (insights & end_roleplay)
     if (msg.toolCall?.functionCalls) {
       for (const call of msg.toolCall.functionCalls) {
+        console.log(
+          `[GeminiLiveProxy] Tool call from Gemini: name=${call.name}, id=${call.id}, args=${JSON.stringify(call.args)}`,
+        );
         this.send({
           type: "tool_call",
           name: call.name,
@@ -261,16 +278,33 @@ export class GeminiLiveProxy {
         });
 
         // Auto-respond to tool calls on the backend
-        this.session?.sendToolResponse({
-          functionResponses: [
-            {
-              name: call.name,
-              response: { success: true },
-              id: call.id,
-            },
-          ],
-        });
+        try {
+          this.session?.sendToolResponse({
+            functionResponses: [
+              {
+                name: call.name,
+                response: { success: true },
+                id: call.id,
+              },
+            ],
+          });
+          console.log(
+            `[GeminiLiveProxy] Tool response sent for ${call.name} (id=${call.id})`,
+          );
+        } catch (err) {
+          console.error(
+            `[GeminiLiveProxy] Failed to send tool response for ${call.name}:`,
+            err,
+          );
+        }
       }
+    }
+
+    // Handle tool call cancellations (e.g. when user interrupts)
+    if (msg.toolCallCancellation) {
+      console.log(
+        `[GeminiLiveProxy] Tool call cancelled: ${JSON.stringify(msg.toolCallCancellation)}`,
+      );
     }
   }
 

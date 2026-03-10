@@ -44,6 +44,7 @@ const generateAvatarSchema = z.object({
   gender: z.enum(["male", "female"]),
   role: z.string().min(1),
   country: z.string().optional(),
+  physicalDescription: z.string().optional(),
 });
 
 /**
@@ -56,8 +57,13 @@ personaRoutes.post(
   validateBody(generateAvatarSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { gender, role, country } = req.body;
-      const avatarDataUrl = await generatePersonaAvatar(gender, role, country);
+      const { gender, role, country, physicalDescription } = req.body;
+      const avatarDataUrl = await generatePersonaAvatar(
+        gender,
+        role,
+        country,
+        physicalDescription,
+      );
       res.json({ avatarDataUrl });
     } catch (error) {
       next(error);
