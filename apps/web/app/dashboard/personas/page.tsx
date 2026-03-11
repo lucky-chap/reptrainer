@@ -182,6 +182,7 @@ export default function PersonasPage() {
       selectedGender,
       selectedCountry === "other" ? undefined : selectedCountry,
       competitorUrl || undefined,
+      activeMembership.companyName,
     );
   };
 
@@ -328,7 +329,7 @@ export default function PersonasPage() {
                   <p className="text-warm-gray/80 text-sm leading-relaxed font-medium">
                     Our AI will analyze your{" "}
                     <strong>Team Knowledge Base</strong> to generate a realistic
-                    target buyer profile based on your products and industry.
+                    target buyer profile based on your product and industry.
                   </p>
 
                   <div className="bg-charcoal/5 border-charcoal/10 mt-4 rounded-xl border p-4">
@@ -419,7 +420,7 @@ export default function PersonasPage() {
 
                   <div className="pt-2">
                     <Label className="text-warm-gray/80 mb-2 block text-[10px] font-bold tracking-widest uppercase">
-                      Current Competitor Website (Optional)
+                      Current Competitor Website (Recommended)
                     </Label>
                     <Input
                       value={competitorUrl}

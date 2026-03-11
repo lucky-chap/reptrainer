@@ -434,15 +434,25 @@ export async function acceptInvitation(
   userId: string,
   userName?: string,
   userAvatarUrl?: string,
+  userEmail?: string,
 ): Promise<void> {
   const invitation = await getInvitation(tokenId);
   if (!invitation || invitation.status !== "pending") {
     throw new Error("Invalid or expired invitation");
   }
 
+  if (
+    userEmail &&
+    userEmail.toLowerCase().trim() !== invitation.email.toLowerCase().trim()
+  ) {
+    throw new Error("This invitation was sent to a different email address.");
+  }
+
   const existingTeams = await getUserTeams(userId);
   if (existingTeams.length > 0) {
-    throw new Error("You are already a member of a team.");
+    for (const team of existingTeams) {
+      await removeTeamMember(team.id, userId);
+    }
   }
 
   await addTeamMember(

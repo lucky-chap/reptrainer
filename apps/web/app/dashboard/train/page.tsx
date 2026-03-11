@@ -27,6 +27,16 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type TrainStep = "configure" | "track-select" | "session";
 
@@ -53,6 +63,7 @@ function TrainPageContent() {
   const [customScenario, setCustomScenario] = useState<ScenarioTemplate | null>(
     null,
   );
+  const [showAdminWarning, setShowAdminWarning] = useState(false);
 
   const { tasks, isGenerating, dismissTask } = useBackgroundGeneration();
   const {
@@ -82,11 +93,14 @@ function TrainPageContent() {
       handleError,
     );
 
-    const unsubMetrics = subscribeUserMetrics(
-      user.uid,
-      (data) => setMetrics(data),
-      handleError,
-    );
+    const unsubMetrics = activeMembership?.id
+      ? subscribeUserMetrics(
+          user.uid,
+          activeMembership.id,
+          (data) => setMetrics(data),
+          handleError,
+        )
+      : () => {};
 
     // Subscribe to knowledge metadata if exactly one team selected or just general teamIds
     // For simplicity, we'll subscribe to activeMembership if it exists
@@ -122,12 +136,23 @@ function TrainPageContent() {
 
   const handleStartRoleplay = () => {
     if (!selectedPersonaId) return;
+
+    if (isAdmin) {
+      setShowAdminWarning(true);
+      return;
+    }
+
+    proceedToTrackSelection();
+  };
+
+  const proceedToTrackSelection = () => {
     const persona = personas.find((p) => p.id === selectedPersonaId);
     if (persona) {
       setActivePersona(persona);
       // Move to track selection step
       setStep("track-select");
     }
+    setShowAdminWarning(false);
   };
 
   const handleTrackSelected = (
@@ -165,6 +190,7 @@ function TrainPageContent() {
             onSelectScenario={handleTrackSelected}
             onSkip={handleSkipTrack}
             totalSessions={metrics?.totalCalls ?? 0}
+            teamId={activePersona.teamId}
           />
         </div>
       </>
@@ -235,7 +261,7 @@ function TrainPageContent() {
                   Configure Session
                 </CardTitle>
                 <CardDescription className="text-warm-gray text-sm">
-                  Select who you want to pitch to, and what you are pitching.
+                  Select who you want to roleplay with.
                 </CardDescription>
               </div>
             </div>
@@ -269,7 +295,7 @@ function TrainPageContent() {
                 {/* Persona Select (Now top level) */}
                 <div className="flex-1 space-y-2">
                   <label className="text-charcoal text-xs font-medium tracking-wider uppercase opacity-60">
-                    Choose Your Partner (Persona)
+                    Choose Your Roleplay Partner (Persona)
                   </label>
                   <select
                     value={selectedPersonaId || ""}
@@ -287,11 +313,11 @@ function TrainPageContent() {
                   </select>
                 </div>
 
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
                   <div className="text-warm-gray text-xs font-medium">
                     {knowledgeMetadata ? (
                       <span className="flex items-center gap-2">
-                        <span className="size-2 rounded-full bg-emerald-500" />
+                        <span className="size-2 rounded-full bg-emerald-500 text-center" />
                         Using {knowledgeMetadata.productCategory} Knowledge
                       </span>
                     ) : (
@@ -329,6 +355,27 @@ function TrainPageContent() {
             )}
           </CardContent>
         </Card>
+
+        {/* Admin Warning Dialog */}
+        <AlertDialog open={showAdminWarning} onOpenChange={setShowAdminWarning}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Test Drive Roleplay?</AlertDialogTitle>
+              <AlertDialogDescription>
+                As a team leader, you are about to start a roleplay session.
+                Your session metrics will be recorded as part of your team's
+                analytics depending on your configuration. Are you sure you want
+                to proceed to participate?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={proceedToTrackSelection}>
+                Proceed to Train
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </>
   );

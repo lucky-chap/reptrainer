@@ -2,29 +2,24 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { v4 as uuidv4 } from "uuid";
 import {
-  Phone,
-  PhoneOff,
-  Mic,
-  MicOff,
-  MessageSquare,
   ArrowLeft,
-  Loader2,
   AlertCircle,
-  UserX,
-  User,
-  Zap,
-  Lightbulb,
-  Clock,
   AlertTriangle,
-  BookOpen,
+  UserX,
+  PhoneOff,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { VibeMeter } from "@/components/vibe-meter";
+import { Button } from "@/components/ui/button";
+import { NameInputStage } from "./roleplay/stages/name-input-stage";
+import { DurationSelectorStage } from "./roleplay/stages/duration-selector-stage";
+import { EvaluatingStage } from "./roleplay/stages/evaluating-stage";
+import { CallHeader } from "./roleplay/ui/call-header";
+import { CallControls } from "./roleplay/ui/call-controls";
+import { CallSidebar } from "./roleplay/ui/call-sidebar";
+import { TranscriptArea } from "./roleplay/ui/transcript-area";
+import { PersonaCallCard } from "./roleplay/ui/persona-call-card";
+import { v4 as uuidv4 } from "uuid";
 import { useGeminiLive } from "@/hooks/use-gemini-live";
 import { useCallTimer } from "@/hooks/use-call-timer";
 import type { Persona, Session, KnowledgeMetadata } from "@/lib/db";
@@ -35,7 +30,6 @@ import {
   updateCallSession,
   createCallSession,
 } from "@/lib/db";
-import { CallDurationSelector } from "@/components/call-duration-selector";
 import {
   evaluateSession as evaluateSessionAction,
   generateCoachDebrief,
@@ -518,249 +512,50 @@ export function RoleplaySession({
 
   // Show evaluating screen
   if (evaluating) {
-    const stageLabels = {
-      audio: "Uploading call audio...",
-      evaluating: "Analyzing performance with Senior Sales Coach...",
-      saving: "Saving session results...",
-      finalizing: "Finalizing your report...",
-    };
-
     return (
-      <div className="animate-fade-up flex flex-col items-center justify-center py-20">
-        <div className="relative mb-10">
-          <div className="from-charcoal/5 to-charcoal/10 relative flex size-32 items-center justify-center overflow-hidden rounded-full bg-linear-to-br">
-            {/* Liquid Fill Progress */}
-            <div
-              className="bg-charcoal/10 absolute right-0 bottom-0 left-0 transition-all duration-700 ease-out"
-              style={{ height: `${loadingProgress}%` }}
-            />
-            <div className="relative z-10 flex flex-col items-center">
-              <span className="text-charcoal text-2xl font-bold">
-                {loadingProgress}%
-              </span>
-            </div>
-          </div>
-          <div className="border-charcoal/5 absolute inset-0 animate-pulse rounded-full border-2" />
-        </div>
-
-        <div className="max-w-sm space-y-4 px-6 text-center">
-          <h3 className="text-charcoal text-xl font-bold">
-            {stageLabels[loadingStage]}
-          </h3>
-          <p className="text-warm-gray text-sm leading-relaxed">
-            {loadingStage === "evaluating"
-              ? "Our AI is reviewing every word of your transcript to provide specific, actionable feedback on your sales technique."
-              : "Hang tight, we're making sure all your call data is safely stored in your dashboard."}
-          </p>
-
-          {/* Progress Bar Mini */}
-          <div className="bg-cream border-border/30 mt-8 h-1.5 w-full overflow-hidden rounded-full border">
-            <div
-              className="bg-charcoal h-full rounded-full shadow-[0_0_8px_rgba(0,0,0,0.1)] transition-all duration-700 ease-out"
-              style={{ width: `${loadingProgress}%` }}
-            />
-          </div>
-
-          <div className="flex items-center justify-center gap-2 pt-2">
-            <Loader2 className="text-warm-gray size-3 animate-spin" />
-            <span className="text-warm-gray text-[10px] font-semibold tracking-widest uppercase">
-              Processing Securely
-            </span>
-          </div>
-        </div>
-      </div>
+      <EvaluatingStage
+        loadingStage={loadingStage}
+        loadingProgress={loadingProgress}
+      />
     );
   }
 
   // ─── Show duration selector before starting ─────────────────────────
   if (nameSubmitted && !durationSelected) {
     return (
-      <div className="animate-fade-up space-y-6">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setNameSubmitted(false)}
-            className="gap-2"
-          >
-            <ArrowLeft className="size-4" />
-            Back
-          </Button>
-        </div>
-
-        <Card className="border-border/60 mx-auto max-w-lg rounded-3xl border bg-white p-10 shadow-sm">
-          <div className="mb-8 flex flex-col items-center text-center">
-            <div className="bg-cream mb-6 flex size-20 items-center justify-center rounded-2xl">
-              <Clock className="text-charcoal size-10" />
-            </div>
-            <h2 className="heading-serif text-charcoal mb-3 text-3xl">
-              Set Call Duration
-            </h2>
-            <p className="text-warm-gray max-w-sm text-sm leading-relaxed">
-              How long should this sales call last? The timer will count down
-              and the call will automatically end when time runs out.
-            </p>
-          </div>
-
-          <CallDurationSelector
-            defaultDuration={callDurationMinutes}
-            onSelect={(mins) => {
-              setCallDurationMinutes(mins);
-              setDurationSelected(true);
-            }}
-          />
-        </Card>
-
-        {/* Track info */}
-        {track && scenario && (
-          <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
-            <div className="flex items-center gap-3">
-              <BookOpen className="text-charcoal size-5" />
-              <div className="min-w-0 flex-1">
-                <h3 className="text-charcoal truncate text-sm font-semibold">
-                  {track.name}: {scenario.name}
-                </h3>
-                <p className="text-warm-gray truncate text-xs">
-                  Difficulty {scenario.difficulty}/3 · Focus:{" "}
-                  {Object.entries(scenario.evaluationWeighting)
-                    .sort(([, a], [, b]) => b - a)
-                    .slice(0, 2)
-                    .map(([k]) => k.replace(/_/g, " "))
-                    .join(", ")}
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Persona preview */}
-        <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
-          <div className="flex items-center gap-4">
-            {persona.avatarUrl || avatarUrl ? (
-              <Image
-                src={
-                  persona.avatarUrl ||
-                  (avatarUrl as string) ||
-                  "/placeholder-avatar.png"
-                }
-                alt={persona.name}
-                width={48}
-                height={48}
-                className="bg-cream shrink-0 rounded-full object-cover shadow-sm"
-              />
-            ) : (
-              <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
-                {persona.name.charAt(0)}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <h3 className="text-charcoal truncate text-sm font-semibold">
-                {persona.name}
-              </h3>
-              <p className="text-warm-gray truncate text-xs">{persona.role}</p>
-            </div>
-            <div className="text-warm-gray-light bg-cream/50 border-border/20 rounded-full border px-3 py-1 text-[11px] font-medium">
-              {knowledgeMetadata?.productCategory
-                ? `Evaluating ${knowledgeMetadata.productCategory}`
-                : "General AI Coaching"}
-            </div>
-          </div>
-        </Card>
-      </div>
+      <DurationSelectorStage
+        onBack={onBack}
+        persona={persona}
+        avatarUrl={avatarUrl}
+        knowledgeMetadata={knowledgeMetadata}
+        track={track}
+        scenario={scenario}
+        callDurationMinutes={callDurationMinutes}
+        onSelectDuration={(mins) => {
+          setCallDurationMinutes(mins);
+          setDurationSelected(true);
+        }}
+      />
     );
   }
 
   // Show name input before proceeding
   if (!nameSubmitted) {
     return (
-      <div className="animate-fade-up space-y-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
-            <ArrowLeft className="size-4" />
-            Back
-          </Button>
-        </div>
-
-        <Card className="border-border/60 mx-auto max-w-lg rounded-3xl border bg-white p-10 shadow-sm">
-          <div className="flex flex-col items-center text-center">
-            <div className="bg-cream mb-6 flex size-20 items-center justify-center rounded-2xl">
-              <User className="text-charcoal size-10" />
-            </div>
-            <h2 className="heading-serif text-charcoal mb-3 text-3xl">
-              Before We Start
-            </h2>
-            <p className="text-warm-gray mb-8 max-w-sm text-sm leading-relaxed">
-              Enter your name so {persona.name} knows who they&apos;re meeting
-              with. This will be used in the transcript.
-            </p>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (sessionUserName.trim()) setNameSubmitted(true);
-              }}
-              className="w-full space-y-5"
-            >
-              <Input
-                value={sessionUserName}
-                onChange={(e) => setSessionUserName(e.target.value)}
-                placeholder="Your name (e.g., Alex Johnson)"
-                className="border-border/60 bg-cream/30 focus:ring-charcoal/10 h-14 rounded-2xl text-center text-base transition-all focus:bg-white"
-                autoFocus
-                required
-              />
-              <Button
-                type="submit"
-                className="bg-charcoal text-cream hover:bg-charcoal-light h-14 w-full gap-3 rounded-2xl text-base font-semibold shadow-md transition-all active:scale-[0.98]"
-                disabled={!sessionUserName.trim()}
-              >
-                Continue
-                <Phone className="size-5" />
-              </Button>
-            </form>
-          </div>
-        </Card>
-
-        {/* Persona preview */}
-        <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
-          <div className="flex items-center gap-4">
-            {persona.avatarUrl || avatarUrl ? (
-              <Image
-                src={
-                  persona.avatarUrl ||
-                  (avatarUrl as string) ||
-                  "/placeholder-avatar.png"
-                }
-                alt={persona.name}
-                width={48}
-                height={48}
-                className="bg-cream shrink-0 rounded-full object-cover shadow-sm"
-              />
-            ) : (
-              <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
-                {persona.name.charAt(0)}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <h3 className="text-charcoal truncate text-sm font-semibold">
-                {persona.name}
-              </h3>
-              <p className="text-warm-gray truncate text-xs">{persona.role}</p>
-            </div>
-            <div className="text-warm-gray-light bg-cream/50 border-border/20 rounded-full border px-3 py-1 text-[11px] font-medium">
-              {knowledgeMetadata?.productCategory
-                ? `Evaluating ${knowledgeMetadata.productCategory}`
-                : "General AI Coaching"}
-            </div>
-          </div>
-        </Card>
-      </div>
+      <NameInputStage
+        persona={persona}
+        avatarUrl={avatarUrl}
+        knowledgeMetadata={knowledgeMetadata}
+        sessionUserName={sessionUserName}
+        setSessionUserName={setSessionUserName}
+        setNameSubmitted={setNameSubmitted}
+        onBack={onBack}
+      />
     );
   }
 
   return (
     <div className="animate-fade-up space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
           <ArrowLeft className="size-4" />
@@ -768,7 +563,6 @@ export function RoleplaySession({
         </Button>
       </div>
 
-      {/* Error Banner */}
       {errorMessage && (
         <Card className="border-rose-glow/30 bg-rose-glow/5 p-4">
           <div className="flex items-start gap-3">
@@ -793,7 +587,6 @@ export function RoleplaySession({
         </Card>
       )}
 
-      {/* 45-second Warning Banner */}
       {warningTriggered && !isTimeUp && isConnected && (
         <Card className="animate-fade-up border-amber-500/40 bg-amber-50 p-4">
           <div className="flex items-center gap-3">
@@ -814,7 +607,6 @@ export function RoleplaySession({
         </Card>
       )}
 
-      {/* Persona Left Banner */}
       {personaLeft && isConnected && (
         <Card className="border-amber-glow/30 bg-amber-glow/5 animate-fade-up p-4">
           <div className="flex items-center gap-3">
@@ -840,474 +632,71 @@ export function RoleplaySession({
         </Card>
       )}
 
-      {/* Call Area — Google Meet-style layout */}
       <div
         className="border-border/40 flex flex-col overflow-hidden rounded-[2rem] border bg-white shadow-xl"
         style={{ height: "calc(100vh - 120px)", minHeight: "650px" }}
       >
-        {/* Top Header Bar */}
-        <div className="flex shrink-0 items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-3">
-            <div className="bg-amber-glow flex size-8 items-center justify-center rounded-lg">
-              <Phone className="size-4 text-black" />
-            </div>
-            <div>
-              <h3 className="text-charcoal text-sm leading-tight font-semibold">
-                Sales Roleplay Session
-              </h3>
-              <p className="text-warm-gray text-[11px]">
-                {persona.name} · {persona.role}
-                {track ? ` · ${track.name}` : ""}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {isConnected && (
-              <>
-                {/* Countdown timer */}
-                <div
-                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 ${
-                    warningTriggered
-                      ? "animate-pulse border-amber-300 bg-amber-50"
-                      : "bg-cream border-border/40"
-                  }`}
-                >
-                  <Clock
-                    className={`size-3.5 ${warningTriggered ? "text-amber-600" : "text-warm-gray"}`}
-                  />
-                  <span
-                    className={`font-mono text-xs font-bold ${
-                      warningTriggered ? "text-amber-700" : "text-charcoal"
-                    }`}
-                  >
-                    {formattedRemaining}
-                  </span>
-                </div>
+        <CallHeader
+          persona={persona}
+          avatarUrl={avatarUrl}
+          track={track}
+          isConnected={isConnected}
+          warningTriggered={warningTriggered}
+          formattedRemaining={formattedRemaining}
+          elapsed={elapsed}
+          formatTime={formatTime}
+          personaLeft={personaLeft}
+          displayName={displayName}
+        />
 
-                {/* Live indicator + elapsed time */}
-                <div className="bg-cream border-border/40 flex items-center gap-2 rounded-full border px-3 py-1.5">
-                  <div
-                    className={`size-2 rounded-full ${personaLeft ? "bg-rose-500" : "animate-pulse bg-emerald-500"}`}
-                  />
-                  <span className="text-charcoal font-mono text-xs font-medium">
-                    {formatTime(elapsed)}
-                  </span>
-                </div>
-
-                {/* Coach Debrief Countdown */}
-                {elapsed < 180 && !personaLeft && (
-                  <div className="bg-charcoal/5 border-charcoal/10 flex items-center gap-2 rounded-full border px-3 py-1.5">
-                    <Zap className="size-3 text-amber-600" />
-                    <span className="text-charcoal/60 text-[10px] font-bold tracking-tight uppercase">
-                      Debrief Unlocks in {formatTime(180 - elapsed)}
-                    </span>
-                  </div>
-                )}
-                {elapsed >= 180 && !personaLeft && (
-                  <div className="animate-in fade-in zoom-in-95 flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 duration-500">
-                    <Zap className="size-3 fill-emerald-600 text-emerald-600" />
-                    <span className="text-[10px] font-bold tracking-tight text-emerald-600 uppercase">
-                      Debrief Unlocked
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-            <div className="flex items-center -space-x-2">
-              <div className="bg-cream text-charcoal flex size-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-              <div className="bg-cream text-charcoal flex size-8 items-center justify-center overflow-hidden rounded-full border-2 border-white text-[10px] font-bold shadow-sm">
-                {persona.avatarUrl || avatarUrl ? (
-                  <Image
-                    src={
-                      persona.avatarUrl ||
-                      (avatarUrl as string) ||
-                      "/placeholder-avatar.png"
-                    }
-                    alt={persona.name}
-                    className="object-cover"
-                    width={32}
-                    height={32}
-                  />
-                ) : (
-                  persona.name.charAt(0)
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content Area */}
         <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
-          {/* Left: Stage + Controls */}
           <div className="flex min-w-0 flex-1 flex-col gap-3">
-            {/* Main Speaker Stage */}
-            <div className="bg-cream/40 border-border/40 relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border">
-              {/* "You" label top-left */}
-              {isConnected && !personaLeft && (
-                <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-                  <div className="text-charcoal border-border/40 flex size-8 items-center justify-center rounded-full border bg-white text-xs font-bold shadow-sm">
-                    {displayName.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="text-charcoal text-xs font-medium">
-                    {displayName}
-                  </span>
-                </div>
-              )}
+            <PersonaCallCard
+              persona={persona}
+              avatarUrl={avatarUrl}
+              isConnected={isConnected}
+              isConnecting={isConnecting}
+              personaLeft={personaLeft}
+              isAISpeaking={isAISpeaking}
+              callDurationMinutes={callDurationMinutes}
+              displayName={displayName}
+              showHUD={showHUD}
+              latestInsight={latestInsight}
+            />
 
-              {/* Pre-call idle state */}
-              {!isConnected && !isConnecting && !personaLeft && (
-                <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
-                  <div className="border-border/60 text-charcoal mb-4 flex size-24 items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-sm sm:size-32">
-                    {persona.avatarUrl || avatarUrl ? (
-                      <Image
-                        src={
-                          persona.avatarUrl ||
-                          (avatarUrl as string) ||
-                          "/placeholder-avatar.png"
-                        }
-                        alt={persona.name}
-                        width={86}
-                        height={86}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      persona.name.charAt(0)
-                    )}
-                  </div>
-                  <h3 className="text-charcoal mb-1 text-lg font-semibold">
-                    Ready to start
-                  </h3>
-                  <p className="text-warm-gray max-w-[280px] text-sm">
-                    Start the call to begin your {callDurationMinutes}-minute
-                    sales roleplay with {persona.name}.
-                  </p>
-                </div>
-              )}
-
-              {/* Connecting state */}
-              {isConnecting && (
-                <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
-                  <div className="border-border/60 relative mb-4 flex size-24 items-center justify-center rounded-full border bg-white shadow-sm sm:size-32">
-                    <Loader2 className="text-charcoal size-10 animate-spin" />
-                    <div className="border-charcoal/10 animate-pulse-ring absolute inset-0 rounded-full border-2" />
-                  </div>
-                  <h3 className="text-charcoal mb-1 text-lg font-semibold">
-                    Connecting...
-                  </h3>
-                  <p className="text-warm-gray text-sm">
-                    Setting up your call with {persona.name}
-                  </p>
-                </div>
-              )}
-
-              {/* Live call: persona avatar with visualizer */}
-              {isConnected && !personaLeft && (
-                <div className="z-10 flex flex-col items-center justify-center">
-                  <div className="border-border/60 text-charcoal relative flex size-32 items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-md sm:size-40">
-                    <div className="from-cream flex size-full items-center justify-center bg-linear-to-br to-white">
-                      {persona.avatarUrl || avatarUrl ? (
-                        <Image
-                          src={
-                            persona.avatarUrl ||
-                            (avatarUrl as string) ||
-                            "/placeholder-avatar.png"
-                          }
-                          alt={persona.name}
-                          className="h-full w-full object-cover"
-                          width={86}
-                          height={86}
-                        />
-                      ) : (
-                        persona.name.charAt(0)
-                      )}
-                    </div>
-                    {isAISpeaking && (
-                      <div className="border-charcoal/20 absolute inset-0 animate-pulse rounded-full border-[6px]" />
-                    )}
-                    {isAISpeaking && (
-                      <div className="border-charcoal/10 animate-pulse-ring absolute inset-[-10%] rounded-full border-2" />
-                    )}
-                  </div>
-
-                  {/* Whisper Coach HUD Overlay */}
-                  <div
-                    className={`absolute bottom-24 left-1/2 z-20 w-full max-w-sm -translate-x-1/2 px-4 transition-all duration-500 ease-out ${
-                      showHUD
-                        ? "translate-y-0 opacity-100"
-                        : "pointer-events-none translate-y-4 opacity-0"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3 rounded-2xl border border-amber-200/40 bg-white/95 p-4 shadow-xl backdrop-blur-sm">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
-                        <Zap className="size-4 text-amber-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-[10px] font-bold tracking-widest text-amber-600 uppercase">
-                          Whisper Coach
-                        </p>
-                        <p className="text-charcoal mt-0.5 text-xs leading-relaxed font-medium">
-                          {latestInsight?.insight ||
-                            "Analyzing conversation..."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Speaking Indicator */}
-                  <div className="mt-4 h-6">
-                    {isAISpeaking ? (
-                      <div className="animate-fade-in flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[10px] font-medium text-emerald-600">
-                        <div className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-                        Buyer is speaking...
-                      </div>
-                    ) : (
-                      <div className="text-warm-gray text-[10px] font-medium">
-                        Listening...
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Audio visualizer */}
-                  <div className="mt-2 flex h-8 items-end gap-1.5">
-                    {Array.from({ length: 7 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`bg-charcoal/40 w-1 rounded-full transition-all duration-300 ${
-                          isAISpeaking ? "animate-sound-wave" : "h-1"
-                        }`}
-                        style={{
-                          animationDelay: `${i * 0.12}s`,
-                          height: isAISpeaking ? undefined : "4px",
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Persona left state */}
-              {personaLeft && (
-                <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
-                  <div className="border-border/60 mb-4 flex size-24 items-center justify-center rounded-full border bg-white shadow-sm">
-                    <UserX className="text-charcoal/40 size-10" />
-                  </div>
-                  <h3 className="text-charcoal mb-1 text-lg font-semibold">
-                    {persona.name} left
-                  </h3>
-                  <p className="text-warm-gray max-w-[260px] text-sm">
-                    The buyer has ended the meeting. End the call to see your
-                    review.
-                  </p>
-                </div>
-              )}
-
-              {/* Participant name badge bottom-left */}
-              <div className="border-border/40 absolute bottom-4 left-4 flex items-center gap-2 rounded-lg border bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-sm">
-                <span className="text-charcoal text-sm font-medium">
-                  {persona.name}
-                </span>
-                {personaLeft ? (
-                  <MicOff className="size-3.5 text-rose-600" />
-                ) : (
-                  <Mic className="text-charcoal/60 size-3.5" />
-                )}
-              </div>
-            </div>
-
-            {/* Floating Call Controls */}
-            <div className="flex shrink-0 items-center justify-center gap-3 py-2">
-              {/* Mic toggle */}
-              <button
-                onClick={toggleMic}
-                className={`border-border/40 flex size-11 items-center justify-center rounded-full border shadow-sm transition-colors ${
-                  isMuted
-                    ? "border-rose-200 bg-rose-50 text-rose-600"
-                    : "text-charcoal hover:bg-cream bg-white"
-                }`}
-                disabled={inputLocked || !isConnected}
-              >
-                {isConnected && !isMuted ? (
-                  <Mic className="size-5" />
-                ) : (
-                  <MicOff className="size-5" />
-                )}
-              </button>
-
-              {/* Log Insight Button */}
-              {isConnected && !personaLeft && !inputLocked && (
-                <button
-                  onClick={logManualInsight}
-                  title="Log Sales Insight"
-                  className="border-border/40 hover:bg-cream flex size-11 items-center justify-center rounded-full border bg-white text-amber-500 shadow-sm transition-colors"
-                >
-                  <Lightbulb className="size-5" />
-                </button>
-              )}
-
-              {/* Start / End Call */}
-              {!isConnected && !isConnecting && !personaLeft ? (
-                <button
-                  onClick={() => connect()}
-                  disabled={inputLocked}
-                  className="bg-charcoal text-cream hover:bg-charcoal-light group inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium transition-all duration-200 disabled:opacity-50"
-                >
-                  <Phone className="size-4" />
-                  <span className="text-sm">Start Call</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleEndCall}
-                  className="flex size-11 items-center justify-center rounded-full bg-rose-500 text-white shadow-lg shadow-rose-500/20 transition-colors hover:bg-rose-600"
-                >
-                  <PhoneOff className="size-5" />
-                </button>
-              )}
-            </div>
-
-            {/* Bottom Participant Strip */}
+            <CallControls
+              isConnected={isConnected}
+              isConnecting={isConnecting}
+              isMuted={isMuted}
+              personaLeft={personaLeft}
+              inputLocked={inputLocked}
+              onToggleMic={toggleMic}
+              onLogInsight={logManualInsight}
+              onConnect={connect}
+              onEndCall={handleEndCall}
+            />
           </div>
 
-          {/* Right Sidebar */}
-          <div className="hidden w-[380px] shrink-0 flex-col gap-3 lg:flex xl:w-[420px]">
-            {/* Meeting Overview Card */}
-            <div className="shrink-0 rounded-2xl bg-white p-5 shadow-sm">
-              <h3 className="text-charcoal mb-2 text-lg font-semibold">
-                Meeting overview
-              </h3>
-              <p className="text-warm-gray mb-4 text-xs leading-relaxed">
-                You&apos;re in a live sales roleplay with{" "}
-                <strong className="text-charcoal">{persona.name}</strong> (
-                {persona.role}). This session is designed to test your pitch,
-                objection handling, and closing skills.
-                {knowledgeMetadata?.productCategory && (
-                  <>
-                    {" "}
-                    You&apos;re pitching{" "}
-                    <strong className="text-charcoal">
-                      {knowledgeMetadata.productCategory}
-                    </strong>
-                    .
-                  </>
-                )}
-              </p>
-              <div className="flex gap-2">
-                <div className="bg-cream flex-1 rounded-xl px-3 py-2 text-center">
-                  <p className="text-warm-gray mb-0.5 text-[10px] tracking-wider uppercase">
-                    Intensity
-                  </p>
-                  <p className="text-charcoal text-sm font-semibold">
-                    {persona.intensityLevel}/5
-                  </p>
-                </div>
-                <div className="bg-cream flex-1 rounded-xl px-3 py-2 text-center">
-                  <p className="text-warm-gray mb-0.5 text-[10px] tracking-wider uppercase">
-                    Time Left
-                  </p>
-                  <p
-                    className={`font-mono text-sm font-semibold ${warningTriggered ? "text-amber-600" : "text-charcoal"}`}
-                  >
-                    {isConnected
-                      ? formattedRemaining
-                      : `${callDurationMinutes}:00`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Track badge */}
-              {track && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2">
-                  <BookOpen className="size-3.5 text-sky-600" />
-                  <span className="text-[11px] font-medium text-sky-700">
-                    {track.name}
-                    {scenario ? `: ${scenario.name}` : ""}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Vibe Meter */}
-            {isConnected && !personaLeft && (
-              <VibeMeter mood={moods[moods.length - 1]} />
-            )}
-
-            {/* Coach Mode static panel removed (moved to sidebar tabs) */}
-
-            {/* Chat / Transcript */}
-            <div className="border-border/40 bg-cream/20 flex shrink-0 items-center gap-2 border-b px-4 py-3">
-              <MessageSquare className="text-warm-gray size-4" />
-              <h3 className="text-charcoal text-sm font-semibold">
-                Live Transcript
-              </h3>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="space-y-4">
-                {transcript.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center py-10 text-center">
-                    <div className="bg-cream mb-3 flex size-10 items-center justify-center rounded-full">
-                      <MessageSquare className="text-warm-gray size-4" />
-                    </div>
-                    <p className="text-warm-gray max-w-[180px] text-xs">
-                      {isConnected
-                        ? "Listening... conversation will appear here."
-                        : "Start the call to see the live transcript."}
-                    </p>
-                  </div>
-                ) : (
-                  transcript.map((entry, i) => (
-                    <div
-                      key={i}
-                      className={`animate-fade-up flex gap-2.5 ${
-                        entry.role === "user" ? "flex-row-reverse" : "flex-row"
-                      }`}
-                      style={{
-                        animationDelay: `${Math.min(i * 50, 200)}ms`,
-                      }}
-                    >
-                      <div
-                        className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                          entry.role === "model"
-                            ? "bg-charcoal text-cream"
-                            : "bg-cream-dark text-charcoal"
-                        }`}
-                      >
-                        {entry.role === "model"
-                          ? persona.name.charAt(0)
-                          : displayName.charAt(0).toUpperCase()}
-                      </div>
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] ${
-                          entry.role === "user"
-                            ? "bg-charcoal rounded-tr-sm text-white"
-                            : "bg-cream/80 text-charcoal rounded-tl-sm"
-                        }`}
-                      >
-                        <p
-                          className={`mb-0.5 text-[9px] font-bold tracking-wider uppercase ${entry.role === "user" ? "text-white/50" : "text-warm-gray"}`}
-                        >
-                          {entry.role === "user" ? displayName : persona.name}
-                        </p>
-                        <p className="leading-relaxed">
-                          {entry.text}
-                          {entry.isStreaming && (
-                            <span className="ml-1 inline-block h-3.5 w-1 animate-pulse rounded-full bg-current align-middle opacity-50" />
-                          )}
-                          {entry.role === "model" && entry.isInterrupted && (
-                            <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 opacity-80">
-                              <PhoneOff className="size-2.5" /> [Interrupted]
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div ref={transcriptEndRef} className="h-2" />
-            </div>
-          </div>
+          <CallSidebar
+            persona={persona}
+            knowledgeMetadata={knowledgeMetadata}
+            track={track}
+            scenario={scenario}
+            isConnected={isConnected}
+            personaLeft={personaLeft}
+            moods={moods}
+            warningTriggered={warningTriggered}
+            formattedRemaining={formattedRemaining}
+            callDurationMinutes={callDurationMinutes}
+          >
+            <TranscriptArea
+              transcript={transcript}
+              isConnected={isConnected}
+              persona={persona}
+              displayName={displayName}
+              transcriptEndRef={transcriptEndRef}
+            />
+          </CallSidebar>
         </div>
       </div>
     </div>

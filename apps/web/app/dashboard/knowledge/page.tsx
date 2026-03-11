@@ -146,10 +146,10 @@ export default function KnowledgeBasePage() {
     <div className="animate-fade-in max-w-6xl space-y-8 font-sans">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-charcoal text-3xl font-bold tracking-tight">
-            Team Knowledge Base
+          <h1 className="heading-serif text-charcoal text-3xl md:text-4xl lg:text-5xl">
+            Team <em>Knowledge Base.</em>
           </h1>
-          <p className="text-warm-gray mt-1 text-lg">
+          <p className="text-warm-gray mt-2 text-base">
             Upload your product documents to power training personas and
             simulations.
           </p>

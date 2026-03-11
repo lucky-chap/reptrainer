@@ -53,12 +53,6 @@ const navItems = [
     icon: Swords,
   },
   {
-    label: "Products",
-    href: "/dashboard/products",
-    icon: Package,
-    adminOnly: true,
-  },
-  {
     label: "Knowledge Base",
     href: "/dashboard/knowledge",
     icon: Database,

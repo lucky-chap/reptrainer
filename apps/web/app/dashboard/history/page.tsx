@@ -126,15 +126,15 @@ export default function HistoryPage() {
     };
   }, [user]);
 
-  const handleDelete = async (id: string, userId?: string) => {
+  const handleDelete = async (id: string, userId?: string, teamId?: string) => {
     if (!isAdmin) return;
     if (!window.confirm("Are you sure you want to delete this session?"))
       return;
 
     await Promise.all([deleteSession(id), deleteCallSession(id)]);
 
-    if (userId) {
-      await recalculateUserMetrics(userId);
+    if (userId && teamId) {
+      await recalculateUserMetrics(userId, teamId);
     }
   };
 
@@ -373,7 +373,11 @@ export default function HistoryPage() {
                         variant={"ghost"}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(session.id, session.userId);
+                          handleDelete(
+                            session.id,
+                            session.userId,
+                            session.teamId,
+                          );
                         }}
                         className="text-warm-gray-light hover:text-rose-glow p-2 opacity-0 transition-all group-hover:opacity-100"
                       >

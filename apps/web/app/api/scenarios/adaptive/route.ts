@@ -18,16 +18,16 @@ function extractJson(text: string): string | null {
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await req.json();
+    const { userId, teamId } = await req.json();
 
-    if (!userId) {
+    if (!userId || !teamId) {
       return NextResponse.json(
-        { error: "userId is required" },
+        { error: "userId and teamId are required" },
         { status: 400 },
       );
     }
 
-    const metrics = await getUserMetrics(userId);
+    const metrics = await getUserMetrics(userId, teamId);
     let overallScore = 0;
     let strengths: string[] = [];
     let weaknesses: string[] = ["General sales skills (No prior data)"]; // Default

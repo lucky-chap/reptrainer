@@ -34,7 +34,6 @@ function getWsUrl(systemPrompt: string, voiceName: string): string {
 
   const params = new URLSearchParams({
     apiKey: secretKey,
-    // systemPrompt is now sent via 'setup' message to avoid URL length limits
     voiceName,
   });
 
@@ -83,6 +82,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   // --- Reconnection State ---
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const connectLockRef = useRef(false);
   const maxReconnectAttempts = 5;
   const baseReconnectDelay = 1000;
   const isIntentionalDisconnectRef = useRef(false);
@@ -413,6 +413,13 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   // --- Core Lifecycle: Connect / Disconnect ---
   const connect = useCallback(
     async (isReconnect = false) => {
+      if (connectLockRef.current) {
+        console.log(
+          "[GeminiLive] Connect already in progress, ignoring duplicate call.",
+        );
+        return;
+      }
+      connectLockRef.current = true;
       isIntentionalDisconnectRef.current = false;
       try {
         if (isReconnect) {
@@ -429,6 +436,21 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           startTimeRef.current = Date.now();
           audioQueueRef.current = [];
           reconnectAttemptsRef.current = 0;
+
+          // Clear any pending reconnection timer
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+          }
+        }
+
+        // Close any existing WebSocket connection
+        if (wsRef.current) {
+          console.log(
+            "[GeminiLive] Closing existing WebSocket before connecting",
+          );
+          wsRef.current.close();
+          wsRef.current = null;
         }
 
         // Check for existing AudioContext and close if needed
@@ -595,6 +617,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         optionsRef.current.onError?.(
           err instanceof Error ? err.message : "Failed to connect to AI",
         );
+      } finally {
+        connectLockRef.current = false;
       }
     },
     [handleServerMessage, cleanupAudioResources],

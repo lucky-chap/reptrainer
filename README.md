@@ -117,6 +117,7 @@ reptrainer/
 ```
 
 Save as `cors.json` and apply:
+
 ```bash
 gsutil cors set cors.json gs://your-bucket-name
 ```
@@ -158,7 +159,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 # Google Cloud
 GOOGLE_CLOUD_PROJECT=your_project_id
-GOOGLE_CLOUD_LOCATION=us-central1
+GOOGLE_CLOUD_LOCATION=europe-west1 # Note: Currently, RAG requires the `europe-west1` region to function correctly due to capacity limits.
 
 # Optional: Google Application Credentials (if running outside GCP)
 # GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
@@ -184,16 +185,16 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 ### Required Environment Variables Summary
 
-| Variable | Location | Description |
-|----------|----------|-------------|
-| `PORT` | API | Server port (default: 4000) |
-| `API_SECRET_KEY` | API + Web | Secret key for WebSocket authentication |
-| `GEMINI_API_KEY` | API | Google AI Studio API key |
-| `GOOGLE_CLOUD_PROJECT` | API | GCP project ID |
-| `GOOGLE_CLOUD_LOCATION` | API | GCP region (e.g., us-central1) |
-| `NEXT_PUBLIC_API_URL` | Web | Backend API URL |
-| `NEXT_PUBLIC_API_SECRET_KEY` | Web | Must match API's secret key |
-| `NEXT_PUBLIC_FIREBASE_*` | Web | Firebase web app config |
+| Variable                     | Location  | Description                             |
+| ---------------------------- | --------- | --------------------------------------- |
+| `PORT`                       | API       | Server port (default: 4000)             |
+| `API_SECRET_KEY`             | API + Web | Secret key for WebSocket authentication |
+| `GEMINI_API_KEY`             | API       | Google AI Studio API key                |
+| `GOOGLE_CLOUD_PROJECT`       | API       | GCP project ID                          |
+| `GOOGLE_CLOUD_LOCATION`      | API       | GCP region (e.g., us-central1)          |
+| `NEXT_PUBLIC_API_URL`        | Web       | Backend API URL                         |
+| `NEXT_PUBLIC_API_SECRET_KEY` | Web       | Must match API's secret key             |
+| `NEXT_PUBLIC_FIREBASE_*`     | Web       | Firebase web app config                 |
 
 ---
 
@@ -202,6 +203,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 ### Local Development
 
 1. **Clone and install**:
+
    ```bash
    git clone https://github.com/your-username/reptrainer.git
    cd reptrainer
@@ -209,6 +211,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
    ```
 
 2. **Configure environment variables**:
+
    ```bash
    cp apps/api/.env.example apps/api/.env
    cp apps/web/.env.example apps/web/.env.local
@@ -216,6 +219,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
    ```
 
 3. **Start development servers**:
+
    ```bash
    pnpm dev
    ```
@@ -227,11 +231,13 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 ### Docker Setup
 
 1. **Configure environment variables**:
+
    ```bash
    # Create apps/api/.env and apps/web/.env.local with your config
    ```
 
 2. **Build and start**:
+
    ```bash
    docker-compose up --build
    ```
@@ -271,25 +277,25 @@ The real-time communication uses WebSockets at `/api/live`.
 
 ### Client → Server Messages
 
-| Type | Description |
-|------|-------------|
-| `audio` | Base64-encoded PCM audio (16kHz, mono) |
-| `text` | Text input from user |
-| `log_insight` | Request manual insight logging |
+| Type          | Description                            |
+| ------------- | -------------------------------------- |
+| `audio`       | Base64-encoded PCM audio (16kHz, mono) |
+| `text`        | Text input from user                   |
+| `log_insight` | Request manual insight logging         |
 
 ### Server → Client Messages
 
-| Type | Description |
-|------|-------------|
-| `connected` | Session established |
-| `audio` | Base64-encoded AI response audio |
-| `turn_complete` | AI finished speaking |
-| `input_transcription` | User's speech transcribed |
-| `output_transcription` | AI's speech transcribed |
-| `interrupted` | AI was interrupted by user |
-| `tool_call` | AI triggered a tool (e.g., `log_sales_insight`) |
-| `error` | Error message |
-| `closed` | Session closed |
+| Type                   | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| `connected`            | Session established                             |
+| `audio`                | Base64-encoded AI response audio                |
+| `turn_complete`        | AI finished speaking                            |
+| `input_transcription`  | User's speech transcribed                       |
+| `output_transcription` | AI's speech transcribed                         |
+| `interrupted`          | AI was interrupted by user                      |
+| `tool_call`            | AI triggered a tool (e.g., `log_sales_insight`) |
+| `error`                | Error message                                   |
+| `closed`               | Session closed                                  |
 
 ---
 
@@ -298,6 +304,7 @@ The real-time communication uses WebSockets at `/api/live`.
 ### Firestore Rules (`apps/web/firestore.rules`)
 
 The database uses role-based access control:
+
 - Users can only read/write their own data
 - Team admins can read/write team data
 - All reads/writes require authentication

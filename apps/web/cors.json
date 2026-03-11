@@ -3,6 +3,7 @@
     "origin": [
       "http://localhost:3000",
       "http://localhost:3001",
+      "http://10.119.205.50:3000",
       "https://reptrainerai.vercel.app",
       "https://reptrainer-gemini.vercel.app"
     ],

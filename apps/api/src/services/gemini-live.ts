@@ -15,6 +15,7 @@ export class GeminiLiveProxy {
   private ws: WebSocket;
   private systemPrompt: string | null;
   private voiceName: string | null;
+  private isConnecting = false;
 
   constructor(
     ws: WebSocket,
@@ -40,6 +41,22 @@ export class GeminiLiveProxy {
       console.log("[GeminiLiveProxy] Waiting for setup message…");
       return;
     }
+
+    if (this.isConnecting) {
+      console.log(
+        "[GeminiLiveProxy] Already connecting, skipping duplicate call",
+      );
+      return;
+    }
+
+    if (this.session) {
+      console.log(
+        "[GeminiLiveProxy] Closing existing session before reconnecting",
+      );
+      this.close();
+    }
+
+    this.isConnecting = true;
 
     const { setup } = getLiveSetupConfig(
       env.GOOGLE_CLOUD_PROJECT,
@@ -114,6 +131,7 @@ export class GeminiLiveProxy {
         },
       });
 
+      this.isConnecting = false;
       console.log("[GeminiLiveProxy] Session established successfully");
 
       // Once session is established, send the initial greeting
@@ -123,7 +141,7 @@ export class GeminiLiveProxy {
             role: "user",
             parts: [
               {
-                text: "Hello! Please start the conversation now based on the persona and scenario in your instructions.",
+                text: "Hello! Please introduce yourself briefly in 1-2 sentences based on your persona, then stop and wait for me to respond.",
               },
             ],
           },
@@ -139,6 +157,7 @@ export class GeminiLiveProxy {
         }
       }, 100);
     } catch (err) {
+      this.isConnecting = false;
       console.error("[GeminiLiveProxy] Failed to connect to Gemini Live:", err);
       this.send({
         type: "error",

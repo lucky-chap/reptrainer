@@ -52,6 +52,9 @@ export default function TeamPage() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [teamName, setTeamName] = useState(activeMembership?.name || "");
+  const [companyName, setCompanyName] = useState(
+    activeMembership?.companyName || "",
+  );
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
 
@@ -80,6 +83,7 @@ export default function TeamPage() {
   useEffect(() => {
     if (activeMembership) {
       setTeamName(activeMembership.name);
+      setCompanyName(activeMembership.companyName || "");
     }
   }, [activeMembership]);
 
@@ -91,6 +95,7 @@ export default function TeamPage() {
     try {
       await updateTeam(activeMembership.id, {
         name: teamName.trim(),
+        companyName: companyName.trim() || null,
       });
       toast.success("Team settings updated successfully");
       window.location.reload();
@@ -227,6 +232,80 @@ export default function TeamPage() {
           </Button>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="grid gap-8 lg:grid-cols-3">
+          <Card className="border-charcoal/5 shadow-sm lg:col-span-2">
+            <form onSubmit={handleSaveTeamName}>
+              <CardHeader className="bg-charcoal/2 border-charcoal/5 border-b pb-4">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Settings className="text-charcoal/60 size-5" />
+                  Team Settings
+                </CardTitle>
+                <CardDescription>
+                  Update your team&apos;s name. This will be visible to all
+                  members.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 py-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="teamName"
+                      className="text-charcoal text-sm font-medium"
+                    >
+                      Workspace Name
+                    </Label>
+                    <Input
+                      id="teamName"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      placeholder="e.g. Acme Corp Sales"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="companyName"
+                      className="text-charcoal text-sm font-medium"
+                    >
+                      Company Name (For Personas)
+                    </Label>
+                    <Input
+                      id="companyName"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="e.g. Acme Corp"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="border-charcoal/5 flex justify-end border-t px-6 py-4">
+                <Button
+                  type="submit"
+                  variant="brand"
+                  disabled={
+                    isSavingName ||
+                    (!teamName.trim() && !companyName.trim()) ||
+                    (teamName.trim() === activeMembership.name &&
+                      companyName.trim() ===
+                        (activeMembership.companyName || ""))
+                  }
+                >
+                  {isSavingName ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </CardFooter>
+            </form>
+          </Card>
+        </div>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Members List */}
@@ -401,52 +480,6 @@ export default function TeamPage() {
           </CardContent>
         </Card>
       </div>
-
-      {isAdmin && (
-        <div className="grid gap-8 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <form onSubmit={handleSaveTeamName}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="size-5" />
-                  Team Settings
-                </CardTitle>
-                <CardDescription>
-                  Update your team&apos;s name. This will be visible to all
-                  members.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="teamName" className="text-sm font-medium">
-                    Workspace Name
-                  </Label>
-                  <Input
-                    id="teamName"
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
-                    placeholder="e.g. Acme Corp Sales"
-                    required
-                  />
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/50 mt-2 flex justify-end rounded-b-xl px-6 py-4">
-                <Button
-                  type="submit"
-                  variant="brand"
-                  disabled={
-                    isSavingName ||
-                    !teamName.trim() ||
-                    teamName.trim() === activeMembership.name
-                  }
-                >
-                  {isSavingName ? "Saving..." : "Save Changes"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
-      )}
 
       <InviteMemberModal
         isOpen={isInviteModalOpen}

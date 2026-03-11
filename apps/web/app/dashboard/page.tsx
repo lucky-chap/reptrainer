@@ -79,11 +79,14 @@ export default function DashboardPage() {
           handleError,
         );
 
-        const unsubMetrics = subscribeUserMetrics(
-          user.uid,
-          (data) => setMetrics(data),
-          handleError,
-        );
+        const unsubMetrics = currentTeam
+          ? subscribeUserMetrics(
+              user.uid,
+              currentTeam.id,
+              (data) => setMetrics(data),
+              handleError,
+            )
+          : () => {};
 
         return () => {
           unsubKb();

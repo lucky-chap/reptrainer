@@ -22,16 +22,23 @@ type ExtendedSession = (CallSession | Session) & {
  */
 export async function recalculateUserMetrics(
   userId: string,
+  teamId: string,
 ): Promise<UserMetrics> {
   const [sessions, callSessions] = await Promise.all([
     getAllSessions(userId),
     getAllCallSessions(userId),
   ]);
 
+  // Filter sessions by team
+  const filteredSessions = sessions.filter((s: Session) => s.teamId === teamId);
+  const filteredCallSessions = callSessions.filter(
+    (cs: CallSession) => cs.teamId === teamId,
+  );
+
   // Combined and de-duplicate by ID
   const sessionMap = new Map<string, CallSession | Session>();
-  sessions.forEach((s: Session) => sessionMap.set(s.id, s));
-  callSessions.forEach((cs: CallSession) => {
+  filteredSessions.forEach((s: Session) => sessionMap.set(s.id, s));
+  filteredCallSessions.forEach((cs: CallSession) => {
     // CallSession has richer data (like transcriptMessages), so merge/overwrite
     const existing = sessionMap.get(cs.id) || {};
     sessionMap.set(cs.id, { ...existing, ...cs });
@@ -47,7 +54,7 @@ export async function recalculateUserMetrics(
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
 
-  const metrics = createInitialMetrics(userId);
+  const metrics = createInitialMetrics(userId, teamId);
   if (allSessions.length === 0) {
     await saveUserMetrics(metrics);
     return metrics;
@@ -223,7 +230,8 @@ export async function updateUserMetrics(
   session: CallSession,
 ): Promise<UserMetrics> {
   const currentMetrics =
-    (await getUserMetrics(userId)) || createInitialMetrics(userId);
+    (await getUserMetrics(userId, session.teamId)) ||
+    createInitialMetrics(userId, session.teamId);
   const evaluation = session.feedbackReport || session.legacyEvaluation;
 
   if (!evaluation) return currentMetrics;
@@ -316,9 +324,10 @@ export async function updateUserMetrics(
   return updatedMetrics;
 }
 
-function createInitialMetrics(userId: string): UserMetrics {
+function createInitialMetrics(userId: string, teamId: string): UserMetrics {
   return {
     userId,
+    teamId,
     totalCalls: 0,
     totalDurationSeconds: 0,
     averageScore: 0,

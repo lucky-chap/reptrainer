@@ -59,20 +59,23 @@ export function registerLiveRoute(wss: WebSocketServer): void {
       proxy.close();
     });
 
-    // Open the Gemini session
-    try {
-      await proxy.connect();
-    } catch (err) {
-      console.error("[Live] Failed to connect to Gemini Live:", err);
-      if (ws.readyState === ws.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: "error",
-            message:
-              err instanceof Error ? err.message : "Failed to connect to AI",
-          }),
-        );
-        ws.close(4003, "Gemini connection failed");
+    // Open the Gemini session only if we have the config in the URL
+    // Otherwise, it will be opened when the 'setup' message arrives
+    if (systemPrompt && voiceName) {
+      try {
+        await proxy.connect();
+      } catch (err) {
+        console.error("[Live] Failed to connect to Gemini Live:", err);
+        if (ws.readyState === ws.OPEN) {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              message:
+                err instanceof Error ? err.message : "Failed to connect to AI",
+            }),
+          );
+          ws.close(4003, "Gemini connection failed");
+        }
       }
     }
   });

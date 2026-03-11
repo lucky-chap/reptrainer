@@ -41,6 +41,7 @@ export interface GenerationContextType {
     gender?: "male" | "female" | "other",
     country?: string,
     competitorUrl?: string,
+    companyName?: string,
   ) => Promise<void>;
   dismissTask: (taskId: string) => void;
 }
@@ -81,6 +82,7 @@ export function GenerationProvider({
       gender?: "male" | "female" | "other",
       country?: string,
       competitorUrl?: string,
+      companyName?: string,
     ) => {
       const taskId = uuidv4();
 
@@ -107,6 +109,7 @@ export function GenerationProvider({
             t.id === taskId ? { ...t, subStatus: "analyzing" } : t,
           ),
         );
+        toast.loading("Analyzing Industry...", { id: taskToastId });
 
         const data = await generatePersonaAction({
           teamId,
@@ -114,6 +117,7 @@ export function GenerationProvider({
           gender,
           country,
           competitorUrl,
+          companyName,
         });
 
         if (!activeRef.current.get(taskId)) {
@@ -126,6 +130,7 @@ export function GenerationProvider({
             t.id === taskId ? { ...t, subStatus: "creating_traits" } : t,
           ),
         );
+        toast.loading("Creating Persona Traits...", { id: taskToastId });
 
         const personaId = uuidv4();
         const persona: Persona = {
@@ -179,6 +184,7 @@ export function GenerationProvider({
             t.id === taskId ? { ...t, subStatus: "generating_avatar" } : t,
           ),
         );
+        toast.loading("Generating Avatar...", { id: taskToastId });
 
         try {
           const avatarData = await generateAvatarAction({

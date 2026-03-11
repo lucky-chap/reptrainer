@@ -89,6 +89,7 @@ export default function InvitePage() {
         user.uid,
         user.displayName || undefined,
         user.photoURL || undefined,
+        user.email || undefined,
       );
       await refreshMemberships();
       router.push("/dashboard");

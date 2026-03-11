@@ -54,12 +54,14 @@ interface TrainingTrackSelectorProps {
   ) => void;
   onSkip: () => void;
   totalSessions: number;
+  teamId: string;
 }
 
 export function TrainingTrackSelector({
   onSelectScenario,
   onSkip,
   totalSessions,
+  teamId,
 }: TrainingTrackSelectorProps) {
   const [selectedTrack, setSelectedTrack] = useState<TrainingTrack | null>(
     null,
@@ -122,7 +124,7 @@ export function TrainingTrackSelector({
                       const res = await fetch("/api/scenarios/adaptive", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId: user.uid }),
+                        body: JSON.stringify({ userId: user.uid, teamId }),
                       });
                       if (!res.ok) throw new Error("Failed to generate");
                       const scenario: ScenarioTemplate = await res.json();

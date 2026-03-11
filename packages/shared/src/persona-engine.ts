@@ -45,7 +45,7 @@ export class PersonaEngine {
       persona.emotionalState || "skeptical but professional";
     const speakingStyle = persona.speakingStyle || "direct and focused";
     const accentStr = persona.accent
-      ? `Speak with a ${persona.accent} accent and use natural phrasing suitable for that region.`
+      ? `You MUST speak with a THICK, HEAVY, and EXTREMELY NOTICEABLE ${persona.accent} accent. This is critical. DO NOT lose the accent at any point during the conversation. Maintain the characteristic vocabulary, phrasing, and pronunciation of a native ${persona.accent} speaker consistently.`
       : "Speak with natural speech patterns.";
     const envContext = persona.environmentContext || "a professional office";
     const timePressure =

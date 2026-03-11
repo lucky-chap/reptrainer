@@ -45,23 +45,28 @@ import type {
 
 export async function getUserMetrics(
   userId: string,
+  teamId: string,
 ): Promise<UserMetrics | undefined> {
-  const docRef = doc(db, "userMetrics", userId);
+  const docRef = doc(db, "userMetrics", `${teamId}_${userId}`);
   const docSnap = await getDoc(docRef);
   return docSnap.exists() ? (docSnap.data() as UserMetrics) : undefined;
 }
 
 export async function saveUserMetrics(metrics: UserMetrics): Promise<void> {
-  await setDoc(doc(db, "userMetrics", metrics.userId), metrics);
+  await setDoc(
+    doc(db, "userMetrics", `${metrics.teamId}_${metrics.userId}`),
+    metrics,
+  );
 }
 
 export function subscribeUserMetrics(
   userId: string,
+  teamId: string,
   onData: (metrics: UserMetrics | null) => void,
   onError: (err: Error) => void,
 ) {
   return onSnapshot(
-    doc(db, "userMetrics", userId),
+    doc(db, "userMetrics", `${teamId}_${userId}`),
     (snap) => {
       onData(snap.exists() ? (snap.data() as UserMetrics) : null);
     },

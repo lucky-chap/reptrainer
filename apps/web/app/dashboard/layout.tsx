@@ -33,7 +33,6 @@ import {
   GenerationProvider,
   useGeneration,
 } from "@/context/generation-context";
-import { GenerationBanner } from "@/components/generation-banner";
 import {
   SidebarProvider,
   SidebarInset,
@@ -214,9 +213,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                     : pathname.split("/").filter(Boolean).slice(-1)[0]}
                 </span>
               </nav>
-              <div className="flex items-center gap-4">
-                <GenerationBanner tasks={tasks} onDismiss={dismissTask} />
-              </div>
             </div>
           </header>
           <main className="flex-1 overflow-y-auto">

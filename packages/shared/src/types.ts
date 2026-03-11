@@ -252,6 +252,7 @@ export interface CallSession {
 
 export interface UserMetrics {
   userId: string;
+  teamId: string;
   totalCalls: number;
   totalDurationSeconds: number;
   averageScore: number;
@@ -282,6 +283,7 @@ export interface GeneratePersonaRequest {
   personalityType?: PersonalityType;
   gender?: "male" | "female" | "other";
   country?: string;
+  companyName?: string;
 }
 
 export interface GeneratePersonaResponse {
@@ -376,6 +378,7 @@ export interface Team {
   name: string;
   ownerId: string;
   hasKnowledgeBase: boolean;
+  companyName?: string;
   createdAt: string;
 }
 

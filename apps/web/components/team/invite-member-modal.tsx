@@ -47,11 +47,16 @@ export function InviteMemberModal({
     e.preventDefault();
     if (!user || !activeMembership) return;
 
+    if (email.toLowerCase().trim() === user.email?.toLowerCase().trim()) {
+      toast.error("You cannot invite yourself to the team.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const invite = await createInvitation(
         activeMembership.id,
-        email,
+        email.trim(),
         user.uid,
         role,
       );

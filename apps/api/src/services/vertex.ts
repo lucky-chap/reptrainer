@@ -69,13 +69,30 @@ export async function researchCompetitor(
           // @ts-ignore - googleSearch is a valid tool in @google/genai for Vertex AI grounding
           googleSearch: {
             searchTypes: {
-              webSearch: true,
+              webSearch: {},
+              imageSearch: {},
             },
           },
         },
       ],
     },
   });
+
+  console.log("🔍 --- GOOGLE SEARCH GROUNDING DATA --- 🔍");
+  try {
+    const candidates = (response as any).candidates;
+    if (candidates && candidates.length > 0) {
+      console.log(JSON.stringify(candidates[0].groundingMetadata, null, 2));
+    } else {
+      console.log(
+        "No candidates returned. Raw response:",
+        JSON.stringify(response, null, 2),
+      );
+    }
+  } catch (e) {
+    console.error("Error logging search data:", e);
+  }
+  console.log("-----------------------------------------");
 
   const text = response.text || "";
   const match = text.match(/\{[\s\S]*\}/);
@@ -93,12 +110,18 @@ export async function researchCompetitor(
 export async function generatePersona(
   input: GeneratePersonaRequest,
 ): Promise<GeneratePersonaResponse> {
-  const { teamId, personalityType, gender: preferredGender, country } = input;
+  const {
+    teamId,
+    personalityType,
+    gender: preferredGender,
+    country,
+    companyName: providedCompanyName,
+  } = input;
 
   const metadata = await getKnowledgeMetadata(teamId);
   if (!metadata) {
     throw new Error(
-      "No knowledge base found for this team. Upload knowledge first.",
+      "Knowledge metadata not found. Please upload learning materials first.",
     );
   }
 
@@ -123,7 +146,7 @@ export async function generatePersona(
       ? `\n─── ADDITIONAL PRODUCT KNOWLEDGE (RAG) ───\n${ragContext.join("\n\n")}\n`
       : "";
 
-  const companyName = "the company"; // We can improve this by storing company name in metadata
+  const companyName = providedCompanyName || "the company";
   const description = valueProps.join(". ");
   const industry = productCategory;
 
@@ -366,6 +389,12 @@ export function getLiveSetupConfig(
           {
             text: `You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions.
 
+TURN-TAKING RULES (CRITICAL):
+- After you speak 1-3 sentences, STOP and WAIT for the user to respond. Do NOT keep talking.
+- This is a TWO-WAY conversation. You MUST give the user space to speak after each of your turns.
+- Your opening introduction should be at most 2 sentences. Introduce yourself briefly, then STOP and wait.
+- If you find yourself talking for more than 15 seconds without the user responding, STOP immediately and wait.
+
 ANTI-REPETITION RULES (CRITICAL):
 - NEVER repeat a sentence, phrase, or point you have already said. If you already made a point, move the conversation forward.
 - After a tool call returns, CONTINUE from exactly where you left off. Do NOT re-say anything you already spoke before the tool call.
@@ -389,10 +418,10 @@ When to call tools:
       output_audio_transcription: {},
       realtime_input_config: {
         automatic_activity_detection: {
-          prefix_padding_ms: 20,
-          silence_duration_ms: 300,
+          prefix_padding_ms: 100,
+          silence_duration_ms: 500,
           start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
-          end_of_speech_sensitivity: "END_SENSITIVITY_HIGH",
+          end_of_speech_sensitivity: "END_SENSITIVITY_LOW",
         },
       },
       tools: [

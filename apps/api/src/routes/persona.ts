@@ -12,14 +12,12 @@ import { generatePersona, generatePersonaAvatar } from "../services/vertex.js";
 export const personaRoutes: Router = Router();
 
 const generatePersonaSchema = z.object({
-  companyName: z.string().min(1),
-  description: z.string().min(1),
-  targetCustomer: z.string().min(1),
-  industry: z.string().min(1),
-  objections: z.array(z.string()).min(1),
+  teamId: z.string().min(1),
+  personalityType: z.string().optional(),
   gender: z.enum(["male", "female", "other"]).optional(),
   country: z.string().optional(),
   competitorUrl: z.string().url().optional(),
+  companyName: z.string().optional(),
 });
 
 /**
