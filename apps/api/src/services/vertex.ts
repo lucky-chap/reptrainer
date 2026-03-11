@@ -151,7 +151,13 @@ export async function generatePersona(
   const industry = productCategory;
 
   let competitorContext: CompetitorContext | undefined;
-  // competitorUrl is currently disabled in the new flow
+  if (metadata.competitorContexts && metadata.competitorContexts.length > 0) {
+    // Randomly select one competitor to ground the persona
+    competitorContext =
+      metadata.competitorContexts[
+        Math.floor(Math.random() * metadata.competitorContexts.length)
+      ];
+  }
 
   // Handle gender randomization if "other" is chosen
   const finalGender =
@@ -511,6 +517,9 @@ When to call tools:
               },
             },
           ],
+        },
+        {
+          googleSearch: {},
         },
       ],
     },

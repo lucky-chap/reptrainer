@@ -16,6 +16,9 @@ import {
   Zap,
   Globe,
   RefreshCw,
+  FileText,
+  Download,
+  Eye,
 } from "lucide-react";
 import { useTeam } from "@/context/team-context";
 import {
@@ -40,6 +43,13 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
@@ -48,7 +58,6 @@ export default function KnowledgeBasePage() {
   const [kb, setKb] = useState<KnowledgeBase | null>(null);
   const [metadata, setMetadata] = useState<KnowledgeMetadata | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [initializingRag, setInitializingRag] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -91,20 +100,6 @@ export default function KnowledgeBasePage() {
     }
   };
 
-  const handleProcess = async () => {
-    if (!currentTeam) return;
-
-    setProcessing(true);
-    try {
-      await processKnowledgeBase(currentTeam.id);
-      toast.success("Knowledge processing started");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to start processing");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
   const handleRagInit = async () => {
     if (!currentTeam) return;
 
@@ -139,7 +134,7 @@ export default function KnowledgeBasePage() {
   }
 
   const hasDocs = kb && kb.documents.length > 0;
-  const isProcessing = kb?.embeddingsIndexStatus === "processing" || processing;
+  const isProcessing = kb?.embeddingsIndexStatus === "processing";
   const isReady = kb?.embeddingsIndexStatus === "ready";
 
   return (
@@ -154,24 +149,14 @@ export default function KnowledgeBasePage() {
             simulations.
           </p>
         </div>
-        {!isReady && hasDocs && isAdmin && (
+        {(uploading || isProcessing) && (
           <Button
-            onClick={handleProcess}
-            disabled={isProcessing}
+            disabled
             size="lg"
-            className="bg-charcoal text-cream hover:bg-charcoal-light shadow-lg transition-all active:scale-95"
+            className="bg-charcoal text-cream shadow-lg transition-all disabled:opacity-80"
           >
-            {isProcessing ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Processing Knowledge...
-              </>
-            ) : (
-              <>
-                <Brain className="mr-2 size-4" />
-                Extract Insights
-              </>
-            )}
+            <Loader2 className="mr-2 size-4 animate-spin" />
+            {uploading ? "Uploading Documents..." : "Processing Knowledge..."}
           </Button>
         )}
       </div>
@@ -180,7 +165,7 @@ export default function KnowledgeBasePage() {
         {/* Left Column: Docs & Upload */}
         <div className="space-y-6 lg:col-span-1">
           <Card className="border-charcoal/5 overflow-hidden shadow-sm">
-            <CardHeader className="bg-charcoal/[0.02]">
+            <CardHeader className="bg-charcoal/2">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Database className="text-charcoal/60 size-5" />
                 Documents
@@ -191,7 +176,7 @@ export default function KnowledgeBasePage() {
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-4">
-                {kb?.documents.map((doc: KnowledgeDocument) => (
+                {kb?.documents.slice(0, 3).map((doc: KnowledgeDocument) => (
                   <div
                     key={doc.id}
                     className="border-charcoal/5 flex items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0"
@@ -213,6 +198,64 @@ export default function KnowledgeBasePage() {
                   </div>
                 ))}
 
+                {kb && kb.documents.length > 3 && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-charcoal/60 hover:text-charcoal w-full gap-2 text-xs"
+                      >
+                        <Eye className="size-3" />
+                        View All ({kb.documents.length})
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl bg-white">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Database className="size-5" />
+                          Knowledge Documents
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="mt-4 max-h-[60vh] space-y-3 overflow-y-auto pr-2">
+                        {kb.documents.map((doc: KnowledgeDocument) => (
+                          <div
+                            key={doc.id}
+                            className="border-charcoal/5 bg-charcoal/1 hover:bg-charcoal/2 flex items-center justify-between gap-4 rounded-xl border p-4 transition-colors"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="bg-charcoal/5 rounded-lg p-2">
+                                <FileText className="text-charcoal/60 size-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-charcoal truncate font-semibold">
+                                  {doc.name}
+                                </p>
+                                <p className="text-warm-gray text-xs">
+                                  {new Date(doc.createdAt).toLocaleDateString()}
+                                  {" • "}
+                                  {doc.type.split("/")[1]?.toUpperCase()}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-charcoal/10 hover:bg-charcoal/5 shrink-0"
+                              asChild
+                            >
+                              <a href={doc.storageUrl} download={doc.name}>
+                                <Download className="mr-2 size-4" />
+                                Download
+                              </a>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
                 {!hasDocs && (
                   <div className="py-8 text-center">
                     <AlertCircle className="text-warm-gray/40 mx-auto size-8" />
@@ -224,17 +267,49 @@ export default function KnowledgeBasePage() {
 
                 {isAdmin && (
                   <div className="pt-2">
-                    <label className="group border-charcoal/10 bg-cream/30 hover:border-charcoal/20 hover:bg-cream/50 relative flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition-all">
+                    <label
+                      className={cn(
+                        "group relative flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition-all",
+                        isProcessing || uploading
+                          ? "cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
+                          : "border-charcoal/10 bg-cream/30 hover:border-charcoal/20 hover:bg-cream/50 cursor-pointer",
+                      )}
+                    >
                       <div className="flex flex-col items-center justify-center space-y-2">
-                        <div className="bg-charcoal/5 group-hover:bg-charcoal/10 rounded-full p-3 transition-colors">
-                          <FileUp className="text-charcoal/60 size-6" />
+                        <div
+                          className={cn(
+                            "rounded-full p-3 transition-colors",
+                            isProcessing || uploading
+                              ? "bg-gray-100"
+                              : "bg-charcoal/5 group-hover:bg-charcoal/10",
+                          )}
+                        >
+                          <FileUp
+                            className={cn(
+                              "size-6",
+                              isProcessing || uploading
+                                ? "text-gray-400"
+                                : "text-charcoal/60",
+                            )}
+                          />
                         </div>
                         <div className="text-center">
-                          <p className="text-charcoal text-sm font-semibold">
-                            Click to upload
+                          <p
+                            className={cn(
+                              "text-sm font-semibold",
+                              isProcessing || uploading
+                                ? "text-gray-400"
+                                : "text-charcoal",
+                            )}
+                          >
+                            {isProcessing
+                              ? "System Processing"
+                              : "Click to upload"}
                           </p>
                           <p className="text-warm-gray text-xs">
-                            PDF, DOCX, TXT up to 10MB
+                            {isProcessing
+                              ? "Please wait for current indexing to finish"
+                              : "PDF, DOCX, TXT up to 10MB"}
                           </p>
                         </div>
                       </div>
@@ -243,13 +318,13 @@ export default function KnowledgeBasePage() {
                         className="hidden"
                         accept=".pdf,.docx,.txt"
                         onChange={handleFileUpload}
-                        disabled={uploading}
+                        disabled={uploading || isProcessing}
                       />
-                      {uploading && (
+                      {(uploading || isProcessing) && (
                         <div className="bg-cream/90 absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl">
                           <Loader2 className="text-charcoal size-8 animate-spin" />
                           <p className="text-charcoal text-sm font-medium">
-                            Uploading...
+                            {uploading ? "Uploading..." : "Processing..."}
                           </p>
                         </div>
                       )}
@@ -444,7 +519,7 @@ export default function KnowledgeBasePage() {
                           <Target className="size-4" />
                           Ideal Customer Profile (ICP)
                         </h4>
-                        <div className="border-charcoal/5 bg-charcoal/[0.01] rounded-xl border p-6">
+                        <div className="border-charcoal/5 bg-charcoal/1 rounded-xl border p-6">
                           <p className="text-charcoal/80 leading-relaxed">
                             {metadata.icp}
                           </p>
@@ -479,25 +554,90 @@ export default function KnowledgeBasePage() {
                       </CardContent>
                     </Card>
                     <Card className="border-charcoal/5 shadow-sm">
-                      <CardHeader>
-                        <CardTitle className="text-base font-bold">
-                          Main Competitors
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex flex-wrap gap-2">
-                          {metadata.competitors.map(
-                            (comp: string, i: number) => (
-                              <Badge
-                                key={i}
-                                variant="outline"
-                                className="text-charcoal/60 border-charcoal/10 font-medium"
-                              >
-                                {comp}
-                              </Badge>
-                            ),
-                          )}
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <div className="flex flex-col">
+                          <CardTitle className="text-base font-bold">
+                            Main Competitors
+                          </CardTitle>
                         </div>
+                      </CardHeader>
+
+                      <CardContent>
+                        {metadata.competitorContexts &&
+                        metadata.competitorContexts.length > 0 ? (
+                          <div className="space-y-4">
+                            {metadata.competitorContexts.map(
+                              (comp: any, i: number) => (
+                                <div
+                                  key={i}
+                                  className="border-charcoal/10 bg-cream/50 rounded-lg border p-4"
+                                >
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <h4 className="text-charcoal font-bold">
+                                      {comp.name}
+                                    </h4>
+                                    {comp.website && (
+                                      <a
+                                        href={
+                                          comp.website.startsWith("http")
+                                            ? comp.website
+                                            : `https://${comp.website}`
+                                        }
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                                      >
+                                        <Globe className="size-3" /> Website
+                                      </a>
+                                    )}
+                                  </div>
+                                  <div className="mt-3 space-y-3">
+                                    <div>
+                                      <span className="text-warm-gray text-xs font-semibold tracking-wide uppercase">
+                                        Positioning
+                                      </span>
+                                      <p className="text-charcoal/90 mt-0.5 text-sm">
+                                        {comp.pricingPositioning}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <span className="text-warm-gray flex items-center gap-1 text-xs font-semibold tracking-wide uppercase">
+                                        <AlertCircle className="size-3" /> Pain
+                                        Points
+                                      </span>
+                                      <ul className="mt-1 list-disc space-y-1 pl-4">
+                                        {comp.painPoints.map(
+                                          (pt: string, j: number) => (
+                                            <li
+                                              key={j}
+                                              className="text-charcoal/80 text-xs"
+                                            >
+                                              {pt}
+                                            </li>
+                                          ),
+                                        )}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {metadata.competitors.map(
+                              (comp: string, i: number) => (
+                                <Badge
+                                  key={i}
+                                  variant="outline"
+                                  className="text-charcoal/60 border-charcoal/10 font-medium"
+                                >
+                                  {comp}
+                                </Badge>
+                              ),
+                            )}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
@@ -536,7 +676,7 @@ export default function KnowledgeBasePage() {
               </div>
             </Tabs>
           ) : (
-            <div className="border-charcoal/5 bg-charcoal/[0.01] flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-32 text-center">
+            <div className="border-charcoal/5 bg-charcoal/1 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-32 text-center">
               <div className="bg-charcoal/5 mb-4 flex size-16 items-center justify-center rounded-full">
                 <Brain className="text-charcoal/20 size-8" />
               </div>
@@ -544,8 +684,8 @@ export default function KnowledgeBasePage() {
                 No Insights Yet
               </h3>
               <p className="text-warm-gray mt-2 max-w-sm">
-                Upload knowledge files and click "Extract Insights" to generate
-                structured metadata for your team.
+                Upload knowledge files to automatically generate structured
+                metadata for your team.
               </p>
               {!hasDocs && (
                 <div className="mt-8 flex items-center gap-2 text-sm font-medium text-amber-600">

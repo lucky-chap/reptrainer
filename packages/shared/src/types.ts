@@ -24,6 +24,7 @@ export interface KnowledgeMetadata {
   icp: string; // Ideal Customer Profile
   buyerRoles: string[];
   competitors: string[];
+  competitorContexts?: CompetitorContext[];
   differentiators: string[];
   valueProps: string[];
   objections: string[];
@@ -61,7 +62,9 @@ export interface ProspectPersonalityTemplate {
 }
 
 export interface CompetitorContext {
-  website: string;
+  name: string;
+  website?: string;
+
   productDescription: string;
   targetCustomer: string;
   pricingPositioning: string;

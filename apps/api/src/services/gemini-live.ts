@@ -75,9 +75,12 @@ export class GeminiLiveProxy {
         model: setup.model,
         config: {
           systemInstruction: setup.system_instruction,
-          tools: setup.tools.map((tool: any) => ({
-            functionDeclarations: tool.function_declarations,
-          })),
+          tools: setup.tools.map((tool: any) => {
+            if (tool.function_declarations) {
+              return { functionDeclarations: tool.function_declarations };
+            }
+            return tool;
+          }),
           inputAudioTranscription: setup.input_audio_transcription,
           outputAudioTranscription: setup.output_audio_transcription,
           realtimeInputConfig: {

@@ -106,6 +106,31 @@ export async function processKnowledgeBase(
 }
 
 /**
+ * Triggers just the Google Search competitor extraction via the API.
+ */
+export async function extractCompetitorContexts(
+  teamId: string,
+): Promise<KnowledgeMetadata> {
+  const response = await fetch(
+    `${env.NEXT_PUBLIC_API_URL}/api/knowledge/${teamId}/competitors`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.NEXT_PUBLIC_API_SECRET_KEY}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to extract competitors");
+  }
+
+  return response.json();
+}
+
+/**
  * Gets the knowledge base and metadata for a team.
  */
 export async function getKnowledgeInfo(

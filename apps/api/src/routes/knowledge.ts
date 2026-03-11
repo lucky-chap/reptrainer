@@ -9,6 +9,7 @@ import { requireApiSecret } from "../middleware/auth.js";
 import {
   uploadKnowledgeDocument,
   extractKnowledgeMetadata,
+  extractCompetitorContexts,
   initRagEngine,
   getKnowledgeBase,
   getKnowledgeMetadata,
@@ -66,6 +67,24 @@ knowledgeRoutes.post(
     try {
       const teamId = req.params.teamId as string;
       const metadata = await extractKnowledgeMetadata(teamId);
+      res.json(metadata);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * POST /api/knowledge/:teamId/competitors
+ * Triggers the targeted Google Search competitor extraction.
+ */
+knowledgeRoutes.post(
+  "/:teamId/competitors",
+  requireApiSecret,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const teamId = req.params.teamId as string;
+      const metadata = await extractCompetitorContexts(teamId);
       res.json(metadata);
     } catch (error) {
       next(error);

@@ -89,6 +89,11 @@ export async function uploadKnowledgeDocument(
     hasKnowledgeBase: true,
   });
 
+  // Trigger metadata extraction in background
+  extractKnowledgeMetadata(teamId).catch((err) => {
+    console.error("Background metadata extraction failed:", err);
+  });
+
   return doc;
 }
 
@@ -131,25 +136,45 @@ export async function extractKnowledgeMetadata(
 Knowledge Base Content:
 ${combinedText.substring(0, 30000)} // Truncate if too long for simple extraction
 
-Extract the following information in JSON format:
+ Extract the following information in JSON format:
 {
   "productCategory": "Brief description of the product category (e.g., CRM, Cybersecurity, HR Tech)",
   "icp": "Detailed Ideal Customer Profile (e.g., SaaS startups 20-200 employees)",
   "buyerRoles": ["Role 1", "Role 2", "Role 3"],
   "competitors": ["Competitor A", "Competitor B"],
+  "competitorContexts": [
+    {
+      "name": "Competitor A",
+      "website": "competitora.com",
+      "pricingPositioning": "High-end, enterprise focused",
+      "painPoints": ["Hard to implement", "Requires dedicated admin"],
+      "complaints": ["Customer support is slow"]
+    }
+  ],
   "differentiators": ["Key Differentiator 1", "Key Differentiator 2"],
   "valueProps": ["Value Prop 1", "Value Prop 2"],
   "objections": ["Common Objection 1", "Common Objection 2"]
 }
 
 IMPORTANT:
-- Base your extraction ONLY on the provided content.
-- If something is missing, provide a realistic inference based on the context.
-- The output should be valid JSON.`;
+- Base your extraction on the provided document content.
+- Use the Google Search tool to find ACTUAL, real-world information about the competitors you identify to fill out the 'competitorContexts' array.
+- FOR WEBSITES: Provide ONLY valid, reachable public URLs. If a website cannot be found with high confidence, omit the 'website' field or leave it as an empty string. NEVER use placeholder text like "N/A", "https://n/a", or descriptive phrases as the website URL.
+- The 'competitorContexts' array should be as complete as possible based on search results.
+- If something is missing from the document and search, provide a realistic inference based on the context.
+- The output should be strictly valid JSON.
+`;
 
     const response = await genAI.models.generateContent({
       model: TEXT_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        tools: [
+          {
+            googleSearch: {},
+          },
+        ],
+      },
     });
     const responseText = response.text || "";
 
@@ -177,6 +202,81 @@ IMPORTANT:
     await kbRef.update({ embeddingsIndexStatus: "failed" });
     throw error;
   }
+}
+
+/**
+ * Extracts competitor contexts using Google Search without re-processing documents.
+ */
+export async function extractCompetitorContexts(
+  teamId: string,
+): Promise<KnowledgeMetadata> {
+  const metadataRef = db.collection("knowledgeMetadata").doc(teamId);
+  const metadataSnap = await metadataRef.get();
+
+  if (!metadataSnap.exists) {
+    throw new Error("Knowledge metadata not found for team: " + teamId);
+  }
+
+  const metadata = metadataSnap.data() as KnowledgeMetadata;
+  const competitors = metadata.competitors || [];
+
+  if (competitors.length === 0) {
+    return metadata; // Nothing to search
+  }
+
+  const prompt = `You are an expert business analyst researching competitors. Find detailed real-world information about these competitors: ${competitors.join(
+    ", ",
+  )}.
+
+Extract the following information in JSON format:
+{
+  "competitorContexts": [
+    {
+      "name": "Competitor A",
+      "website": "competitora.com",
+      "pricingPositioning": "High-end, enterprise focused",
+      "painPoints": ["Hard to implement", "Requires dedicated admin"],
+      "complaints": ["Customer support is slow"]
+    }
+  ]
+}
+
+IMPORTANT:
+- Use the Google Search tool to find actual, real-world information.
+- Provide a realistic inference based on the search results.
+- The output should be strictly valid JSON.`;
+
+  const response = await genAI.models.generateContent({
+    model: TEXT_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      tools: [
+        {
+          // @ts-ignore - googleSearch is a valid tool in @google/genai for Vertex AI grounding
+          googleSearch: {},
+        },
+      ],
+    },
+  });
+
+  const responseText = response.text || "";
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch)
+    throw new Error("Failed to extract JSON from Gemini response");
+
+  const parsed = JSON.parse(jsonMatch[0]);
+  const finalMetadata: KnowledgeMetadata = {
+    ...metadata,
+    competitorContexts: parsed.competitorContexts,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await metadataRef.update({
+    competitorContexts: finalMetadata.competitorContexts,
+    updatedAt: finalMetadata.updatedAt,
+  });
+
+  return finalMetadata;
 }
 
 /**

@@ -119,8 +119,15 @@ ${difficultyRules}
 ${behaviors.map((b: string) => `- ${b}`).join("\n")}
 
 --- CONVERSATION CONTEXT ---
-You are meeting with "${displayName}" to discuss "${companyName}".
-Description: ${metadata.productCategory}. ${metadata.valueProps.join(". ")}
+You are meeting with "${displayName}" to discuss their company, "${companyName}".
+Product Description: ${metadata.productCategory}.
+Value Propositions: ${metadata.valueProps.join(". ")}
+
+CRITICAL KNOWLEDGE INSTRUCTION: 
+You DO NOT know the details of their product or value propositions yet. You are a naive but intelligent buyer. DO NOT recite their value propositions back to them. 
+Instead, use the product description and value props above strictly as a RUBRIC to evaluate the sales rep. For example:
+- If they fail to explain a value prop clearly, act confused or ask for clarification.
+- Force them to earn your understanding. Ask "How does that actually work in practice?" or "We've heard similar claims before, what makes you different?"
 
 Key Objections to Raise:
 ${objections.map((o: string, i: number) => `${i + 1}. ${o}`).join("\n")}

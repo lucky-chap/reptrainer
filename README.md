@@ -33,6 +33,14 @@ Unlike generic AI chatbots, each buyer persona is generated with deep context ab
 
 This architectural decision ensures that every roleplay session is highly relevant and provides the most realistic training environment possible.
 
+### Grounding & Context Strategy (RAG)
+
+Because Reptrainer uses AI for sales roleplay, there is a strict boundary between what the AI _knows_ (as the evaluator) and what the AI _portrays_ (as the naive buyer).
+
+1. **Seller-Side Grounding (Evaluation Rubric)**: The AI is fed your product's value propositions and technical details via RAG. However, it is explicitly instructed **not** to recite this knowledge. Instead, it uses this data as a hidden rubric to grade the sales rep. If the rep fails to articulate the value prop clearly, the AI acts confused and forces the rep to earn their understanding.
+2. **Objections Grounding (Battle Cards)**: The persona doesn't invent random reasons not to buy; it is fed the exact, real-world objections your sales team faces from your Knowledge Base.
+3. **Buyer-Side Grounding (Future / Google Search)**: To make the persona's identity more realistic, buyer-side grounding pulls real-world data about the prospect's company (e.g., via Google Search grounding tools). This allows the AI to naturally reference their actual industry vocabulary, recent company news, or real competitors they use during the discovery phase of the call.
+
 ---
 
 ## 🏗️ Monorepo Structure
