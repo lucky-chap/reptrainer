@@ -1,15 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
-import {
-  LlmAgent,
-  InvocationContext,
-  Context,
-  PluginManager,
-  createSession,
-  functionsExportedForTestingOnly,
-} from "@google/adk";
-
-const { handleFunctionCallList } = functionsExportedForTestingOnly;
 
 import { geminiLiveTools, geminiLiveToolsDict } from "./adk-tools.js";
 import { getLiveSetupConfig } from "./vertex.js";
@@ -27,13 +17,10 @@ export class GeminiLiveProxy {
   private searchCount = 0;
   private hasGreeted: boolean = false;
   private suppressInitialOutput: boolean = false;
+  private suppressAfterToolCall: boolean = false;
   private aiSpeaking: boolean = false;
   private knowledgeMetadata: KnowledgeMetadata | undefined;
   private metadataPromise: Promise<[any, any]> | null = null;
-
-  // ADK native components
-  private adkAgent: LlmAgent;
-  private adkConnection: any | undefined;
 
   /**
    * Callback fired when the first model greeting is detected in this session.
@@ -56,13 +43,6 @@ export class GeminiLiveProxy {
   ) {
     this.hasGreeted = config.hasGreeted || false;
     this.knowledgeMetadata = config.knowledgeMetadata;
-
-    // Initialize ADK Agent
-    this.adkAgent = new LlmAgent({
-      name: "GeminiLiveCoach",
-      description: "Coach agent for realplay sessions",
-      tools: geminiLiveTools,
-    });
 
     if (this.config.teamId) {
       console.log(
@@ -203,10 +183,7 @@ export class GeminiLiveProxy {
       });
 
       console.log("[GeminiLiveProxy] Connection command initiated");
-      // ADK uses GeminiLlmConnection internally for Vertex/GenAI wrapping
-      // Since it's not exported from root in 0.5.0, we use it dynamically or as any
-      // In this specific version, we can just treat the adkConnection as any if needed
-      this.adkConnection = this.session as any;
+
     } catch (err) {
       this.isConnecting = false;
       this.session = null;
@@ -223,7 +200,12 @@ export class GeminiLiveProxy {
   /**
    * Handles an incoming message from the frontend WebSocket client.
    */
-  handleClientMessage(data: string): void {
+  handleClientMessage(data: string | Buffer): void {
+    if (Buffer.isBuffer(data)) {
+      this.handleClientAudio(data);
+      return;
+    }
+
     try {
       const msg = JSON.parse(data);
 
@@ -291,6 +273,24 @@ export class GeminiLiveProxy {
   }
 
   /**
+   * Handles raw PCM audio input from the client.
+   */
+  private handleClientAudio(data: Buffer): void {
+    if (!this.session) return;
+
+    // Client activity stops initial suppression
+    this.suppressInitialOutput = false;
+
+    try {
+      this.session.sendRealtimeInput({
+        audio: { data: data.toString("base64"), mimeType: "audio/pcm;rate=16000" },
+      });
+    } catch (err) {
+      console.error("[GeminiLiveProxy] Failed to send client audio:", err);
+    }
+  }
+
+  /**
    * Handles messages from the Gemini Live session and relays them to the client.
    */
   private async handleGeminiMessage(msg: any): Promise<void> {
@@ -299,21 +299,26 @@ export class GeminiLiveProxy {
       const parts = msg.serverContent.modelTurn.parts;
       for (const part of parts) {
         if (part.inlineData?.data) {
-          if (this.suppressInitialOutput) {
+          if (this.suppressInitialOutput || this.suppressAfterToolCall) {
             continue;
           }
 
-          let dataToSend = part.inlineData.data;
-          if (typeof dataToSend !== "string") {
-            dataToSend = Buffer.from(dataToSend).toString("base64");
+          let dataToSend: string | Buffer = part.inlineData.data;
+          if (typeof dataToSend === "string") {
+            dataToSend = Buffer.from(dataToSend, "base64");
           }
 
           this.aiSpeaking = true;
-          this.send({
-            type: "audio",
-            data: dataToSend,
-            mimeType: part.inlineData.mimeType || "audio/pcm",
-          });
+          // Send as raw binary frame if it's a Buffer
+          if (Buffer.isBuffer(dataToSend)) {
+            this.ws.send(dataToSend);
+          } else {
+            this.send({
+              type: "audio",
+              data: dataToSend,
+              mimeType: part.inlineData.mimeType || "audio/pcm",
+            });
+          }
           if (!this.hasGreeted) {
             this.hasGreeted = true;
             this.onGreeted?.();
@@ -325,6 +330,13 @@ export class GeminiLiveProxy {
     // Turn complete
     if (msg.serverContent?.turnComplete) {
       this.aiSpeaking = false;
+      // If we were suppressing output after a silent tool call, just clear
+      // the flag and swallow this turn_complete so the frontend doesn't
+      // see a phantom turn.
+      if (this.suppressAfterToolCall) {
+        this.suppressAfterToolCall = false;
+        return;
+      }
       this.send({ type: "turn_complete" });
     }
 
@@ -352,7 +364,7 @@ export class GeminiLiveProxy {
       msg.serverContent?.outputTranscription ||
       msg.serverContent?.output_audio_transcription;
     if (outputTx?.text) {
-      if (!this.suppressInitialOutput) {
+      if (!this.suppressInitialOutput && !this.suppressAfterToolCall) {
         const isFinal = !!(outputTx.isFinal ?? outputTx.is_final);
         if (!this.hasGreeted) {
           this.hasGreeted = true;
@@ -375,79 +387,84 @@ export class GeminiLiveProxy {
       }
     }
 
-    // Tool calls (Native ADK flow)
+    // Tool calls — execute directly and batch responses
     if (msg.toolCall?.functionCalls) {
-      const stateDelta: any = {
-        knowledgeMetadata: this.knowledgeMetadata,
-        searchCount: this.searchCount,
-      };
-
-      const invocation = new InvocationContext({
-        invocationId: `live-${Date.now()}`,
-        agent: this.adkAgent,
-        session: createSession({
-          id: `sess-${this.config.teamId || "default"}`,
-          appName: "CoachApp",
-          userId: this.config.teamId || "default",
-          state: {},
-          events: [],
-        }),
-        pluginManager: new PluginManager(),
-      });
-
-      const toolContext = new Context({ invocationContext: invocation });
-      (toolContext.actions as any).stateDelta = stateDelta;
+      const calls = msg.toolCall.functionCalls;
 
       console.log(
-        `[GeminiLiveProxy] ADK Native Tool calls count: ${msg.toolCall.functionCalls.length}`,
+        `[GeminiLiveProxy] Tool calls received: ${calls.length}`,
       );
 
-      msg.toolCall.functionCalls.forEach((call: any) => {
+      // Relay tool calls to the frontend for UI display
+      for (const call of calls) {
+        console.log(
+          `🛠️  [Gemini Tool Call] ${call.name}(${JSON.stringify(call.args)})`,
+        );
         this.send({
           type: "tool_call",
           name: call.name,
           args: call.args,
           id: call.id,
         });
-      });
+      }
 
-      handleFunctionCallList({
-        invocationContext: invocation,
-        functionCalls: msg.toolCall.functionCalls,
-        toolsDict: geminiLiveToolsDict as any,
-        beforeToolCallbacks: [],
-        afterToolCallbacks: [],
-      })
-        .then((resp: any) => {
-          if (stateDelta.searchCount !== undefined) {
-            this.searchCount = stateDelta.searchCount;
-          }
+      // Execute all tools and collect responses
+      const functionResponses: any[] = [];
 
-          if (resp?.function_responses) {
-            const functionResponses = resp.function_responses.map(
-              (fr: any) => ({
-                id: fr.id,
-                name: fr.name,
-                response: fr.response,
-              }),
-            );
+      for (const call of calls) {
+        let result: any = { success: true };
 
-            console.log(
-              `[GeminiLiveProxy] Sending ${functionResponses.length} tool responses back to Gemini.`,
-            );
-            try {
-              this.session?.sendToolResponse({ functionResponses });
-            } catch (err) {
-              console.error(
-                `[GeminiLiveProxy] Failed to send tool responses:`,
-                err,
-              );
+        try {
+          if (call.name === "research_competitor") {
+            // research_competitor is the only tool that needs real execution
+            const toolFn = geminiLiveToolsDict[call.name];
+            if (toolFn) {
+              const context = {
+                actions: {
+                  stateDelta: {
+                    knowledgeMetadata: this.knowledgeMetadata,
+                    searchCount: this.searchCount,
+                  },
+                },
+              };
+              result = await (toolFn as any).execute({ args: call.args, context });
+              // Sync search count back
+              if (context.actions.stateDelta.searchCount !== undefined) {
+                this.searchCount = context.actions.stateDelta.searchCount;
+              }
             }
           }
-        })
-        .catch((err: any) => {
-          console.error(`[GeminiLiveProxy] ADK tool execution failed:`, err);
+          // All other tools (log_sales_insight, log_objection, update_persona_mood,
+          // end_roleplay) are "silent" logging tools — just return {success: true}
+        } catch (err) {
+          console.error(`[GeminiLiveProxy] Tool ${call.name} failed:`, err);
+          result = { error: `Tool execution failed: ${err}` };
+        }
+
+        functionResponses.push({
+          id: call.id,
+          name: call.name,
+          response: result,
         });
+      }
+
+      // Suppress the duplicate audio/transcription Gemini generates after
+      // receiving tool responses. The tool result data is still in the model's
+      // context and will be used in the next response to user input.
+      this.suppressAfterToolCall = true;
+
+      // Send ALL responses in a single batch
+      console.log(
+        `[GeminiLiveProxy] Sending ${functionResponses.length} tool responses (suppressing post-response output).`,
+      );
+      try {
+        this.session?.sendToolResponse({ functionResponses });
+      } catch (err) {
+        console.error(
+          `[GeminiLiveProxy] Failed to send tool responses:`,
+          err,
+        );
+      }
     }
 
     if (msg.toolCallCancellation) {

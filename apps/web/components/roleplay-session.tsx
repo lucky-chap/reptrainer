@@ -413,36 +413,8 @@ export function RoleplaySession({
         objections,
         moods,
         audioUrl: audioUrl || undefined,
-        debriefStatus: "pending",
       }).catch((err) =>
         console.error(`[RoleplaySession] Failed to update call session:`, err),
-      );
-
-      // --- Server-side Debrief Generation ---
-      // Fire HTTP request to server — the server handles generation in background
-      fetch(`${env.NEXT_PUBLIC_API_URL}/api/session/debrief-async`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${env.NEXT_PUBLIC_API_SECRET_KEY}`,
-        },
-        body: JSON.stringify({
-          sessionId,
-          callSessionId,
-          transcript: transcriptText,
-          personaName: persona.name,
-          personaRole: persona.role,
-          durationSeconds: duration,
-          objections,
-          moods,
-          teamId: teamId || persona.teamId,
-          userId,
-        }),
-      }).catch((err) =>
-        console.error(
-          "[RoleplaySession] Failed to trigger debrief-async:",
-          err,
-        ),
       );
 
       setLoadingProgress(100);

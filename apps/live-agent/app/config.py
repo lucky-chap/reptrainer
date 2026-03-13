@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     TEXT_MODEL: str = "gemini-2.5-flash"
 
     class Config:
-        env_file = ".env"
+        env_file = "../.env"
         env_file_encoding = "utf-8"
 
 

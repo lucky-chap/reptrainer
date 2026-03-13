@@ -25,7 +25,7 @@ export function registerLiveRoute(wss: WebSocketServer): void {
     }
 
     // Authenticate
-    const apiKey = url.searchParams.get("apiKey");
+    const apiKey = url.searchParams.get("apiKey") || url.searchParams.get("api_key");
     if (apiKey !== env.API_SECRET_KEY) {
       console.warn("[Live] Unauthorized WebSocket connection attempt");
       ws.close(4001, "Unauthorized");
@@ -34,9 +34,9 @@ export function registerLiveRoute(wss: WebSocketServer): void {
 
     // Read config from query params (optional if sending via 'setup' message)
     const systemPrompt = url.searchParams.get("systemPrompt");
-    const voiceName = url.searchParams.get("voiceName");
-    const teamId = url.searchParams.get("teamId");
-    const sessionId = url.searchParams.get("sessionId");
+    const voiceName = url.searchParams.get("voiceName") || url.searchParams.get("voice_name");
+    const teamId = url.searchParams.get("teamId") || url.searchParams.get("team_id");
+    const sessionId = url.searchParams.get("sessionId") || url.searchParams.get("session_id");
 
     console.log(
       `[Live] New WebSocket connection — voice=${voiceName || "default"}, teamId=${teamId || "unknown"}, sessionId=${sessionId || "none"}, promptLength=${systemPrompt?.length || 0}`,
@@ -77,9 +77,13 @@ export function registerLiveRoute(wss: WebSocketServer): void {
     };
 
     // Wire up client to Gemini
-    ws.on("message", (data: Buffer | string) => {
-      const message = typeof data === "string" ? data : data.toString("utf-8");
-      proxy.handleClientMessage(message);
+    ws.on("message", (data: any, isBinary: boolean) => {
+      if (isBinary) {
+        proxy.handleClientMessage(data as Buffer);
+      } else {
+        const message = data.toString("utf-8");
+        proxy.handleClientMessage(message);
+      }
     });
 
     ws.on("close", (code, reason) => {

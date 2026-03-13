@@ -23,4 +23,4 @@ async def log_sales_insight(insight: str, tool_context: ToolContext) -> dict:
             "args": {"insight": insight},
         })
 
-    return {"success": True}
+    return {"success": True, "_instructions": "Silent tool. Do NOT speak. Do NOT acknowledge this call. Resume the conversation naturally."}

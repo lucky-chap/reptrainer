@@ -52,36 +52,36 @@ Generate a competitor analysis with the following JSON structure. Return ONLY va
         contents=prompt,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
+            response_mime_type="application/json",
+            response_schema={
+                "type": "OBJECT",
+                "properties": {
+                    "name": {"type": "STRING"},
+                    "website": {"type": "STRING"},
+                    "productDescription": {"type": "STRING"},
+                    "targetCustomer": {"type": "STRING"},
+                    "pricingPositioning": {"type": "STRING"},
+                    "painPoints": {
+                        "type": "ARRAY",
+                        "items": {"type": "STRING"}
+                    },
+                    "complaints": {
+                        "type": "ARRAY",
+                        "items": {"type": "STRING"}
+                    }
+                }
+            }
         ),
     )
 
-    text = response.text or ""
-
-    # Extract JSON from response
-    match = re.search(r"\{[\s\S]*\}", text)
-    if not match:
-        logger.warning(
-            "No JSON found in competitor research response for %s",
-            competitor_name,
-        )
-        return {
-            "name": competitor_name,
-            "website": "",
-            "productDescription": f"Information about {competitor_name}",
-            "targetCustomer": "Unknown",
-            "pricingPositioning": "Unknown",
-            "painPoints": [],
-            "complaints": [],
-        }
-
     try:
-        return json.loads(match.group(0))
+        return json.loads(response.text)
     except json.JSONDecodeError:
         logger.warning("Failed to parse JSON for competitor %s", competitor_name)
         return {
             "name": competitor_name,
             "website": "",
-            "productDescription": text[:500],
+            "productDescription": str(response.text)[:500] if response.text else "",
             "targetCustomer": "Unknown",
             "pricingPositioning": "Unknown",
             "painPoints": [],

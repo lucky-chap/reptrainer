@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: reptrainer-live-agent
+Version: 0.1.0
+Summary: Python ADK live session service for Reptrainer
+Requires-Python: >=3.11
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn[standard]>=0.30
+Requires-Dist: google-adk[vertexai]>=1.20.0
+Requires-Dist: google-cloud-firestore>=2.19
+Requires-Dist: firebase-admin>=6.5
+Requires-Dist: google-genai>=1.0
+Requires-Dist: pydantic-settings>=2.0
+Requires-Dist: python-dotenv>=1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.24; extra == "dev"

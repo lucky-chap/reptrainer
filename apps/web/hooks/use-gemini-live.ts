@@ -26,25 +26,18 @@ function getWsUrl(
   sessionId?: string,
   teamId?: string,
 ): string {
-  const liveUrl = env.NEXT_PUBLIC_LIVE_AGENT_URL;
+  const wsBaseUrl = env.NEXT_PUBLIC_LIVE_AGENT_URL || "ws://localhost:8000/ws";
   const secretKey = env.NEXT_PUBLIC_API_SECRET_KEY;
 
-  if (!liveUrl) {
-    throw new Error(
-      "NEXT_PUBLIC_LIVE_AGENT_URL is not defined in environment variables",
-    );
-  }
-
-  const wsSessionId = sessionId || crypto.randomUUID();
   const params = new URLSearchParams({
-    api_key: secretKey,
-    voice_name: voiceName,
+    apiKey: secretKey,
+    voiceName: voiceName,
   });
 
-  if (teamId) params.append("team_id", teamId);
-  if (sessionId) params.append("session_id", sessionId);
+  if (teamId) params.append("teamId", teamId);
 
-  return `${liveUrl}/ws/${wsSessionId}?${params.toString()}`;
+  // The refactored bidi live-agent uses /ws/{session_id}
+  return `${wsBaseUrl}/${sessionId || "default"}?${params.toString()}`;
 }
 
 export function useGeminiLive(options: UseGeminiLiveOptions) {
@@ -91,6 +84,9 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const isPlayingRef = useRef(false);
   const hasUserInputRef = useRef(false);
   const suppressAdditionalModelBeforeUserRef = useRef(false);
+  // Tracks whether we actually sent activity_start to Gemini so we only send
+  // activity_end when there is a matching start (prevents orphan end signals).
+  const vadActivitySentRef = useRef(false);
 
   // --- Reconnection State ---
   const reconnectAttemptsRef = useRef(0);
@@ -99,6 +95,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const maxReconnectAttempts = 5;
   const baseReconnectDelay = 1000;
   const isIntentionalDisconnectRef = useRef(false);
+  const connectRef = useRef<((isReconnect?: boolean) => Promise<void>) | undefined>(undefined);
 
   // --- Helper: Transcript Management ---
   const addTranscriptEntry = useCallback(
@@ -359,6 +356,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         setIsReconnecting(true);
         setConnectionError(null);
         hasUserInputRef.current = false;
+        vadActivitySentRef.current = false;
         suppressAdditionalModelBeforeUserRef.current = transcript.some(
           (t) => t.role === "model",
         );
@@ -374,6 +372,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         startTimeRef.current = Date.now();
         reconnectAttemptsRef.current = 0;
         hasUserInputRef.current = false;
+        vadActivitySentRef.current = false;
         suppressAdditionalModelBeforeUserRef.current = false;
       }
 
@@ -445,8 +444,23 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             !isConnectedRef.current
           )
             return;
-          // Send VAD event as JSON
-          wsRef.current.send(JSON.stringify(e.data));
+
+          const vadEvent = e.data?.event;
+
+          if (vadEvent === "activity_start") {
+            // Suppress while AI is playing to prevent speaker echo from being
+            // mis-detected as user speech and interrupting the AI.
+            if (isPlayingRef.current) return;
+            vadActivitySentRef.current = true;
+            wsRef.current.send(JSON.stringify(e.data));
+          } else if (vadEvent === "activity_end") {
+            // Only send activity_end if we previously sent activity_start.
+            // Orphan activity_end signals (e.g. from echo after suppression)
+            // can confuse Gemini into thinking the user said something empty.
+            if (!vadActivitySentRef.current) return;
+            vadActivitySentRef.current = false;
+            wsRef.current.send(JSON.stringify(e.data));
+          }
         };
 
         // ── Setup Audio: Playback (24kHz) ────────────────────────────────
@@ -556,7 +570,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
 
             reconnectTimeoutRef.current = setTimeout(() => {
               reconnectAttemptsRef.current = attempt;
-              connect(true).catch((err) => {
+              connectRef.current?.(true).catch((err) => {
                 console.error("[GeminiLive] Reconnection failed:", err);
                 setConnectionError("Failed to reconnect to server");
                 setIsReconnecting(false);
@@ -591,8 +605,13 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         );
       }
     },
-    [handleServerMessage, cleanupAudioResources],
+    [handleServerMessage, cleanupAudioResources, transcript],
   );
+
+  // Keep connectRef in sync so ws.onclose can call the latest connect
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     isIntentionalDisconnectRef.current = true;

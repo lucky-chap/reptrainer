@@ -1,23 +1,24 @@
-import { GoogleGenAI, type LiveConnectConfig } from "@google/genai";
-import { FEMALE_VOICES, MALE_VOICES } from "@reptrainer/shared";
-import { env } from "../config/env.js";
+import { GoogleGenAI } from "@google/genai";
 import {
-  type GeneratePersonaRequest,
-  type GeneratePersonaResponse,
+  type CompetitorContext,
   type EvaluateSessionRequest,
   type EvaluateSessionResponse,
-  GEMINI_TEXT_MODEL,
+  FEMALE_VOICES,
   GEMINI_EVALUATION_MODEL,
-  GEMINI_LIVE_MODEL,
   GEMINI_IMAGE_MODEL,
+  GEMINI_LIVE_MODEL,
+  GEMINI_TEXT_MODEL,
+  type GeneratePersonaRequest,
+  type GeneratePersonaResponse,
+  MALE_VOICES,
   PROSPECT_PERSONALITY_TEMPLATES,
   type ProspectPersonalityTemplate,
-  type CompetitorContext,
 } from "@reptrainer/shared";
-import { uploadAvatar } from "./storage.js";
+import { env } from "../config/env.js";
 import { geminiLiveTools } from "./adk-tools.js";
 import { getKnowledgeMetadata } from "./knowledge.js";
 import { ragService } from "./rag.js";
+import { uploadAvatar } from "./storage.js";
 
 // Initialize Vertex AI using GoogleGenAI SDK
 const genAI = new GoogleGenAI({
@@ -472,8 +473,8 @@ ANTI-REPETITION RULES (STRICT):
       realtime_input_config: {
         automatic_activity_detection: {
           prefix_padding_ms: 200,
-          silence_duration_ms: 400,
-          start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
+          silence_duration_ms: 500,
+          start_of_speech_sensitivity: "START_SENSITIVITY_UNSPECIFIED",
           end_of_speech_sensitivity: "END_SENSITIVITY_HIGH",
         },
       },

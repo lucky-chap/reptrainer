@@ -9,47 +9,39 @@ persona configurations.
 import logging
 import os
 
-from google.adk.agents import LlmAgent
+from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
 from config import settings
 from tools import (
-    log_sales_insight,
-    log_objection,
-    update_persona_mood,
     end_roleplay,
     research_competitor,
+    log_objection,
+    log_sales_insight,
+    update_persona_mood,
 )
 
 logger = logging.getLogger(__name__)
 
 # ── Session Service ──────────────────────────────────────────────────────────
-# Use InMemorySessionService for now (single-process uvicorn).
-# For production multi-process, switch to VertexAiSessionService:
-#   from google.adk.sessions import VertexAiSessionService
-#   session_service = VertexAiSessionService(
-#       project=settings.GOOGLE_CLOUD_PROJECT,
-#       location=settings.GOOGLE_CLOUD_LOCATION,
-#   )
 session_service = InMemorySessionService()
 
 # ── Configure Vertex AI via environment ──────────────────────────────────────
-# ADK reads these environment variables automatically:
 os.environ.setdefault("GOOGLE_CLOUD_PROJECT", settings.GOOGLE_CLOUD_PROJECT)
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", settings.GOOGLE_CLOUD_LOCATION)
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
 
 # ── Agent ────────────────────────────────────────────────────────────────────
-agent = LlmAgent(
+agent = Agent(
     name="persona_agent",
     model=settings.LIVE_MODEL,
     tools=[
         research_competitor,
-        log_sales_insight,
-        log_objection,
-        update_persona_mood,
         end_roleplay,
+        log_objection,
+        log_sales_insight,
+        update_persona_mood,
     ],
     # Per-session instruction: reads from session state so each connection
     # gets its own persona system prompt without rebuilding the agent.

@@ -1,6 +1,6 @@
 import { FunctionTool } from "@google/adk";
-import { researchCompetitor } from "./vertex.js";
 import { type KnowledgeMetadata } from "@reptrainer/shared";
+import { researchCompetitor } from "./vertex.js";
 
 /**
  * ADK Implementation of the research_competitor tool.

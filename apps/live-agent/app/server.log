@@ -1,0 +1,10 @@
+INFO:     Started server process [96422]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:42518 - "WebSocket /ws/8ec4cf1c-047f-4673-98f7-b2f7ea1e1fab?apiKey=reptrainer-secret-123&voiceName=Leda&teamId=3bb93849-2948-4c60-b49b-a76692d674b6" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     connection closed
+INFO:     127.0.0.1:58840 - "WebSocket /ws/8ec4cf1c-047f-4673-98f7-b2f7ea1e1fab?apiKey=reptrainer-secret-123&voiceName=Leda&teamId=3bb93849-2948-4c60-b49b-a76692d674b6" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     connection closed
