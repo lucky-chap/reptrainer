@@ -22,19 +22,15 @@ import { PersonaCallCard } from "./roleplay/ui/persona-call-card";
 import { v4 as uuidv4 } from "uuid";
 import { useGeminiLive } from "@/hooks/use-gemini-live";
 import { useCallTimer } from "@/hooks/use-call-timer";
-import type { Persona, Session, KnowledgeMetadata } from "@/lib/db";
-import { CoachDebriefResponse } from "@reptrainer/shared";
+import type { Persona, KnowledgeMetadata } from "@/lib/db";
 import {
-  saveSession,
   uploadSessionAudio,
   updateCallSession,
   createCallSession,
 } from "@/lib/db";
-import {
-  evaluateSession as evaluateSessionAction,
-  generateCoachDebrief,
-} from "@/app/actions/api";
+import { evaluateSession as evaluateSessionAction } from "@/app/actions/api";
 import { useAuth } from "@/context/auth-context";
+import { env } from "@/config/env";
 import { updateUserMetrics } from "@/lib/progress-service";
 import {
   CALL_DURATION_DEFAULT,
@@ -88,6 +84,7 @@ export function RoleplaySession({
     user?.displayName || "",
   );
   const [nameSubmitted, setNameSubmitted] = useState(!!user);
+  const [isCallFinished, setIsCallFinished] = useState(false);
 
   // ─── Timed Call State ─────────────────────────────────────────────────
   const [durationSelected, setDurationSelected] = useState(false);
@@ -173,6 +170,7 @@ export function RoleplaySession({
   const {
     isConnected,
     isConnecting,
+    isReconnecting,
     transcript,
     insights,
     objections,
@@ -192,6 +190,8 @@ export function RoleplaySession({
   } = useGeminiLive({
     systemPrompt,
     voiceName,
+    teamId: teamId || persona.teamId,
+    sessionId: callSessionId,
     onTranscriptUpdate: handleTranscriptUpdate,
     onError: handleError,
     onPersonaLeft: handlePersonaLeft,
@@ -334,7 +334,9 @@ export function RoleplaySession({
   const handleEndCall = async () => {
     let userId: string = "";
     let sessionId: string = "";
-    const duration = getDuration();
+    // Use the elapsed time from useCallTimer for better accuracy than getDuration()
+    const duration = elapsed;
+    setIsCallFinished(true); // Persistently lock the UI
 
     // Stop recording FIRST — this awaits the MediaRecorder flush
     const audioBlob = (await stopRecording()) || undefined;
@@ -375,102 +377,96 @@ export function RoleplaySession({
       setLoadingStage("evaluating");
       setLoadingProgress(30);
 
-      // Generate both legacy evaluation and enhanced feedback report in parallel
-      const [evaluation, feedback] = await Promise.allSettled([
-        evaluateSessionAction({
-          transcript: transcriptText,
-          personaName: persona.name,
-          personaRole: persona.role,
-          intensityLevel: persona.intensityLevel,
-          durationSeconds: duration,
-          trackId,
-          scenarioId,
-        }),
-        generateCoachDebrief({
+      // Generate legacy evaluation (fast)
+      const evaluation = await evaluateSessionAction({
+        transcript: transcriptText,
+        personaName: persona.name,
+        personaRole: persona.role,
+        intensityLevel: persona.intensityLevel,
+        durationSeconds: duration,
+        trackId,
+        scenarioId,
+      }).catch((err) => {
+        console.error("Legacy evaluation failed:", err);
+        return null;
+      });
+
+      setLoadingProgress(80);
+      setLoadingStage("saving");
+
+      setLoadingProgress(95);
+      setLoadingStage("finalizing");
+
+      // Persist end-of-call state to callSessions (single source of truth)
+      console.log(
+        `[RoleplaySession] Updating call session ${callSessionId} (end-of-call state)`,
+      );
+      await updateCallSession(callSessionId, {
+        callEndTime: new Date().toISOString(),
+        callStatus: "ended",
+        legacyEvaluation: evaluation,
+        durationSeconds: duration,
+        insights: insights.map((i) => ({
+          insight: i.insight,
+          timestamp: i.timestamp,
+        })),
+        objections,
+        moods,
+        audioUrl: audioUrl || undefined,
+        debriefStatus: "pending",
+      }).catch((err) =>
+        console.error(`[RoleplaySession] Failed to update call session:`, err),
+      );
+
+      // --- Server-side Debrief Generation ---
+      // Fire HTTP request to server — the server handles generation in background
+      fetch(`${env.NEXT_PUBLIC_API_URL}/api/session/debrief-async`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env.NEXT_PUBLIC_API_SECRET_KEY}`,
+        },
+        body: JSON.stringify({
+          sessionId,
+          callSessionId,
           transcript: transcriptText,
           personaName: persona.name,
           personaRole: persona.role,
           durationSeconds: duration,
           objections,
           moods,
+          teamId: teamId || persona.teamId,
+          userId,
         }),
-      ]);
-
-      setLoadingProgress(80);
-      setLoadingStage("saving");
-
-      const evalResult =
-        evaluation.status === "fulfilled" ? evaluation.value : null;
-      const feedbackResult =
-        feedback.status === "fulfilled"
-          ? (feedback.value as CoachDebriefResponse)
-          : null;
-
-      if (feedback.status === "rejected") {
-        console.error("Feedback generation failed:", feedback.reason);
-      }
-
-      // Save legacy session
-      const session: Session = {
-        id: sessionId,
-        userId: userId,
-        personaId: persona.id,
-        userName: displayName,
-        personaName: persona.name,
-        personaRole: persona.role,
-        personaAvatarUrl: persona.avatarUrl,
-        transcript: transcriptText,
-        durationSeconds: duration,
-        evaluation: evalResult,
-        insights: insights,
-        objections: objections,
-        moods: moods,
-        debrief: feedbackResult,
-        teamId: teamId || persona.teamId,
-        createdAt: new Date().toISOString(),
-        audioUrl: audioUrl || undefined,
-      };
-
-      await saveSession(session);
-
-      setLoadingProgress(95);
-      setLoadingStage("finalizing");
-
-      // Update call session in Firestore
-      console.log(
-        `[RoleplaySession] Updating call session ${callSessionId} at end of call`,
+      }).catch((err) =>
+        console.error(
+          "[RoleplaySession] Failed to trigger debrief-async:",
+          err,
+        ),
       );
-      await updateCallSession(callSessionId, {
-        callEndTime: new Date().toISOString(),
-        callStatus: "ended",
-        debrief: feedbackResult,
-        legacyEvaluation: evalResult,
-        insights: insights.map((i) => ({
-          insight: i.insight,
-          timestamp: i.timestamp,
-        })),
-      })
-        .then(() =>
-          console.log(
-            `[RoleplaySession] Successfully updated call session ${callSessionId}`,
-          ),
-        )
-        .catch((err) =>
-          console.error(
-            `[RoleplaySession] Failed to update call session ${callSessionId}:`,
-            err,
-          ),
-        );
 
       setLoadingProgress(100);
       // ─── Update User Metrics ──────────────────────────────────────────
       if (user) {
-        // Construct a CallSession-like object for metrics update
         const callSessionData = {
-          ...session,
+          id: callSessionId,
+          userId,
+          teamId: teamId || persona.teamId || "unknown",
+          personaId: persona.id,
+          userName: displayName,
+          personaName: persona.name,
+          personaRole: persona.role,
+          durationSeconds: duration,
+          callDurationMinutes: callDurationMinutes,
+          callStatus: "ended",
           transcriptMessages: transcript,
-          feedbackReport: feedbackResult,
-          legacyEvaluation: evalResult,
+          feedbackReport: null,
+          legacyEvaluation: evaluation,
+          insights: insights.map((i) => ({
+            insight: i.insight,
+            timestamp: i.timestamp,
+          })),
+          createdAt: new Date().toISOString(),
         } as unknown as CallSession;
         updateUserMetrics(user.uid, callSessionData).catch((err) =>
           console.error("Failed to update user metrics:", err),
@@ -481,26 +477,26 @@ export function RoleplaySession({
       return;
     } catch (error) {
       console.error("Evaluation error:", error);
-      userId = user?.uid || "anonymous";
-      sessionId = callSessionId; // Use the same ID for legacy session
+      sessionId = callSessionId;
 
-      const session: Session = {
-        id: sessionId,
-        userId: userId,
-        personaId: persona.id,
-        userName: displayName,
-        personaName: persona.name,
-        personaRole: persona.role,
-        personaAvatarUrl: persona.avatarUrl,
-        transcript: transcriptText,
+      // Save what we have to callSessions even on error
+      await updateCallSession(callSessionId, {
+        callEndTime: new Date().toISOString(),
+        callStatus: "ended",
         durationSeconds: duration,
-        evaluation: null,
-        insights: insights,
-        teamId: teamId || persona.teamId,
-        createdAt: new Date().toISOString(),
-      };
-      await saveSession(session);
-      router.push(`/session/${sessionId}`);
+        insights: insights.map((i) => ({
+          insight: i.insight,
+          timestamp: i.timestamp,
+        })),
+        objections,
+        moods,
+      }).catch((err) =>
+        console.error(
+          "[RoleplaySession] Failed to update call session on error:",
+          err,
+        ),
+      );
+      router.push(`/dashboard/history/${sessionId}`);
       return;
     } finally {
       setEvaluating(false);
@@ -510,8 +506,8 @@ export function RoleplaySession({
   // Keep ref updated for timer callback
   handleEndCallRef.current = handleEndCall;
 
-  // Show evaluating screen
-  if (evaluating) {
+  // Show evaluating screen or persistent finished state
+  if (evaluating || isCallFinished) {
     return (
       <EvaluatingStage
         loadingStage={loadingStage}
@@ -667,6 +663,7 @@ export function RoleplaySession({
             <CallControls
               isConnected={isConnected}
               isConnecting={isConnecting}
+              isReconnecting={isReconnecting}
               isMuted={isMuted}
               personaLeft={personaLeft}
               inputLocked={inputLocked}

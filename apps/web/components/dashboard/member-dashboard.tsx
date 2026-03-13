@@ -35,6 +35,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   getOverallScore,
   calculateSessionMetrics,
+  isSessionCompleted,
 } from "@/lib/analytics-utils";
 import {
   ResponsiveContainer,
@@ -63,14 +64,16 @@ export function MemberDashboard({
 }: MemberDashboardProps) {
   // Defensive filtering: ensure we only show the user's own sessions
   const sessions = useMemo(() => {
-    return allSessions.filter((s) => s.userId === user?.uid);
+    return allSessions.filter(
+      (s) => s.userId === user?.uid && isSessionCompleted(s as any),
+    );
   }, [allSessions, user?.uid]);
   const { activeMembership } = useTeam();
 
   // Compute stats
   const totalSessions = sessions.length;
   const totalDuration = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
-  const evaluatedSessions = sessions.filter((s) => s.evaluation);
+  const evaluatedSessions = sessions;
 
   const {
     avgScore,

@@ -8,8 +8,9 @@ import {
   subscribeSessions,
   subscribePersonas,
   subscribeKnowledgeMetadata,
+  subscribeCallSessionDoc,
 } from "@/lib/db";
-import type { Session, Persona, KnowledgeMetadata } from "@/lib/db";
+import type { Session, Persona, KnowledgeMetadata, CallSession } from "@/lib/db";
 import { SessionResults } from "@/components/session-results";
 
 interface SessionDetailPageProps {
@@ -74,10 +75,24 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
       handleError,
     );
 
+    // Watch callSessions doc for server-side debrief updates
+    const unsubCallSession = subscribeCallSessionDoc(
+      id,
+      (callSession) => {
+        if (callSession?.debriefStatus === "ready" && callSession.debrief) {
+          setSession((prev) =>
+            prev ? { ...prev, debrief: callSession.debrief } : prev,
+          );
+        }
+      },
+      handleError,
+    );
+
     return () => {
       unsubSessions();
       unsubPersonas();
       unsubKnowledge();
+      unsubCallSession();
     };
   }, [user, id, teamIds, session?.personaId, session?.teamId]);
 

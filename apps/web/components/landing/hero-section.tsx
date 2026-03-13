@@ -46,9 +46,9 @@ export function HeroSection() {
       {/* Subtitle */}
       <div className="reveal reveal-delay-2 mx-auto mb-10 max-w-2xl text-center">
         <p className="text-warm-gray text-base leading-relaxed md:text-lg">
-          Reptrainer simulates real buyer objections, coaches your responses in
-          real-time, and helps your team close with confidence. Powered by
-          Gemini AI.
+          Reptrainer simulates real buyer objections using Gemini Live, grounds
+          evaluations in your actual product knowledge, and helps teams close
+          with confidence.
         </p>
       </div>
 
@@ -134,17 +134,17 @@ export function HeroSection() {
                 { icon: Mic, label: "Voice Roleplay", color: "text-blue-glow" },
                 {
                   icon: Brain,
-                  label: "Objection Handling",
+                  label: "Knowledge Base RAG",
                   color: "text-violet-glow",
                 },
                 {
                   icon: Target,
-                  label: "Closing Technique",
+                  label: "Data-Driven Scoring",
                   color: "text-emerald-glow",
                 },
                 {
                   icon: TrendingUp,
-                  label: "Performance",
+                  label: "Multimodal Debriefs",
                   color: "text-amber-glow",
                 },
               ].map(({ icon: Icon, label, color }) => (

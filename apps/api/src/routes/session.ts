@@ -15,6 +15,7 @@ import {
 import { generateFeedbackReport } from "../services/feedback.js";
 import { synthesizeSpeech } from "../services/tts.js";
 import { uploadFile } from "../services/storage.js";
+import { db } from "../config/firebase.js";
 import { v4 as uuidv4 } from "uuid";
 
 export const sessionRoutes: Router = Router();
@@ -27,6 +28,7 @@ const evaluateSessionSchema = z.object({
   durationSeconds: z.number().min(0),
   trackId: z.string().optional(),
   scenarioId: z.string().optional(),
+  teamId: z.string().optional(),
 });
 
 const feedbackSchema = z.object({
@@ -37,6 +39,7 @@ const feedbackSchema = z.object({
   durationSeconds: z.number().min(0),
   trackId: z.string().optional(),
   scenarioId: z.string().optional(),
+  teamId: z.string().optional(),
 });
 
 const debriefSchema = z.object({
@@ -46,6 +49,7 @@ const debriefSchema = z.object({
   durationSeconds: z.number().min(0),
   objections: z.array(z.any()).optional(),
   moods: z.array(z.any()).optional(),
+  teamId: z.string().optional(),
 });
 
 /**
@@ -74,6 +78,7 @@ sessionRoutes.post(
           personaRole,
           req.body.objections,
           req.body.moods,
+          req.body.teamId,
         );
         console.log(
           `[debrief] Successfully generated ${slides.length} slides for ${personaName}`,
@@ -199,5 +204,185 @@ sessionRoutes.post(
       console.error("[feedback] Error generating feedback report:", error);
       next(error);
     }
+  },
+);
+
+// ─── Async Debrief (server-side background job) ─────────────────────────────
+
+const debriefAsyncSchema = z.object({
+  sessionId: z.string().min(1),
+  callSessionId: z.string().min(1),
+  transcript: z.string().min(1),
+  personaName: z.string().min(1),
+  personaRole: z.string().min(1),
+  durationSeconds: z.number().min(0),
+  objections: z.array(z.any()).optional(),
+  moods: z.array(z.any()).optional(),
+  teamId: z.string().optional(),
+  userId: z.string().min(1),
+});
+
+/**
+ * Runs debrief generation in the background and writes results to Firestore.
+ * Called from the /debrief-async endpoint after responding 202.
+ */
+async function generateDebriefBackground(
+  sessionId: string,
+  callSessionId: string,
+  data: {
+    transcript: string;
+    personaName: string;
+    personaRole: string;
+    durationSeconds: number;
+    objections?: any[];
+    moods?: any[];
+    teamId?: string;
+  },
+) {
+  const debriefId = uuidv4();
+
+  try {
+    console.log(
+      `[debrief-async] Starting background debrief for session ${sessionId}`,
+    );
+
+    // 1. Generate slides
+    const slides = await generateCoachDebrief(
+      data.transcript,
+      data.personaName,
+      data.personaRole,
+      data.objections,
+      data.moods,
+      data.teamId,
+    );
+
+    // 2. Process each slide: TTS audio + Imagen visual
+    const audioUrls: string[] = [];
+    const visualUrls: string[] = [];
+
+    for (let i = 0; i < slides.length; i++) {
+      const slide = slides[i];
+      const slideIndex = i + 1;
+
+      // Audio (TTS)
+      try {
+        const audioBase64 = await synthesizeSpeech(slide.narration);
+        if (audioBase64) {
+          const buffer = Buffer.from(audioBase64, "base64");
+          const dest = `debriefs/${debriefId}/audio-slide-${slideIndex}.mp3`;
+          const url = await uploadFile(buffer, dest, "audio/mpeg");
+          audioUrls.push(url);
+        } else {
+          audioUrls.push("");
+        }
+      } catch (err) {
+        console.error(
+          `[debrief-async] Audio failed for slide ${slideIndex}:`,
+          err,
+        );
+        audioUrls.push("");
+      }
+
+      // Visual (Imagen)
+      try {
+        let visualBase64 = await generateSlideInfographic(slide.visual);
+        if (visualBase64) {
+          if (visualBase64.startsWith("data:")) {
+            visualBase64 = visualBase64.split(",")[1];
+          }
+          const buffer = Buffer.from(visualBase64, "base64");
+          const dest = `debriefs/${debriefId}/visual-slide-${slideIndex}.jpg`;
+          const url = await uploadFile(buffer, dest, "image/jpeg");
+          visualUrls.push(url);
+          slide.visualUrl = url;
+        } else {
+          visualUrls.push("");
+        }
+      } catch (err) {
+        console.error(
+          `[debrief-async] Visual failed for slide ${slideIndex}:`,
+          err,
+        );
+        visualUrls.push("");
+      }
+
+      delete (slide as any).visualBase64;
+      delete (slide as any).audioBase64;
+    }
+
+    const debrief = { slides, audioUrls, visualUrls };
+
+    // 3. Write results to Firestore
+    await Promise.all([
+      db
+        .doc(`callSessions/${callSessionId}`)
+        .update({ debrief, debriefStatus: "ready" }),
+      db
+        .doc(`sessions/${sessionId}`)
+        .update({ debrief, debriefStatus: "ready" })
+        .catch(() => {
+          // sessions doc may not exist after consolidation — ignore
+        }),
+    ]);
+
+    console.log(
+      `[debrief-async] Background debrief complete for session ${sessionId}`,
+    );
+  } catch (err: any) {
+    console.error(
+      `[debrief-async] Background debrief FAILED for session ${sessionId}:`,
+      err,
+    );
+
+    // Mark as failed in Firestore
+    await Promise.all([
+      db
+        .doc(`callSessions/${callSessionId}`)
+        .update({ debriefStatus: "failed" })
+        .catch(() => {}),
+      db
+        .doc(`sessions/${sessionId}`)
+        .update({ debriefStatus: "failed" })
+        .catch(() => {}),
+    ]);
+  }
+}
+
+/**
+ * POST /api/session/debrief-async
+ * Queues a debrief generation job on the server and responds 202 immediately.
+ * The client uses a Firestore listener to detect when debriefStatus becomes "ready".
+ */
+sessionRoutes.post(
+  "/debrief-async",
+  requireApiSecret,
+  validateBody(debriefAsyncSchema),
+  async (req: Request, res: Response) => {
+    const { sessionId, callSessionId, ...debriefData } = req.body;
+
+    try {
+      // Mark as generating in Firestore
+      await db
+        .doc(`callSessions/${callSessionId}`)
+        .update({ debriefStatus: "generating" });
+
+      // Also update sessions doc (may not exist after migration)
+      await db
+        .doc(`sessions/${sessionId}`)
+        .update({ debriefStatus: "generating" })
+        .catch(() => {});
+    } catch (err) {
+      console.error("[debrief-async] Failed to set generating status:", err);
+    }
+
+    // Respond immediately
+    res.status(202).json({ status: "queued", sessionId, callSessionId });
+
+    // Fire background job (no await — detached)
+    generateDebriefBackground(sessionId, callSessionId, debriefData).catch(
+      (err) => {
+        console.error("[debrief-async] Unhandled background error:", err);
+      },
+    );
   },
 );

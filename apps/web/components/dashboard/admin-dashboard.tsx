@@ -38,6 +38,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   getOverallScore,
   calculateSessionMetrics,
+  isSessionCompleted,
 } from "@/lib/analytics-utils";
 import {
   ResponsiveContainer,
@@ -65,12 +66,12 @@ export function AdminDashboard({
 
   // Filter sessions (none for now, but keeping useMemo for structure)
   const sessions = useMemo(() => {
-    return allSessions;
+    return allSessions.filter((s) => isSessionCompleted(s as any));
   }, [allSessions]);
   // Compute stats
   const totalSessions = sessions.length;
   const totalDuration = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
-  const evaluatedSessions = sessions.filter((s) => s.evaluation);
+  const evaluatedSessions = sessions;
 
   const {
     avgScore,

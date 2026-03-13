@@ -6,7 +6,10 @@ import {
   type Session,
 } from "./db";
 import { type UserMetrics, type CallSession } from "@reptrainer/shared";
-import { calculateSessionMetrics } from "./analytics/standardizer";
+import {
+  calculateSessionMetrics,
+  isSessionCompleted,
+} from "./analytics/standardizer";
 import { type SessionEvaluation } from "./db/core";
 
 type ExtendedSession = (CallSession | Session) & {
@@ -45,10 +48,7 @@ export async function recalculateUserMetrics(
   });
 
   const allSessions = Array.from(sessionMap.values())
-    .filter((s) => {
-      const ext = s as ExtendedSession;
-      return ext.evaluation || ext.feedbackReport || ext.legacyEvaluation;
-    })
+    .filter((s) => isSessionCompleted(s))
     .sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
@@ -232,9 +232,9 @@ export async function updateUserMetrics(
   const currentMetrics =
     (await getUserMetrics(userId, session.teamId)) ||
     createInitialMetrics(userId, session.teamId);
-  const evaluation = session.feedbackReport || session.legacyEvaluation;
+  if (!isSessionCompleted(session)) return currentMetrics;
 
-  if (!evaluation) return currentMetrics;
+  const evaluation = session.feedbackReport || session.legacyEvaluation;
 
   const scores = extractScores(
     evaluation as

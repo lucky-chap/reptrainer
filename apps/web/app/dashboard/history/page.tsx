@@ -18,11 +18,9 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { Session, Persona } from "@/lib/db";
 import {
-  deleteSession,
   deleteCallSession,
   subscribeSessions,
   subscribePersonas,
-  saveSession,
   updateCallSession,
   getUserTeams,
   getTeamMembers,
@@ -131,7 +129,7 @@ export default function HistoryPage() {
     if (!window.confirm("Are you sure you want to delete this session?"))
       return;
 
-    await Promise.all([deleteSession(id), deleteCallSession(id)]);
+    await deleteCallSession(id);
 
     if (userId && teamId) {
       await recalculateUserMetrics(userId, teamId);
@@ -144,15 +142,10 @@ export default function HistoryPage() {
       // But usually 'sessions' collection is the source of truth for history
       const { db, updateDoc } = await import("@/lib/db");
       const { doc } = await import("firebase/firestore");
-      const sessionRef = doc(db, "sessions", sessionId);
-      await updateDoc(sessionRef, {
-        teamId: teamId,
-      });
-      // Also update callSessions for consistency
       const callSessionRef = doc(db, "callSessions", sessionId);
       await updateDoc(callSessionRef, {
         teamId: teamId,
-      }).catch(() => {}); // ignore if doesn't exist
+      });
     } catch (err) {
       console.error("Error sharing session with team:", err);
     }
@@ -175,10 +168,7 @@ export default function HistoryPage() {
         durationSeconds: session.durationSeconds,
       });
 
-      await Promise.all([
-        saveSession({ ...session, debrief }),
-        updateCallSession(session.id, { debrief }).catch(() => {}),
-      ]);
+      await updateCallSession(session.id, { debrief });
     } catch (error) {
       console.error("Failed to generate debrief from history:", error);
     } finally {

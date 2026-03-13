@@ -316,10 +316,7 @@ function TrainPageContent() {
                 <div className="flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
                   <div className="text-warm-gray text-xs font-medium">
                     {knowledgeMetadata ? (
-                      <span className="flex items-center gap-2">
-                        <span className="size-2 rounded-full bg-emerald-500 text-center" />
-                        Using {knowledgeMetadata.productCategory} Knowledge
-                      </span>
+                      <></>
                     ) : (
                       <span className="flex items-center gap-2 text-rose-500">
                         <span className="size-2 rounded-full bg-rose-500" />

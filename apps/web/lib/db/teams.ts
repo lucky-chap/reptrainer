@@ -111,7 +111,7 @@ export function subscribeSessions(
   onError: (err: Error) => void,
 ) {
   const userQ = query(
-    collection(db, "sessions"),
+    collection(db, "callSessions"),
     where("userId", "==", userId),
     orderBy("createdAt", "desc"),
   );
@@ -144,7 +144,7 @@ export function subscribeSessions(
   let unsubTeam = () => {};
   if (Array.isArray(teamIds) && teamIds.length > 0) {
     const teamQ = query(
-      collection(db, "sessions"),
+      collection(db, "callSessions"),
       where("teamId", "in", teamIds),
       orderBy("createdAt", "desc"),
     );
@@ -177,7 +177,7 @@ export function subscribeSessionsByUserIds(
   // Firestore "in" query limit is 30 in some versions, 10 in others.
   // We'll chunk if needed, but for most teams 30 is enough.
   const q = query(
-    collection(db, "sessions"),
+    collection(db, "callSessions"),
     where("userId", "in", userIds.slice(0, 30)),
     orderBy("createdAt", "desc"),
   );

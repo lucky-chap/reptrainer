@@ -33,13 +33,21 @@ Unlike generic AI chatbots, each buyer persona is generated with deep context ab
 
 This architectural decision ensures that every roleplay session is highly relevant and provides the most realistic training environment possible.
 
-### Grounding & Context Strategy (RAG)
+### Grounding & Context Strategy (Hybrid Knowledge + Dynamic Market Search)
 
-Because Reptrainer uses AI for sales roleplay, there is a strict boundary between what the AI _knows_ (as the evaluator) and what the AI _portrays_ (as the naive buyer).
+Reptrainer uses a sophisticated "Knowledge-First" approach to grounding, balancing the depth of a local knowledge base with targeted, behavior-driven web search.
 
-1. **Seller-Side Grounding (Evaluation Rubric)**: The AI is fed your product's value propositions and technical details via RAG. However, it is explicitly instructed **not** to recite this knowledge. Instead, it uses this data as a hidden rubric to grade the sales rep. If the rep fails to articulate the value prop clearly, the AI acts confused and forces the rep to earn their understanding.
-2. **Objections Grounding (Battle Cards)**: The persona doesn't invent random reasons not to buy; it is fed the exact, real-world objections your sales team faces from your Knowledge Base.
-3. **Buyer-Side Grounding (Future / Google Search)**: To make the persona's identity more realistic, buyer-side grounding pulls real-world data about the prospect's company (e.g., via Google Search grounding tools). This allows the AI to naturally reference their actual industry vocabulary, recent company news, or real competitors they use during the discovery phase of the call.
+1. **RAG Knowledge Base (Consulted First)**: The AI persona always starts with your team's internal data. This includes company product info, competitor battle cards, market claims, and differentiators. This ensures zero-latency, high-accuracy responses for known context.
+2. **Dynamic Market Search (Behavioral Fallback)**: The AI triggers a live Google Search tool _only_ when information is missing or needs real-world verification. To maintain realism, the AI behaves like a serious buyer doing research, limited to **3-4 searches per session**.
+   - **Common Search Triggers**:
+     - **Verifying Competitor Claims**: Validating comparisons the rep makes to rivals on-the-fly.
+     - **Challenging Differentiation**: Checking if "unique" features exist elsewhere in the market.
+     - **Checking Pricing & ROI**: Verifying cost savings or pricing models against public data.
+     - **Investigating New Rivals**: Researching competitors mentioned during the call that aren't in the RAG corpus.
+     - **Validating Integrations**: Checking CRM, Slack, or Salesforce compatibility claims.
+     - **Researching Announcements**: Finding recent AI features or product launches from competitors.
+     - **Evaluating Reputation**: Checking reviews or analyst mentions to challenge the rep's claims.
+3. **Realism & Stability**: This hybrid model ensures that every roleplay session is anchored in your team's specific strategy while remaining dynamically aware of the living market.
 
 ---
 
@@ -49,7 +57,8 @@ Because Reptrainer uses AI for sales roleplay, there is a strict boundary betwee
 reptrainer/
 ├── apps/
 │   ├── web/          → Next.js frontend (TypeScript, Tailwind, shadcn/ui)
-│   └── api/          → Express backend (TypeScript, Vertex AI, Gemini)
+│   ├── api/          → Express backend proxy (TypeScript, Express, WebSocket)
+│   └── live-agent/   → Python AI service (ADK, FastAPI, Vertex AI)
 ├── packages/
 │   ├── shared/       → Shared types, constants, and utilities
 │   └── tsconfig/     → Centralized TypeScript configurations
@@ -168,8 +177,22 @@ GEMINI_API_KEY=your_gemini_api_key_here
 # Google Cloud
 GOOGLE_CLOUD_PROJECT=your_project_id
 GOOGLE_CLOUD_LOCATION=europe-west1 # Note: Currently, RAG requires the `europe-west1` region to function correctly due to capacity limits.
+```
 
-# Optional: Google Application Credentials (if running outside GCP)
+### Live Agent Service (`apps/live-agent/.env`)
+
+```bash
+# Google Cloud Platform
+GOOGLE_CLOUD_PROJECT=your_project_id
+GOOGLE_CLOUD_LOCATION=us-central1
+
+# Authentication (must match apps/api/.env API_SECRET_KEY)
+API_SECRET_KEY=your-secure-secret-key-here
+
+# Server
+PORT=5000
+
+# Optional: Service account key (if running outside GCP)
 # GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ```
 
@@ -208,33 +231,47 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 ## 🏃 Running the Application
 
-### Local Development
+### Local Development (Non-Docker)
 
-1. **Clone and install**:
+To run the entire stack locally, you need three terminals (or use `pnpm dev` for the Node services and a separate terminal for the Python service).
 
-   ```bash
-   git clone https://github.com/your-username/reptrainer.git
-   cd reptrainer
-   pnpm install
-   ```
+#### 1. Setup Node.js Services (Web & API)
 
-2. **Configure environment variables**:
+```bash
+# From the root directory
+pnpm install
 
-   ```bash
-   cp apps/api/.env.example apps/api/.env
-   cp apps/web/.env.example apps/web/.env.local
-   # Edit both files with your configuration
-   ```
+# Option A: Start both Web and API in parallel
+pnpm dev
 
-3. **Start development servers**:
+# Option B: Start them separately for better log visibility
+pnpm dev:web    # Runs on http://localhost:3000
+pnpm dev:api    # Runs on http://localhost:4000
+```
 
-   ```bash
-   pnpm dev
-   ```
+#### 2. Setup Python Live Agent Service
 
-4. **Access the application**:
-   - Frontend: http://localhost:3000
-   - API: http://localhost:4000
+The live agent service is the core AI logic and requires Python 3.11+.
+
+```bash
+cd apps/live-agent
+
+# Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -e .
+
+# Run the service (defaults to http://localhost:5000)
+uvicorn main:app --reload --port 5000
+```
+
+#### 3. Access the application
+
+- **Frontend**: http://localhost:3000
+- **API Backend**: http://localhost:4000
+- **Live Agent (internal)**: http://localhost:5000 (The API proxy handles communication with this service)
 
 ### Docker Setup
 

@@ -7,27 +7,27 @@ import { ArrowRight } from "lucide-react";
 const steps = [
   {
     number: "01",
-    title: "Define Your Product",
+    title: "Connect Your Knowledge Base",
     description:
-      "Enter your product details, pricing, and key value propositions. Reptrainer uses this to generate realistic buyer scenarios tailored to your offering.",
+      "Upload PDFs, URLs, and product docs. Reptrainer uses RAG to ground every evaluation in your actual product truths.",
   },
   {
     number: "02",
-    title: "Meet Your AI Buyer",
+    title: "Generate a Dynamic Persona",
     description:
-      "Our AI generates dynamic buyer personas with unique backgrounds, objections, and negotiation styles. Each conversation is different — just like the real world.",
+      "Create an AI buyer with customized difficulty and real-time competitor context.",
   },
   {
     number: "03",
-    title: "Start the Roleplay",
+    title: "Start the Voice Roleplay",
     description:
-      "Jump into a live voice conversation. Navigate objections with real-time Whisper Coach HUD insights that surface as you speak.",
+      "Jump into a live, interruptible voice conversation powered by Gemini Live.",
   },
   {
     number: "04",
-    title: "Multimodal AI Debrief",
+    title: "Receive a Multimodal Debrief",
     description:
-      "Receive a 4-slide coaching presentation with AI-generated infographics and synchronized voiceover to master your pitch.",
+      "Get a 4-slide visual coaching presentation, complete with 'Before & After' correction examples.",
   },
 ];
 

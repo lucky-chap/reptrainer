@@ -5,6 +5,8 @@ export const env = {
     process.env.NEXT_PUBLIC_API_SECRET_KEY ||
     process.env.API_SECRET_KEY ||
     "reptrainer-secret-123",
+  NEXT_PUBLIC_LIVE_AGENT_URL:
+    process.env.NEXT_PUBLIC_LIVE_AGENT_URL || "ws://localhost:5000",
 };
 
 export default env;

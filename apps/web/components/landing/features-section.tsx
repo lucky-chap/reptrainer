@@ -6,56 +6,49 @@ import { cn } from "@/lib/utils";
 
 const features = [
   {
-    icon: Sparkles,
-    title: "Whisper Coach (Live HUD)",
+    icon: Mic,
+    title: "Live Voice Roleplay",
     description:
-      "Get real-time guidance during live roleplays. AI identifies strengths and gaps, surfacing them instantly via a silent HUD.",
+      "Practice live sales calls with AI-generated buyer personas using real-time, interruptible voice interaction powered by Gemini Live.",
     className:
       "md:col-span-2 md:row-span-2 bg-charcoal text-cream border-white/10",
     visual: <HUDVisual />,
   },
   {
     icon: Brain,
-    title: "Multimodal AI Debrief",
+    title: "Grounded RAG Evaluation",
     description:
-      "A complete 4-slide presentation generated post-session with AI-powered infographics and synchronized voice narration.",
+      "Upload your product docs and PDFs. Reptrainer fact-checks your pitch accuracy against your specific knowledge base.",
     className: "md:col-span-2 bg-cream-dark/30",
     visual: <DebriefVisual />,
   },
   {
     icon: BarChart3,
-    title: "Performance Analytics",
+    title: "Multimodal Debriefs",
     description:
-      "Track your improvement over time with detailed scoring across multiple competencies.",
+      "Get a 4-slide infographic presentation and audio narration after every call, complete with 'Before & After' correction examples.",
     className: "md:col-span-1",
   },
   {
     icon: Users,
-    title: "Dynamic Personas",
+    title: "Live Competitor Context",
     description:
-      "Train against realistic buyer personalities with unique backgrounds and objections.",
-    className: "md:col-span-1",
-  },
-  {
-    icon: Mic,
-    title: "Voice-Based Roleplay",
-    description:
-      "Practice live sales calls with AI-generated buyer personas using real-time voice interaction.",
-    className: "md:col-span-2",
-  },
-  {
-    icon: Shield,
-    title: "Safe Environment",
-    description:
-      "Make mistakes without consequences. Rehearse high-stakes conversations until your team is deal-ready.",
+      "Personas dynamically generate objections based on real-time competitor data fetched during the call.",
     className: "md:col-span-1",
   },
   {
     icon: Sparkles,
-    title: "Adaptive Scenarios",
+    title: "Whisper Coach HUD",
     description:
-      "Reptrainer learns your patterns and generates increasingly challenging scenarios to push your limits.",
-    className: "md:col-span-1",
+      "Get silent, real-time insights during the live roleplay to help you navigate tricky objections as they happen.",
+    className: "md:col-span-2",
+  },
+  {
+    icon: Shield,
+    title: "Team Streaks & Leaderboards",
+    description:
+      "Drive adoption with team-wide practice streaks and competitive scoring analytics.",
+    className: "md:col-span-2",
   },
 ];
 

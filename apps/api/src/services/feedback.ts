@@ -71,9 +71,28 @@ export async function generateFeedbackReport(
     durationSeconds,
     trackId,
     scenarioId,
+    teamId,
   } = input;
 
   const trackContext = buildTrackContext(trackId, scenarioId);
+
+  // Retrieve RAG context if teamId is provided
+  let ragContextString = "";
+  if (teamId) {
+    try {
+      const { ragService } = await import("./rag.js");
+      const ragContext = await ragService.retrieve(
+        teamId,
+        `product details, key features, pricing, and value proposition relevant to the following transcript: ${transcript.substring(0, 1000)}`,
+        5,
+      );
+      if (ragContext.length > 0) {
+        ragContextString = `\n\n─── PRODUCT KNOWLEDGE (RAG) ───\nThe following confirmed product details should be used to fact-check the rep's claims:\n${ragContext.join("\n\n")}`;
+      }
+    } catch (error) {
+      console.error("[feedback] RAG retrieval failed:", error);
+    }
+  }
 
   const prompt = `You are a **Senior Enterprise Sales Coach** with 20+ years of experience training top-performing B2B sales reps at Fortune 500 companies. You have coached reps at Salesforce, Oracle, and HubSpot.
 
@@ -82,7 +101,7 @@ Your task is to review a sales roleplay transcript and provide structured, actio
 ─── CALL CONTEXT ───
 - Buyer: ${personaName} (${personaRole})
 - Buyer Difficulty: ${intensityLevel}/5 (${["friendly skeptic", "firm decision maker", "tough negotiator", "high-pressure executive", "hostile gatekeeper"][intensityLevel - 1]})
-- Call Duration: ${Math.round(durationSeconds / 60)} minutes${trackContext}
+- Call Duration: ${Math.round(durationSeconds / 60)} minutes${trackContext}${ragContextString}
 
 ─── TRANSCRIPT ───
 ${transcript}
@@ -94,6 +113,7 @@ ${transcript}
 3. **Be personal and direct.** Use the second person ("you") for all commentary. Address the rep directly (e.g., "You handled the objection well" instead of "The rep handled the objection well").
 4. **Be actionable.** Every suggestion must be something the rep can practice or change immediately.
 5. **Score honestly.** Don't inflate scores. A truly excellent rep gets 85+. Average is 50-65. Poor is below 40.
+6. **Fact-check for Product Accuracy.** If PRODUCT KNOWLEDGE (RAG) is provided above, cross-reference the rep's claims against it. If they misrepresented features, pricing, or the company's value prop, flag this as a weakness or missed opportunity.
 
 ─── OUTPUT FORMAT ───
 
@@ -121,6 +141,7 @@ Return ONLY valid JSON matching this exact structure:
 CRITICAL RULES:
 - Return 3-5 items per array field.
 - Every string in strengths/weaknesses/missed_opportunities MUST reference a specific moment or quote from the transcript.
+- If you find product inaccuracies based on the RAG data, at least one weakness MUST address this.
 - suggested_improvements should be forward-looking coaching advice, not just restating weaknesses.
 - Scores should be integers.
 - overall_score should be a weighted reflection of the sub-scores, not just an average.`;

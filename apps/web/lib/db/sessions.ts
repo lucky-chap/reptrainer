@@ -10,7 +10,6 @@ import {
   deleteDoc,
   onSnapshot,
   updateDoc,
-  Timestamp,
   Query,
 } from "firebase/firestore";
 import {
@@ -24,14 +23,23 @@ import { db, storage } from "./core";
 import { v4 as uuidv4 } from "uuid";
 import type { Session, CallSession, CallStatus } from "./core";
 
-// ─── Session Operations (Old) ───
+// ─── Session Operations (redirected to callSessions) ───
 
+/** @deprecated Writes to callSessions. Use updateCallSession for new code. */
 export async function saveSession(session: Session): Promise<void> {
-  await setDoc(doc(db, "sessions", session.id), session);
+  await setDoc(doc(db, "callSessions", session.id), session);
+}
+
+/** @deprecated Writes to callSessions. Use updateCallSession for new code. */
+export async function updateSession(
+  id: string,
+  updates: Partial<Session>,
+): Promise<void> {
+  await updateDoc(doc(db, "callSessions", id), updates);
 }
 
 export async function getSession(id: string): Promise<Session | undefined> {
-  const docRef = doc(db, "sessions", id);
+  const docRef = doc(db, "callSessions", id);
   const docSnap = await getDoc(docRef);
   return docSnap.exists() ? (docSnap.data() as Session) : undefined;
 }
@@ -41,7 +49,7 @@ export async function getSessionsByPersona(
   userId: string,
 ): Promise<Session[]> {
   const q = query(
-    collection(db, "sessions"),
+    collection(db, "callSessions"),
     where("personaId", "==", personaId),
     where("userId", "==", userId),
     orderBy("createdAt", "desc"),
@@ -57,7 +65,7 @@ export async function getAllSessions(
   const constraints = [orderBy("createdAt", "desc")];
 
   const userQ = query(
-    collection(db, "sessions"),
+    collection(db, "callSessions"),
     where("userId", "==", userId),
     ...constraints,
   );
@@ -65,7 +73,7 @@ export async function getAllSessions(
   const teamQ =
     Array.isArray(teamIds) && teamIds.length > 0
       ? query(
-          collection(db, "sessions"),
+          collection(db, "callSessions"),
           where("teamId", "in", teamIds),
           ...constraints,
         )
@@ -92,7 +100,7 @@ export async function getAllSessions(
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  await deleteDoc(doc(db, "sessions", id));
+  await deleteDoc(doc(db, "callSessions", id));
 }
 
 export async function deleteCallSession(id: string): Promise<void> {
@@ -205,6 +213,24 @@ export function subscribeCallSessions(
     q,
     (snap) => {
       onData(snap.docs.map((d) => d.data() as CallSession));
+    },
+    onError,
+  );
+}
+
+/**
+ * Subscribe to a single call session document (real-time).
+ * Used on the history detail page to watch for debrief status updates.
+ */
+export function subscribeCallSessionDoc(
+  id: string,
+  onData: (session: CallSession | null) => void,
+  onError: (err: Error) => void,
+) {
+  return onSnapshot(
+    doc(db, "callSessions", id),
+    (snap) => {
+      onData(snap.exists() ? (snap.data() as CallSession) : null);
     },
     onError,
   );

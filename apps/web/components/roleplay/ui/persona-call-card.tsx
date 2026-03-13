@@ -44,38 +44,8 @@ export function PersonaCallCard({
         </div>
       )}
 
-      {/* Pre-call idle state */}
-      {!isConnected && !isConnecting && !personaLeft && (
-        <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
-          <div className="border-border/60 text-charcoal mb-4 flex items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-sm">
-            {persona.avatarUrl || avatarUrl ? (
-              <Image
-                src={
-                  persona.avatarUrl ||
-                  (avatarUrl as string) ||
-                  "/placeholder-avatar.png"
-                }
-                alt={persona.name}
-                width={86}
-                height={86}
-                className="h-[86px] w-[86px] rounded-full object-cover p-1"
-              />
-            ) : (
-              persona.name.charAt(0)
-            )}
-          </div>
-          <h3 className="text-charcoal mb-1 text-lg font-semibold">
-            Ready to start
-          </h3>
-          <p className="text-warm-gray max-w-[280px] text-sm">
-            Start the call to begin your {callDurationMinutes}-minute sales
-            roleplay with {persona.name}.
-          </p>
-        </div>
-      )}
-
-      {/* Connecting state */}
-      {isConnecting && (
+      {/* Connecting state (Highest Priority) */}
+      {isConnecting ? (
         <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
           <div className="border-border/60 relative mb-4 flex size-24 items-center justify-center rounded-full border bg-white shadow-sm sm:size-32">
             <Loader2 className="text-charcoal size-10 animate-spin" />
@@ -88,10 +58,21 @@ export function PersonaCallCard({
             Setting up your call with {persona.name}
           </p>
         </div>
-      )}
-
-      {/* Live call: persona avatar with visualizer */}
-      {isConnected && !personaLeft && (
+      ) : personaLeft ? (
+        /* Persona left state */
+        <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
+          <div className="border-border/60 mb-4 flex size-24 items-center justify-center rounded-full border bg-white shadow-sm">
+            <UserX className="text-charcoal/40 size-10" />
+          </div>
+          <h3 className="text-charcoal mb-1 text-lg font-semibold">
+            {persona.name} left
+          </h3>
+          <p className="text-warm-gray max-w-[260px] text-sm">
+            The buyer has ended the meeting. End the call to see your review.
+          </p>
+        </div>
+      ) : isConnected ? (
+        /* Live call: persona avatar with visualizer */
         <div className="z-10 flex flex-col items-center justify-center">
           <div className="border-border/60 text-charcoal relative flex size-32 items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-md sm:size-40">
             <div className="from-cream flex size-full items-center justify-center bg-linear-to-br to-white">
@@ -158,19 +139,32 @@ export function PersonaCallCard({
 
           <AudioVisualizer isSpeaking={isAISpeaking} />
         </div>
-      )}
-
-      {/* Persona left state */}
-      {personaLeft && (
+      ) : (
+        /* Pre-call idle state */
         <div className="z-10 flex flex-col items-center justify-center p-6 text-center">
-          <div className="border-border/60 mb-4 flex size-24 items-center justify-center rounded-full border bg-white shadow-sm">
-            <UserX className="text-charcoal/40 size-10" />
+          <div className="border-border/60 text-charcoal mb-4 flex items-center justify-center overflow-hidden rounded-full border bg-white text-5xl font-bold shadow-sm">
+            {persona.avatarUrl || avatarUrl ? (
+              <Image
+                src={
+                  persona.avatarUrl ||
+                  (avatarUrl as string) ||
+                  "/placeholder-avatar.png"
+                }
+                alt={persona.name}
+                width={86}
+                height={86}
+                className="h-[86px] w-[86px] rounded-full object-cover p-1"
+              />
+            ) : (
+              persona.name.charAt(0)
+            )}
           </div>
           <h3 className="text-charcoal mb-1 text-lg font-semibold">
-            {persona.name} left
+            Ready to start
           </h3>
-          <p className="text-warm-gray max-w-[260px] text-sm">
-            The buyer has ended the meeting. End the call to see your review.
+          <p className="text-warm-gray max-w-[280px] text-sm">
+            Start the call to begin your {callDurationMinutes}-minute sales
+            roleplay with {persona.name}.
           </p>
         </div>
       )}

@@ -27,6 +27,25 @@ export function normalizeTo100(value: number | undefined | null): number {
 }
 
 /**
+ * Utility to validate if a session is fully concluded and evaluated.
+ */
+export function isSessionCompleted(session: Session | CallSession): boolean {
+  // 1. Check for evaluation data
+  const evaluation = "evaluation" in session ? session.evaluation : null;
+  const legacyEval =
+    "legacyEvaluation" in session ? (session as any).legacyEvaluation : null;
+  const feedback =
+    "feedbackReport" in session ? (session as any).feedbackReport : null;
+  const hasEvaluation = !!(evaluation || legacyEval || feedback);
+
+  // 2. Check for completion status (if applicable)
+  const status = "callStatus" in session ? session.callStatus : "ended";
+  const isEnded = status === "ended";
+
+  return isEnded && hasEvaluation;
+}
+
+/**
  * Extracts standardized 0-100 scores from any session evaluation format.
  */
 export function calculateSessionMetrics(

@@ -48,6 +48,7 @@ import {
   calculateCategoryScores,
   getOverallScore,
   calculateSessionMetrics,
+  isSessionCompleted,
   generateCoachingInsights,
 } from "@/lib/analytics-utils";
 
@@ -163,15 +164,14 @@ export default function AnalyticsPage() {
         if (sessionDate < cutoff) return false;
       }
 
+      if (!isSessionCompleted(s as any)) return false;
+
       return true;
     });
   }, [sessions, timeframe, selectedPersonaId, selectedMemberId]);
 
   // Compute Analytics based on filtered sessions
-  const evaluatedSessions = useMemo(
-    () => filteredSessions.filter((s) => s.evaluation),
-    [filteredSessions],
-  );
+  const evaluatedSessions = filteredSessions;
   const totalSessions = filteredSessions.length;
 
   const avgScores = useMemo(() => {
@@ -730,25 +730,21 @@ export default function AnalyticsPage() {
                 <div className="bg-charcoal/5 flex flex-1 flex-col items-center rounded-xl p-3">
                   <span className="text-charcoal text-lg font-bold">
                     {Math.round(
-                      coverageData.reduce(
-                        (acc, curr) => acc + curr.coverage,
-                        0,
-                      ) / (coverageData.length || 1),
+                      (coverageData.filter((d) => d.practiced).length /
+                        (coverageData.length || 1)) *
+                        100,
                     )}
                     %
                   </span>
-                  <span className="text-warm-gray/60 text-[8px] font-bold tracking-widest uppercase">
+                  <span className="text-warm-gray/60 text-center text-[8px] font-bold tracking-widest uppercase">
                     {isTeamView ? "Total Coverage" : "Your Coverage"}
                   </span>
                 </div>
                 <div className="bg-charcoal/5 flex flex-1 flex-col items-center rounded-xl p-3">
                   <span className="text-charcoal text-lg font-bold">
-                    {coverageData.reduce(
-                      (acc, curr) => acc + curr.practicedPersonas,
-                      0,
-                    )}
+                    {coverageData.filter((d) => d.practiced).length}
                   </span>
-                  <span className="text-warm-gray/60 text-[8px] font-bold tracking-widest uppercase">
+                  <span className="text-warm-gray/60 text-center text-[8px] font-bold tracking-widest uppercase">
                     {isTeamView ? "Mastered Scenarios" : "Personas Practiced"}
                   </span>
                 </div>

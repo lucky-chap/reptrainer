@@ -5,6 +5,7 @@ import { Mic, MicOff, Phone, PhoneOff, Lightbulb, Loader2 } from "lucide-react";
 interface CallControlsProps {
   isConnected: boolean;
   isConnecting: boolean;
+  isReconnecting?: boolean;
   isMuted: boolean;
   personaLeft: boolean;
   inputLocked: boolean;
@@ -17,6 +18,7 @@ interface CallControlsProps {
 export function CallControls({
   isConnected,
   isConnecting,
+  isReconnecting = false,
   isMuted,
   personaLeft,
   inputLocked,
@@ -56,7 +58,15 @@ export function CallControls({
       )}
 
       {/* Start / End Call */}
-      {!isConnected && !isConnecting && !personaLeft ? (
+      {!isConnected && (isConnecting || isReconnecting) ? (
+        <button
+          disabled
+          className="bg-charcoal/80 text-cream inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium transition-all duration-200"
+        >
+          <Loader2 className="size-4 animate-spin" />
+          <span className="text-sm">Connecting...</span>
+        </button>
+      ) : !isConnected && !personaLeft ? (
         <button
           onClick={onConnect}
           disabled={inputLocked}
@@ -64,14 +74,6 @@ export function CallControls({
         >
           <Phone className="size-4" />
           <span className="text-sm">Start Call</span>
-        </button>
-      ) : isConnecting ? (
-        <button
-          disabled
-          className="border-border/40 text-charcoal flex items-center justify-center gap-2 rounded-full border bg-white px-7 py-3.5 shadow-sm transition-colors"
-        >
-          <Loader2 className="size-4 animate-spin" />
-          <span className="text-sm font-medium">Connecting...</span>
         </button>
       ) : (
         <button

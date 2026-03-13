@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 import type { Session, Persona } from "@/lib/db";
 import {
-  saveSession,
   updateCallSession,
   uploadDebriefAudio,
   deleteDebriefAudio,
@@ -79,7 +78,7 @@ function ScoreIndicator({
   icon: React.ElementType;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 text-center">
+    <div className="flex flex-col items-start gap-3">
       <div className="relative flex items-center justify-center">
         {/* Simple Progress Circle */}
         <svg className="size-20 -rotate-90" viewBox="0 0 100 100">
@@ -120,14 +119,14 @@ function ScoreIndicator({
         </div>
       </div>
       <div className="space-y-1">
-        <div className="flex items-center justify-center gap-1.5">
+        <div className="justify- flex items-center gap-1.5 text-left">
           <Icon className="text-warm-gray size-3.5" />
           <span className="text-charcoal text-xs leading-tight font-bold">
             {label}
           </span>
         </div>
         {explanation && (
-          <p className="text-warm-gray/60 mx-auto max-w-[120px] text-[10px] leading-relaxed">
+          <p className="text-warm-gray text-left leading-relaxed">
             {explanation}
           </p>
         )}
@@ -210,12 +209,7 @@ export function SessionResults({
         console.log(
           "[SessionResults] Persisting optimized debrief to Firestore...",
         );
-        await Promise.all([
-          saveSession({ ...session, debrief: optimizedDebrief }),
-          updateCallSession(session.id, { debrief: optimizedDebrief }).catch(
-            () => {},
-          ),
-        ]);
+        await updateCallSession(session.id, { debrief: optimizedDebrief });
       } finally {
         setIsPersistingDebrief(false);
       }
@@ -247,11 +241,9 @@ export function SessionResults({
           session.id,
           debriefData.slides.length,
         ),
-        saveSession(updatedSession),
-        // Pass null to clear out the field or remove it from the backend
         updateCallSession(session.id, {
           debrief: null as any,
-        }).catch(() => {}),
+        }),
       ]);
       setDebriefData(null);
     } finally {
@@ -273,6 +265,12 @@ export function SessionResults({
       setAudioUrl(session.audioUrl);
     }
   }, [session.audioUrl]);
+
+  useEffect(() => {
+    if (session.debrief) {
+      setDebriefData(session.debrief);
+    }
+  }, [session.debrief]);
 
   const handleDownloadTranscript = () => {
     const blob = new Blob([session.transcript], { type: "text/plain" });
@@ -369,7 +367,7 @@ export function SessionResults({
             </div>
 
             <CardContent className="-mt-6 rounded-t-3xl bg-white p-8">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:flex sm:flex-wrap sm:justify-between">
+              <div className="grid grid-cols-1 gap-x-4 gap-y-10 sm:grid-cols-1">
                 <ScoreIndicator
                   score={sessionMetrics.discovery}
                   label="Discovery"

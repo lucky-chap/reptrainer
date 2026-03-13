@@ -15,6 +15,7 @@ import {
   type CompetitorContext,
 } from "@reptrainer/shared";
 import { uploadAvatar } from "./storage.js";
+import { geminiLiveTools } from "./adk-tools.js";
 import { getKnowledgeMetadata } from "./knowledge.js";
 import { ragService } from "./rag.js";
 
@@ -37,22 +38,24 @@ function extractJson(text: string): string | null {
 }
 
 /**
- * Researches a competitor based on their website URL using Google Search grounding.
+ * Researches a competitor based on their name or website URL using Google Search grounding.
  */
 export async function researchCompetitor(
-  url: string,
+  competitorName: string,
 ): Promise<CompetitorContext> {
-  const prompt = `Research the competitor at this website: ${url}
+  const prompt = `Research the competitor: ${competitorName}
   Identify their:
-  1. Product description and core value proposition.
-  2. Target customer segments.
-  3. Pricing positioning (enterprise, budget, mid-market).
-  4. Common customer pain points or limitations.
-  5. Frequent customer complaints from review sites.
+  1. Official website URL.
+  2. Product description and core value proposition.
+  3. Target customer segments.
+  4. Pricing positioning (enterprise, budget, mid-market).
+  5. Common customer pain points or limitations.
+  6. Frequent customer complaints from review sites.
 
   Generate a competitor analysis with the following JSON structure. Return ONLY valid JSON:
   {
-    "website": "${url}",
+    "name": "${competitorName}",
+    "website": "...",
     "productDescription": "...",
     "targetCustomer": "...",
     "pricingPositioning": "...",
@@ -70,7 +73,6 @@ export async function researchCompetitor(
           googleSearch: {
             searchTypes: {
               webSearch: {},
-              imageSearch: {},
             },
           },
         },
@@ -100,7 +102,7 @@ export async function researchCompetitor(
 
   if (!jsonStr) {
     throw new Error(
-      "Failed to research competitor using Vertex Search. Invalid research data.",
+      `Failed to research competitor "${competitorName}". Invalid research data.`,
     );
   }
 
@@ -295,7 +297,25 @@ export async function evaluateSession(
     personaRole,
     intensityLevel,
     durationSeconds,
+    teamId,
   } = input;
+
+  // Retrieve RAG context if teamId is provided
+  let ragContextString = "";
+  if (teamId) {
+    try {
+      const ragContext = await ragService.retrieve(
+        teamId,
+        `product category, product features, intended value, and core benefits related to: ${transcript.substring(0, 1000)}`,
+        5,
+      );
+      if (ragContext.length > 0) {
+        ragContextString = `\n\n─── PRODUCT KNOWLEDGE (RAG) ───\nThe following confirmed product details should be used to evaluate the rep's positioning accuracy:\n${ragContext.join("\n\n")}`;
+      }
+    } catch (error) {
+      console.error("[evaluateSession] RAG retrieval failed:", error);
+    }
+  }
 
   const prompt = `You are an expert sales performance evaluator and coach. Analyze the following sales roleplay transcript and provide a structured evaluation.
 
@@ -303,7 +323,7 @@ Persona Context:
 - Buyer Name: ${personaName}
 - Buyer Role: ${personaRole}
 - Difficulty Level: ${intensityLevel}/5
-- Call Duration: ${Math.round(durationSeconds / 60)} minutes
+- Call Duration: ${Math.round(durationSeconds / 60)} minutes${ragContextString}
 
 Transcript:
 ${transcript}
@@ -311,7 +331,7 @@ ${transcript}
 Evaluate the sales rep's performance on these 5 specific skills (Score 0-100):
 1. **Discovery Questions**: Did the rep ask open-ended questions to uncover pain points, budget, and decision-making processes?
 2. **Objection Handling**: Did the rep effectively acknowledge concerns and provide persuasive rebuttals to pushback?
-3. **Product Positioning**: Did the rep align product features with the buyer's specifically mentioned needs and value drivers? 
+3. **Product Positioning**: Did the rep align product features with the buyer's specifically mentioned needs and value drivers? If RAG data is provided, evaluate if they accurately represented the product.
 4. **Closing**: Did the rep clearly define next steps or ask for the business at the appropriate time?
 5. **Active Listening**: Did the rep demonstrate understanding by summarizing, mirroring, or reacting appropriately to the buyer's cues?
 
@@ -319,6 +339,7 @@ SCORING GUIDELINES:
 - **Score honestly.** DO NOT inflate scores. If a rep performed poorly, the score should reflect that (e.g., 10-30).
 - **Be balanced.** A truly perfect session is rare. 85+ is for world-class performance. 50-65 is average. Below 40 is poor.
 - **Evidence-based.** Ensure the scores align with the specific strengths and weaknesses identified.
+- **Product Accuracy factor:** If the rep contradicts the provided RAG data, they should receive a lower score on Product Positioning.
 
 Also identify:
 - 3-5 specific strengths
@@ -367,6 +388,7 @@ export function getLiveSetupConfig(
   location: string,
   systemPrompt: string,
   voiceNameInput: string,
+  ragCorpusId?: string,
 ) {
   // Ensure voiceName is valid for the Live API
   const allVoices = [...FEMALE_VOICES, ...MALE_VOICES];
@@ -374,14 +396,43 @@ export function getLiveSetupConfig(
     ? voiceNameInput
     : "Kore";
 
+  const tools: any[] = [
+    {
+      function_declarations: geminiLiveTools.map((t) =>
+        (t as any)._getDeclaration(),
+      ),
+    },
+    // Google search tool for dynamic market research
+    {
+      googleSearch: {},
+    },
+    // Since a team cannot even start a roleplay without a knowledge base, we can just
+    // use the retrieval tool to get the knowledge base directly.
+    ...(ragCorpusId
+      ? [
+          {
+            retrieval: {
+              vertexRagStore: {
+                ragResources: [
+                  {
+                    ragCorpus: `projects/${project}/locations/${location}/ragCorpora/${ragCorpusId}`,
+                  },
+                ],
+              },
+            },
+          },
+        ]
+      : []),
+  ];
+
   return {
     setup: {
       model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
       generation_config: {
         response_modalities: ["AUDIO"],
-        // session_resumption_config: {
-        //   transparent: true,
-        // },
+        temperature: 0.7,
+        top_p: 0.9,
+        max_output_tokens: 512,
         speech_config: {
           voice_config: {
             prebuilt_voice_config: {
@@ -393,29 +444,25 @@ export function getLiveSetupConfig(
       system_instruction: {
         parts: [
           {
-            text: `You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally. Your responses should generally be 1-3 sentences unless asked for detail. You can interrupt the user if they are rambling or avoiding questions.
+            text: `### CORE RULES:
+1. VOICE IDENTITY: You MUST strictly maintain the persona defined in the SECOND section below for ALL vocal output.
+2. COACHING IDENTITY: You are also a world-class sales coach, but this is an INVISIBLE background role. Use this identity ONLY for tool calls (log_sales_insight, log_objection, update_persona_mood, research_competitor).
+3. SILENT TOOLS: NEVER speak about tool calls or their parameters. Call tools SILENTLY while continuing your persona dialogue.
+4. TURN-END LOGGING: You MUST ONLY call logging tools (log_sales_insight, log_objection, update_persona_mood) AFTER you have finished your complete thought and spoken it out loud in your persona. Do NOT interrupt your own speech to call a tool.
+5. INITIATE CONVERSATION: You MUST always initiate the conversation immediately when the session starts. Do NOT wait for the user to speak first. Start with your persona's greeting or a natural opening line.
 
-TURN-TAKING RULES (CRITICAL):
-- After you speak 1-3 sentences, STOP and WAIT for the user to respond. Do NOT keep talking.
-- This is a TWO-WAY conversation. You MUST give the user space to speak after each of your turns.
-- Your opening introduction should be at most 2 sentences. Introduce yourself briefly, then STOP and wait.
-- If you find yourself talking for more than 15 seconds without the user responding, STOP immediately and wait.
+Environment: You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally.
+Make sure to never repeat yourself and never send multiple messages. 
+- NEVER repeat a sentence or phrase you've already said in THIS session.
+- Even if interrupted, do NOT restart your thought. Continue or pivot naturally.
 
-ANTI-REPETITION RULES (CRITICAL):
-- NEVER repeat a sentence, phrase, or point you have already said. If you already made a point, move the conversation forward.
-- After a tool call returns, CONTINUE from exactly where you left off. Do NOT re-say anything you already spoke before the tool call.
-- If you feel stuck or unsure, ask a NEW question instead of re-stating a previous one.
 
-TOOL USAGE RULES (CRITICAL):
-- All tool calls are INVISIBLE background operations. They happen silently.
-- NEVER say "let me check", "one moment", "hold on", or any phrase that narrates a tool call. Just call the tool and keep talking naturally.
-- NEVER mention tool names, parameters, or results in your speech.
-- Do NOT pause your speech to call a tool. Call it seamlessly mid-conversation.
-
-When to call tools:
-1. Use \`log_sales_insight\` FREQUENTLY — after almost every user response. Log coaching tips proactively: what they should say next, what they did well, what they missed, their tone, their pacing, filler words, missed opportunities, etc. Aim for at least one insight every 1-2 turns. Be a world-class sales coach whispering in their ear.
-2. Use \`log_objection\` when you raise an objection or when the user responds to one.
-3. Use \`update_persona_mood\` every 3-4 turns to reflect your internal emotional state.`,
+ANTI-REPETITION RULES (STRICT):
+- After a tool call, CONTINUE exactly where you left off if you have more to say. 
+- Do NOT re-say the previous sentence or phrase.
+- If you just said "Hello", do NOT say "Hello" again if the connection resets or after a tool response.
+- DO NOT NARRATE YOUR ACTIONS. Just be the persona.
+`,
           },
           { text: systemPrompt },
         ],
@@ -424,104 +471,13 @@ When to call tools:
       output_audio_transcription: {},
       realtime_input_config: {
         automatic_activity_detection: {
-          prefix_padding_ms: 100,
-          silence_duration_ms: 500,
+          prefix_padding_ms: 200,
+          silence_duration_ms: 400,
           start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
-          end_of_speech_sensitivity: "END_SENSITIVITY_LOW",
+          end_of_speech_sensitivity: "END_SENSITIVITY_HIGH",
         },
       },
-      tools: [
-        {
-          function_declarations: [
-            {
-              name: "log_sales_insight",
-              description:
-                "Record a key insight or moment from the sales call for later review.",
-              parameters: {
-                type: "object",
-                properties: {
-                  insight: {
-                    type: "string",
-                    description:
-                      "The description of the sales insight. The description should be geared towards the user, in a form of advice. Use pronouns like 'you'. Directly address the user.",
-                  },
-                },
-                required: ["insight"],
-              },
-            },
-            {
-              name: "log_objection",
-              description:
-                "Log a specific objection raised by the persona and how the user handled it.",
-              parameters: {
-                type: "object",
-                properties: {
-                  objectionType: {
-                    type: "string",
-                    description:
-                      "The category of objection (e.g., 'Pricing', 'Integration', 'Timing', 'Competitor').",
-                  },
-                  repResponse: {
-                    type: "string",
-                    description: "A brief summary of how the rep handled it.",
-                  },
-                  sentiment: {
-                    type: "string",
-                    enum: ["positive", "neutral", "negative"],
-                    description: "How well the objection was handled.",
-                  },
-                },
-                required: ["objectionType", "repResponse", "sentiment"],
-              },
-            },
-            {
-              name: "update_persona_mood",
-              description:
-                "Update the internal emotional state of the persona.",
-              parameters: {
-                type: "object",
-                properties: {
-                  trust: {
-                    type: "number",
-                    description: "Trust level (0-100).",
-                  },
-                  interest: {
-                    type: "number",
-                    description: "Interest level (0-100).",
-                  },
-                  frustration: {
-                    type: "number",
-                    description: "Frustration level (0-100).",
-                  },
-                  dealLikelihood: {
-                    type: "number",
-                    description:
-                      "Probability of closing the deal (0.0 to 1.0).",
-                  },
-                },
-                required: [
-                  "trust",
-                  "interest",
-                  "frustration",
-                  "dealLikelihood",
-                ],
-              },
-            },
-            {
-              name: "end_roleplay",
-              description:
-                "End the sales roleplay session. IMPORTANT: You MUST first speak a complete, natural closing phrase out loud (e.g. 'Thank you for your time, I appreciate the presentation but we're going to pass.') and WAIT until you have fully finished speaking before calling this tool. Do NOT call this tool mid-sentence or before your goodbye is complete.",
-              parameters: {
-                type: "object",
-                properties: {},
-              },
-            },
-          ],
-        },
-        {
-          googleSearch: {},
-        },
-      ],
+      tools,
     },
   };
 }
@@ -624,7 +580,25 @@ export async function generateCoachDebrief(
   personaRole: string,
   objections: any[] = [],
   moods: any[] = [],
+  teamId?: string,
 ): Promise<any[]> {
+  // Retrieve RAG context if teamId is provided
+  let ragContextString = "";
+  if (teamId) {
+    try {
+      const ragContext = await ragService.retrieve(
+        teamId,
+        `key product differences, specific features, and ideal improved pitches related to: ${transcript.substring(0, 1000)}`,
+        5,
+      );
+      if (ragContext.length > 0) {
+        ragContextString = `\n\n─── PRODUCT KNOWLEDGE (RAG) ───\nUse these validated product facts to provide accurate corrections in Slide 3:\n${ragContext.join("\n\n")}`;
+      }
+    } catch (error) {
+      console.error("[generateCoachDebrief] RAG retrieval failed:", error);
+    }
+  }
+
   const prompt = `You are a world-class sales coach creating a short "Coach Debrief" presentation for a sales rep after a practice call.
 
 Persona Context:
@@ -636,7 +610,7 @@ ${transcript}
 
 Session Data:
 - Objections Logged: ${JSON.stringify(objections, null, 2)}
-- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}
+- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}${ragContextString}
 
 Your job is to produce a concise, insightful 4-slide coaching presentation.
 
@@ -687,6 +661,7 @@ The visual should highlight the problematic moment, such as:
 Slide 3 (type: correction)
 Explain how to fix the problem.
 Include a clear "Before vs After" example of what the rep should say.
+**If PRODUCT KNOWLEDGE (RAG) is provided above, ensure the "Improved Response" is factually accurate and uses the correct product terminology.**
 The visual should be a side-by-side comparison infographic showing:
 "Original Response" vs "Improved Response".
 

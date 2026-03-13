@@ -57,9 +57,18 @@ export function ObjectionHeatmap({
     return "bg-sky-500 border-sky-600/20 shadow-sky-500/20";
   };
 
+  const normalizeSeconds = (value: number) => {
+    // Backward compatibility: older data stored ms, newer data stored seconds.
+    if (durationSeconds > 0 && value > durationSeconds * 2) {
+      return Math.round(value / 1000);
+    }
+    return value;
+  };
+
   const formatTime = (s: number) => {
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
+    const seconds = normalizeSeconds(s);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
@@ -115,7 +124,8 @@ export function ObjectionHeatmap({
             {/* Markers */}
             <TooltipProvider delayDuration={100}>
               {insights.map((marker, i) => {
-                const position = (marker.timestamp / durationSeconds) * 100;
+                const markerSeconds = normalizeSeconds(marker.timestamp);
+                const position = (markerSeconds / durationSeconds) * 100;
                 const colorClass = getMarkerColor(marker.insight);
 
                 return (
@@ -124,7 +134,7 @@ export function ObjectionHeatmap({
                       <button
                         onClick={() => {
                           setOpen(false); // Close dialog
-                          onSeek?.(marker.timestamp); // Jump to time
+                          onSeek?.(markerSeconds); // Jump to time
                         }}
                         className={cn(
                           "group absolute top-1.5 flex h-9 w-4 -translate-x-1/2 flex-col items-center justify-center transition-all hover:z-20 focus:outline-hidden",
@@ -197,13 +207,13 @@ export function ObjectionHeatmap({
                 >
                   <div className="flex shrink-0 flex-col items-center">
                     <span className="text-charcoal/60 mb-2 text-xs font-bold">
-                      {formatTime(marker.timestamp)}
-                    </span>
+                          {formatTime(marker.timestamp)}
+                        </span>
                     <button
                       className="hover:border-charcoal/30 text-charcoal/50 hover:text-charcoal flex size-6 items-center justify-center rounded-full border bg-white shadow-sm transition-all"
                       onClick={() => {
                         setOpen(false);
-                        onSeek?.(marker.timestamp);
+                        onSeek?.(normalizeSeconds(marker.timestamp));
                       }}
                       title="Play from this moment"
                     >

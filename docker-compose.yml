@@ -11,12 +11,14 @@ services:
         - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
         - NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        - NEXT_PUBLIC_LIVE_AGENT_URL=${NEXT_PUBLIC_LIVE_AGENT_URL:-ws://localhost:5000}
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
     depends_on:
       - api
+      - live-agent
 
   api:
     build:
@@ -32,3 +34,19 @@ services:
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
       - API_SECRET_KEY=${API_SECRET_KEY:-reptrainer-secret-123}
+
+  live-agent:
+    build:
+      context: apps/live-agent
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1}
+      - API_SECRET_KEY=${API_SECRET_KEY:-reptrainer-secret-123}
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/sa-key.json
+    volumes:
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-./sa-key.json}:/secrets/sa-key.json:ro
+    depends_on:
+      - api

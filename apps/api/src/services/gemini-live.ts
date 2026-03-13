@@ -1,30 +1,78 @@
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
+import {
+  LlmAgent,
+  InvocationContext,
+  Context,
+  PluginManager,
+  createSession,
+  functionsExportedForTestingOnly,
+} from "@google/adk";
+
+const { handleFunctionCallList } = functionsExportedForTestingOnly;
+
+import { geminiLiveTools, geminiLiveToolsDict } from "./adk-tools.js";
 import { getLiveSetupConfig } from "./vertex.js";
+import { getKnowledgeBase, getKnowledgeMetadata } from "./knowledge.js";
 import type { WebSocket } from "ws";
+import type { KnowledgeMetadata } from "@reptrainer/shared";
 
 /**
  * Manages a single Gemini Live session, acting as a bridge between
  * a frontend WebSocket client and the Gemini Live API.
- *
- * The Gemini Live session runs server-side where Vertex AI project-based
- * authentication is fully supported.
  */
 export class GeminiLiveProxy {
   private session: any = null;
-  private ws: WebSocket;
-  private systemPrompt: string | null;
-  private voiceName: string | null;
   private isConnecting = false;
+  private searchCount = 0;
+  private hasGreeted: boolean = false;
+  private suppressInitialOutput: boolean = false;
+  private aiSpeaking: boolean = false;
+  private knowledgeMetadata: KnowledgeMetadata | undefined;
+  private metadataPromise: Promise<[any, any]> | null = null;
+
+  // ADK native components
+  private adkAgent: LlmAgent;
+  private adkConnection: any | undefined;
+
+  /**
+   * Callback fired when the first model greeting is detected in this session.
+   */
+  public onGreeted?: () => void;
 
   constructor(
-    ws: WebSocket,
-    systemPrompt: string | null,
-    voiceName: string | null,
+    private ws: WebSocket,
+    private config: {
+      systemPrompt: string | null;
+      voiceName: string | null;
+      teamId?: string;
+      hasGreeted?: boolean;
+      personaId?: string;
+      personaName?: string;
+      representativeName?: string;
+      ragCorpusId?: string;
+      knowledgeMetadata?: KnowledgeMetadata;
+    },
   ) {
-    this.ws = ws;
-    this.systemPrompt = systemPrompt;
-    this.voiceName = voiceName;
+    this.hasGreeted = config.hasGreeted || false;
+    this.knowledgeMetadata = config.knowledgeMetadata;
+
+    // Initialize ADK Agent
+    this.adkAgent = new LlmAgent({
+      name: "GeminiLiveCoach",
+      description: "Coach agent for realplay sessions",
+      tools: geminiLiveTools,
+    });
+
+    if (this.config.teamId) {
+      console.log(
+        `[GeminiLiveProxy] Pre-fetching team knowledge for teamId=${this.config.teamId}`,
+      );
+      this.metadataPromise = Promise.all([
+        getKnowledgeBase(this.config.teamId),
+        getKnowledgeMetadata(this.config.teamId),
+      ]);
+    }
   }
 
   /**
@@ -37,7 +85,7 @@ export class GeminiLiveProxy {
       location: env.GOOGLE_CLOUD_LOCATION,
     });
 
-    if (!this.systemPrompt || !this.voiceName) {
+    if (!this.config.systemPrompt || !this.config.voiceName) {
       console.log("[GeminiLiveProxy] Waiting for setup message…");
       return;
     }
@@ -49,6 +97,8 @@ export class GeminiLiveProxy {
       return;
     }
 
+    this.isConnecting = true;
+
     if (this.session) {
       console.log(
         "[GeminiLiveProxy] Closing existing session before reconnecting",
@@ -56,13 +106,30 @@ export class GeminiLiveProxy {
       this.close();
     }
 
-    this.isConnecting = true;
+    if (this.metadataPromise) {
+      try {
+        const [kb, metadata] = await this.metadataPromise;
+        this.config.ragCorpusId = kb?.ragCorpusId;
+        this.knowledgeMetadata = metadata;
+        console.log(
+          `[GeminiLiveProxy] Loaded RAG Corpus ID: ${this.config.ragCorpusId || "none"}, Metadata: ${this.knowledgeMetadata ? "present" : "none"}`,
+        );
+      } catch (err) {
+        console.error("[GeminiLiveProxy] Failed to load team knowledge:", err);
+      }
+    }
+
+    let finalPrompt = this.config.systemPrompt;
+    if (this.hasGreeted) {
+      finalPrompt = `${this.config.systemPrompt}\n\nIMPORTANT: The conversation has already started. DO NOT introduce yourself or repeat your greeting. Simply continue where we left off. If the user hasn't spoken yet, just wait silently for their input.`;
+    }
 
     const { setup } = getLiveSetupConfig(
       env.GOOGLE_CLOUD_PROJECT,
       env.GOOGLE_CLOUD_LOCATION,
-      this.systemPrompt,
-      this.voiceName,
+      finalPrompt,
+      this.config.voiceName,
+      this.config.ragCorpusId,
     );
 
     console.log(
@@ -113,9 +180,10 @@ export class GeminiLiveProxy {
         callbacks: {
           onopen: () => {
             console.log("[GeminiLiveProxy] Gemini session opened");
+            this.isConnecting = false;
+            this.send({ type: "connected" });
           },
           onmessage: (msg: any) => {
-            // console.log("[GeminiLiveProxy] Received message from Gemini");
             this.handleGeminiMessage(msg);
           },
           onclose: (e: any) => {
@@ -134,33 +202,14 @@ export class GeminiLiveProxy {
         },
       });
 
-      this.isConnecting = false;
-      console.log("[GeminiLiveProxy] Session established successfully");
-
-      // Once session is established, send the initial greeting
-      this.session.sendClientContent({
-        turns: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: "Hello! Please introduce yourself briefly in 1-2 sentences based on your persona, then stop and wait for me to respond.",
-              },
-            ],
-          },
-        ],
-        turnComplete: true,
-      });
-
-      // Wait briefly to ensure client is ready for the "connected" signal
-      setTimeout(() => {
-        if (this.ws.readyState === 1) {
-          console.log("[GeminiLiveProxy] Sending 'connected' signal to client");
-          this.send({ type: "connected" });
-        }
-      }, 100);
+      console.log("[GeminiLiveProxy] Connection command initiated");
+      // ADK uses GeminiLlmConnection internally for Vertex/GenAI wrapping
+      // Since it's not exported from root in 0.5.0, we use it dynamically or as any
+      // In this specific version, we can just treat the adkConnection as any if needed
+      this.adkConnection = this.session as any;
     } catch (err) {
       this.isConnecting = false;
+      this.session = null;
       console.error("[GeminiLiveProxy] Failed to connect to Gemini Live:", err);
       this.send({
         type: "error",
@@ -178,27 +227,33 @@ export class GeminiLiveProxy {
     try {
       const msg = JSON.parse(data);
 
+      // Any client activity stops suppression
+      this.suppressInitialOutput = false;
+
       if (msg.type === "setup") {
+        if (this.session || this.isConnecting) {
+          console.log(
+            "[GeminiLiveProxy] Ignoring duplicate setup message (session already active or connecting)",
+          );
+          return;
+        }
         console.log(
           `[GeminiLiveProxy] Received setup message — voice=${msg.voiceName}, promptLength=${msg.systemPrompt?.length}`,
         );
-        this.systemPrompt = msg.systemPrompt;
-        this.voiceName = msg.voiceName;
+        this.config.systemPrompt = msg.systemPrompt;
+        this.config.voiceName = msg.voiceName;
+        this.hasGreeted = msg.hasGreeted || false;
+        this.suppressInitialOutput = msg.hasGreeted || false;
         this.connect();
         return;
       }
 
       if (!this.session) {
-        // Silently drop non-setup messages if session isn't ready
         return;
       }
 
       switch (msg.type) {
         case "audio":
-          // Forward audio chunk to Gemini (logging every 50th chunk to avoid spam)
-          if (Math.random() < 0.02)
-            console.log(`[GeminiLiveProxy] Relaying client audio chunk`);
-
           this.session?.sendRealtimeInput({
             audio: { data: msg.data, mimeType: "audio/pcm;rate=16000" },
           });
@@ -206,7 +261,6 @@ export class GeminiLiveProxy {
 
         case "text":
           console.log(`[GeminiLiveProxy] Relaying client text: "${msg.text}"`);
-          // Forward text input to Gemini
           this.session.sendClientContent({
             turns: [{ role: "user", parts: [{ text: msg.text }] }],
             turnComplete: true,
@@ -214,7 +268,6 @@ export class GeminiLiveProxy {
           break;
 
         case "log_insight":
-          // Forward a system command for manual insight logging
           this.session.sendClientContent({
             turns: [
               {
@@ -240,139 +293,163 @@ export class GeminiLiveProxy {
   /**
    * Handles messages from the Gemini Live session and relays them to the client.
    */
-  private handleGeminiMessage(msg: any): void {
-    // Log all message types for debugging
-    const types = [
-      msg.serverContent?.modelTurn ? "modelTurn" : null,
-      msg.serverContent?.turnComplete ? "turnComplete" : null,
-      msg.serverContent?.inputTranscription ? "inputTranscription" : null,
-      msg.serverContent?.outputTranscription ? "outputTranscription" : null,
-      msg.toolCall ? "toolCall" : null,
-      msg.toolCallCancellation ? "toolCallCancellation" : null,
-    ].filter(Boolean);
-    if (types.length > 0) {
-      console.log(`[GeminiLiveProxy] Message types: ${types.join(", ")}`);
-    }
-
+  private async handleGeminiMessage(msg: any): Promise<void> {
     // Audio output
     if (msg.serverContent?.modelTurn?.parts) {
       const parts = msg.serverContent.modelTurn.parts;
       for (const part of parts) {
         if (part.inlineData?.data) {
-          let dataToSend = part.inlineData.data;
+          if (this.suppressInitialOutput) {
+            continue;
+          }
 
-          // Ensure it's base64 for the frontend
+          let dataToSend = part.inlineData.data;
           if (typeof dataToSend !== "string") {
             dataToSend = Buffer.from(dataToSend).toString("base64");
           }
 
+          this.aiSpeaking = true;
           this.send({
             type: "audio",
             data: dataToSend,
             mimeType: part.inlineData.mimeType || "audio/pcm",
           });
+          if (!this.hasGreeted) {
+            this.hasGreeted = true;
+            this.onGreeted?.();
+          }
         }
       }
     }
 
-    // Turn complete — can arrive with or without modelTurn
+    // Turn complete
     if (msg.serverContent?.turnComplete) {
+      this.aiSpeaking = false;
       this.send({ type: "turn_complete" });
     }
 
-    // Interrupted — AI was cut off by user
+    // Interrupted
     if (msg.serverContent?.interrupted) {
       console.log(`[GeminiLiveProxy] AI was interrupted!`);
+      this.aiSpeaking = false;
       this.send({ type: "interrupted" });
     }
 
-    // Input transcription (user's speech → text)
+    // Transcription handling (input & output)
     const inputTx =
       msg.serverContent?.inputTranscription ||
       msg.serverContent?.input_audio_transcription;
-    if (inputTx) {
-      if (inputTx.text) {
-        // Handle both camelCase (SDK) and snake_case (REST) for isFinal
-        const isFinal = !!(inputTx.isFinal ?? inputTx.is_final);
-        console.log(
-          `[GeminiLiveProxy] Input transcription: "${inputTx.text.substring(0, 60)}..." isFinal=${isFinal}`,
-        );
-        this.send({
-          type: "input_transcription",
-          text: inputTx.text,
-          isFinal,
-        });
-      }
+    if (inputTx?.text) {
+      const isFinal = !!(inputTx.isFinal ?? inputTx.is_final);
+      this.send({
+        type: "input_transcription",
+        text: inputTx.text,
+        isFinal,
+      });
     }
 
-    // Output transcription (model's speech to text)
     const outputTx =
       msg.serverContent?.outputTranscription ||
       msg.serverContent?.output_audio_transcription;
-    if (outputTx) {
-      if (outputTx.text) {
-        // Handle both camelCase (SDK) and snake_case (REST) for isFinal
+    if (outputTx?.text) {
+      if (!this.suppressInitialOutput) {
         const isFinal = !!(outputTx.isFinal ?? outputTx.is_final);
-        console.log(
-          `[GeminiLiveProxy] Output transcription: "${outputTx.text.substring(0, 60)}..." isFinal=${isFinal}`,
-        );
-        // some of the tool call output was interfering with the transcription
-        let cleanText = outputTx.text;
+        if (!this.hasGreeted) {
+          this.hasGreeted = true;
+          this.onGreeted?.();
+        }
+        this.aiSpeaking = true;
 
-        // Strip tool call artifacts like update_persona_mood{...} or results like {success:true}
+        let cleanText = outputTx.text;
         cleanText = cleanText.replace(/(\w+)\{.*?\}/g, "");
         cleanText = cleanText.replace(/\{success:true\}/g, "");
-        // Strip control tokens or weird sequences like <ctrl43> (they kept appearing in the transcription)
         cleanText = cleanText.replace(/<.*?>/g, "");
 
-        // If the entire text was just tool metadata, don't send an empty transcription
-        if (!cleanText.trim()) return;
-
-        this.send({
-          type: "output_transcription",
-          text: cleanText,
-          isFinal,
-        });
+        if (cleanText.trim()) {
+          this.send({
+            type: "output_transcription",
+            text: cleanText,
+            isFinal,
+          });
+        }
       }
     }
 
-    // Tool calls (insights & end_roleplay)
+    // Tool calls (Native ADK flow)
     if (msg.toolCall?.functionCalls) {
-      for (const call of msg.toolCall.functionCalls) {
-        console.log(
-          `[GeminiLiveProxy] Tool call from Gemini: name=${call.name}, id=${call.id}, args=${JSON.stringify(call.args)}`,
-        );
+      const stateDelta: any = {
+        knowledgeMetadata: this.knowledgeMetadata,
+        searchCount: this.searchCount,
+      };
+
+      const invocation = new InvocationContext({
+        invocationId: `live-${Date.now()}`,
+        agent: this.adkAgent,
+        session: createSession({
+          id: `sess-${this.config.teamId || "default"}`,
+          appName: "CoachApp",
+          userId: this.config.teamId || "default",
+          state: {},
+          events: [],
+        }),
+        pluginManager: new PluginManager(),
+      });
+
+      const toolContext = new Context({ invocationContext: invocation });
+      (toolContext.actions as any).stateDelta = stateDelta;
+
+      console.log(
+        `[GeminiLiveProxy] ADK Native Tool calls count: ${msg.toolCall.functionCalls.length}`,
+      );
+
+      msg.toolCall.functionCalls.forEach((call: any) => {
         this.send({
           type: "tool_call",
           name: call.name,
           args: call.args,
           id: call.id,
         });
+      });
 
-        // Auto-respond to tool calls on the backend
-        try {
-          this.session?.sendToolResponse({
-            functionResponses: [
-              {
-                name: call.name,
-                response: { success: true },
-                id: call.id,
-              },
-            ],
-          });
-          console.log(
-            `[GeminiLiveProxy] Tool response sent for ${call.name} (id=${call.id})`,
-          );
-        } catch (err) {
-          console.error(
-            `[GeminiLiveProxy] Failed to send tool response for ${call.name}:`,
-            err,
-          );
-        }
-      }
+      handleFunctionCallList({
+        invocationContext: invocation,
+        functionCalls: msg.toolCall.functionCalls,
+        toolsDict: geminiLiveToolsDict as any,
+        beforeToolCallbacks: [],
+        afterToolCallbacks: [],
+      })
+        .then((resp: any) => {
+          if (stateDelta.searchCount !== undefined) {
+            this.searchCount = stateDelta.searchCount;
+          }
+
+          if (resp?.function_responses) {
+            const functionResponses = resp.function_responses.map(
+              (fr: any) => ({
+                id: fr.id,
+                name: fr.name,
+                response: fr.response,
+              }),
+            );
+
+            console.log(
+              `[GeminiLiveProxy] Sending ${functionResponses.length} tool responses back to Gemini.`,
+            );
+            try {
+              this.session?.sendToolResponse({ functionResponses });
+            } catch (err) {
+              console.error(
+                `[GeminiLiveProxy] Failed to send tool responses:`,
+                err,
+              );
+            }
+          }
+        })
+        .catch((err: any) => {
+          console.error(`[GeminiLiveProxy] ADK tool execution failed:`, err);
+        });
     }
 
-    // Handle tool call cancellations (e.g. when user interrupts)
     if (msg.toolCallCancellation) {
       console.log(
         `[GeminiLiveProxy] Tool call cancelled: ${JSON.stringify(msg.toolCallCancellation)}`,
@@ -384,14 +461,8 @@ export class GeminiLiveProxy {
    * Sends a JSON message to the frontend WebSocket client.
    */
   private send(obj: Record<string, any>): void {
-    const json = JSON.stringify(obj);
     if (this.ws.readyState === 1 /* WebSocket.OPEN */) {
-      // console.log(`[GeminiLiveProxy] Sending ${obj.type} (${json.length} bytes)`);
-      this.ws.send(json);
-    } else {
-      console.warn(
-        `[GeminiLiveProxy] Cannot send ${obj.type}, readyState=${this.ws.readyState}`,
-      );
+      this.ws.send(JSON.stringify(obj));
     }
   }
 

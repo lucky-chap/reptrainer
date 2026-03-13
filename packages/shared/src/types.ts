@@ -209,6 +209,7 @@ export interface Session {
 // ─── Call Session (enhanced) ────────────────────────────────────────────────
 
 export type CallStatus = "pending" | "active" | "ended";
+export type DebriefStatus = "pending" | "generating" | "ready" | "failed";
 
 export interface CallSession {
   id: string;
@@ -244,6 +245,7 @@ export interface CallSession {
   audioUrl?: string;
 
   debrief?: CoachDebriefResponse | null;
+  debriefStatus?: DebriefStatus;
   objections?: any[];
   moods?: any[];
   durationSeconds?: number;
@@ -328,6 +330,7 @@ export interface EvaluateSessionRequest {
   durationSeconds: number;
   trackId?: TrainingTrackId;
   scenarioId?: string;
+  teamId?: string;
 }
 
 export interface EvaluateSessionResponse extends SessionEvaluation {}
@@ -340,6 +343,7 @@ export interface FeedbackReportRequest {
   durationSeconds: number;
   trackId?: TrainingTrackId;
   scenarioId?: string;
+  teamId?: string;
 }
 
 export interface FeedbackReportResponse extends FeedbackReport {}

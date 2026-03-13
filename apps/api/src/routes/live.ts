@@ -3,15 +3,16 @@ import type { WebSocket, WebSocketServer } from "ws";
 import { env } from "../config/env.js";
 import { GeminiLiveProxy } from "../services/gemini-live.js";
 
+interface SessionInfo {
+  ws: WebSocket;
+  hasGreeted: boolean;
+}
+
+const activeSessions = new Map<string, SessionInfo>();
+
 /**
  * Registers the /api/live WebSocket route on the given WebSocket server.
  *
- * The client connects with query params:
- *   ?apiKey=<secret>&systemPrompt=<encoded>&voiceName=<voice>
- *
- * Once connected, messages are JSON objects:
- *   → client sends: { type: "audio", data: base64 } or { type: "text", text: "..." }
- *   ← server sends: { type: "audio"|"input_transcription"|"output_transcription"|"tool_call"|... }
  */
 export function registerLiveRoute(wss: WebSocketServer): void {
   wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
@@ -34,14 +35,48 @@ export function registerLiveRoute(wss: WebSocketServer): void {
     // Read config from query params (optional if sending via 'setup' message)
     const systemPrompt = url.searchParams.get("systemPrompt");
     const voiceName = url.searchParams.get("voiceName");
+    const teamId = url.searchParams.get("teamId");
+    const sessionId = url.searchParams.get("sessionId");
 
     console.log(
-      `[Live] New WebSocket connection — voice=${voiceName || "default"}, promptLength=${systemPrompt?.length || 0}`,
+      `[Live] New WebSocket connection — voice=${voiceName || "default"}, teamId=${teamId || "unknown"}, sessionId=${sessionId || "none"}, promptLength=${systemPrompt?.length || 0}`,
     );
 
-    const proxy = new GeminiLiveProxy(ws, systemPrompt, voiceName);
+    let initialHasGreeted = false;
+    if (sessionId) {
+      const existing = activeSessions.get(sessionId);
+      if (existing) {
+        if (existing.ws.readyState === 1 /* OPEN */) {
+          console.warn(
+            `[Live] Duplicate session detected for sessionId=${sessionId}. Closing previous connection.`,
+          );
+          existing.ws.close(4002, "Duplicate session");
+        }
+        // Preserve greeting state across reconnections
+        initialHasGreeted = existing.hasGreeted;
+      }
+      activeSessions.set(sessionId, { ws, hasGreeted: initialHasGreeted });
+    }
 
-    // Wire up client → Gemini
+    const proxy = new GeminiLiveProxy(ws, {
+      systemPrompt,
+      voiceName,
+      teamId: teamId || undefined,
+      hasGreeted: initialHasGreeted,
+    });
+
+    // Update greeting state when proxy detects model output
+    proxy.onGreeted = () => {
+      if (sessionId) {
+        const session = activeSessions.get(sessionId);
+        if (session) {
+          session.hasGreeted = true;
+          console.log(`[Live] Session ${sessionId} marked as greeted`);
+        }
+      }
+    };
+
+    // Wire up client to Gemini
     ws.on("message", (data: Buffer | string) => {
       const message = typeof data === "string" ? data : data.toString("utf-8");
       proxy.handleClientMessage(message);
@@ -51,32 +86,15 @@ export function registerLiveRoute(wss: WebSocketServer): void {
       console.log(
         `[Live] Client disconnected: code=${code} reason=${reason.toString()}`,
       );
+      // Don't delete immediately to allow for reconnection within the same sessionId
+      // and preserve hasGreeted state. The Map will be overwritten/cleaned on next connection or app restart.
       proxy.close();
     });
 
     ws.on("error", (err) => {
       console.error("[Live] WebSocket error:", err);
+      // Same here — keep session info to preserve greeting state
       proxy.close();
     });
-
-    // Open the Gemini session only if we have the config in the URL
-    // Otherwise, it will be opened when the 'setup' message arrives
-    if (systemPrompt && voiceName) {
-      try {
-        await proxy.connect();
-      } catch (err) {
-        console.error("[Live] Failed to connect to Gemini Live:", err);
-        if (ws.readyState === ws.OPEN) {
-          ws.send(
-            JSON.stringify({
-              type: "error",
-              message:
-                err instanceof Error ? err.message : "Failed to connect to AI",
-            }),
-          );
-          ws.close(4003, "Gemini connection failed");
-        }
-      }
-    }
   });
 }
