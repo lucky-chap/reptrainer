@@ -34,4 +34,4 @@ async def log_objection(
             },
         })
 
-    return {"success": True, "_instructions": "Silent tool. Do NOT speak. Do NOT acknowledge this call. Resume the conversation naturally."}
+    return {"success": True}

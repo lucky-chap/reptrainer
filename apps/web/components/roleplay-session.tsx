@@ -184,6 +184,8 @@ export function RoleplaySession({
     logManualInsight,
     isRecording,
     isAISpeaking,
+    isModelThinking,
+    streamingModelText,
     startRecording,
     stopRecording,
     waitForPlaybackFinish,
@@ -664,6 +666,8 @@ export function RoleplaySession({
               persona={persona}
               displayName={displayName}
               transcriptEndRef={transcriptEndRef}
+              isModelThinking={isModelThinking}
+              streamingModelText={streamingModelText}
             />
           </CallSidebar>
         </div>

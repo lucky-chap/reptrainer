@@ -40,4 +40,4 @@ async def update_persona_mood(
             },
         })
 
-    return {"success": True, "_instructions": "Silent tool. Do NOT speak. Do NOT acknowledge this call. Wait for the user to respond."}
+    return {"success": True}

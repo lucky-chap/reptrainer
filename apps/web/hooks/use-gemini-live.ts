@@ -26,7 +26,9 @@ function getWsUrl(
   sessionId?: string,
   teamId?: string,
 ): string {
-  const wsBaseUrl = env.NEXT_PUBLIC_LIVE_AGENT_URL || "ws://localhost:8000/ws";
+  // Use the explicitly configured live agent URL (which now points to the Node API)
+  const wsBaseUrl =
+    env.NEXT_PUBLIC_LIVE_AGENT_URL || "ws://localhost:4000/api/live";
   const secretKey = env.NEXT_PUBLIC_API_SECRET_KEY;
 
   const params = new URLSearchParams({
@@ -35,9 +37,12 @@ function getWsUrl(
   });
 
   if (teamId) params.append("teamId", teamId);
+  if (sessionId) params.append("sessionId", sessionId);
 
-  // The refactored bidi live-agent uses /ws/{session_id}
-  return `${wsBaseUrl}/${sessionId || "default"}?${params.toString()}`;
+  // Ensure we don't have a double slash if the base URL ends with one
+  const baseUrl = wsBaseUrl.endsWith("/") ? wsBaseUrl.slice(0, -1) : wsBaseUrl;
+
+  return `${baseUrl}?${params.toString()}`;
 }
 
 export function useGeminiLive(options: UseGeminiLiveOptions) {
@@ -54,17 +59,14 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const [objections, setObjections] = useState<ObjectionLog[]>([]);
   const [moods, setMoods] = useState<PersonaMood[]>([]);
   const [isMuted, setIsMuted] = useState(false);
+  const [isModelThinking, setIsModelThinking] = useState(false);
+  const [streamingModelText, setStreamingModelText] = useState("");
 
   // --- Refs ---
   const optionsRef = useRef(options);
   useEffect(() => {
     optionsRef.current = options;
   }, [options]);
-
-  // Sync transcript updates to callback
-  useEffect(() => {
-    optionsRef.current.onTranscriptUpdate?.(transcript);
-  }, [transcript]);
 
   // --- Audio Refs ---
   const wsRef = useRef<WebSocket | null>(null);
@@ -82,8 +84,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const isConnectedRef = useRef(false);
   const isMutedRef = useRef(false);
   const isPlayingRef = useRef(false);
-  const hasUserInputRef = useRef(false);
-  const suppressAdditionalModelBeforeUserRef = useRef(false);
+  const suppressVadUntilRef = useRef(0);
   // Tracks whether we actually sent activity_start to Gemini so we only send
   // activity_end when there is a matching start (prevents orphan end signals).
   const vadActivitySentRef = useRef(false);
@@ -95,59 +96,53 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const maxReconnectAttempts = 5;
   const baseReconnectDelay = 1000;
   const isIntentionalDisconnectRef = useRef(false);
-  const connectRef = useRef<((isReconnect?: boolean) => Promise<void>) | undefined>(undefined);
+  const connectRef = useRef<
+    ((isReconnect?: boolean) => Promise<void>) | undefined
+  >(undefined);
 
-  // --- Helper: Transcript Management ---
-  const addTranscriptEntry = useCallback(
-    (role: "user" | "model", text: string, isStreaming: boolean = false) => {
+  const pushTranscript = useCallback(
+    (role: "user" | "model", text: string, finished: boolean) => {
       if (!text) return;
-      const now = Date.now();
-      const elapsed = startTimeRef.current ? now - startTimeRef.current : 0;
+      const timestamp = Math.round(
+        (Date.now() - (startTimeRef.current ?? 0)) / 1000,
+      );
+
+      // Special handling for model: only push to history when finished
+      // We'll manage the "streaming" state via streamingModelText for the UI
+      if (role === "model") {
+        if (!finished) {
+          setIsModelThinking(true);
+          setStreamingModelText(text);
+          return;
+        } else {
+          setIsModelThinking(false);
+          setStreamingModelText("");
+          // Fall through to push the final text
+        }
+      }
 
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
-        const MERGE_WINDOW = 5000;
-
-        if (
-          last &&
-          last.role === role &&
-          (last.isStreaming ||
-            now - (last.timestamp + (startTimeRef.current ?? 0)) < MERGE_WINDOW)
-        ) {
-          let newText: string;
-          const trimmedText = text.trim();
-          const trimmedLastText = last.text.trim();
-
-          if (
-            trimmedText.toLowerCase().startsWith(trimmedLastText.toLowerCase())
-          ) {
-            newText = text;
-          } else if (trimmedText === trimmedLastText) {
-            newText = last.text;
-          } else {
-            newText = last.text.trim() + " " + text.trim();
-          }
-
-          const updated = { ...last, text: newText, isStreaming };
-          return [...prev.slice(0, -1), updated];
-        } else if (last && last.isStreaming && last.role !== role) {
-          const finalized = { ...last, isStreaming: false };
-          const nextEntry: TranscriptEntry = {
-            role,
-            text,
-            timestamp: elapsed,
-            isStreaming,
-          };
-          return [...prev.slice(0, -1), finalized, nextEntry];
-        } else {
-          const nextEntry: TranscriptEntry = {
-            role,
-            text,
-            timestamp: elapsed,
-            isStreaming,
-          };
-          return [...prev, nextEntry];
+        if (last && last.role === role && last.isStreaming) {
+          return [
+            ...prev.slice(0, -1),
+            {
+              ...last,
+              text,
+              timestamp,
+              isStreaming: !finished,
+            },
+          ];
         }
+        return [
+          ...prev,
+          {
+            role,
+            text,
+            timestamp,
+            isStreaming: !finished,
+          },
+        ];
       });
     },
     [],
@@ -169,63 +164,14 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             optionsRef.current.onConnectionChange?.(true);
             break;
 
-          case "turn_complete": {
-            setTranscript((prev) => {
-              const last = prev[prev.length - 1];
-              if (last && last.isStreaming) {
-                const updated = { ...last, isStreaming: false };
-                return [...prev.slice(0, -1), updated];
-              }
-              return prev;
-            });
-            break;
-          }
-
-          case "input_transcription":
-            if (msg.text && msg.text.trim().length > 0) {
-              console.log("[GeminiLive] User transcript:", msg.text);
-              hasUserInputRef.current = true;
-              suppressAdditionalModelBeforeUserRef.current = false;
-              addTranscriptEntry("user", msg.text, !msg.isFinal);
-            }
-            break;
-
-          case "output_transcription":
-            if (
-              suppressAdditionalModelBeforeUserRef.current ||
-              !isConnectedRef.current
-            ) {
-              break;
-            }
-            if (msg.text) {
-              console.log("[GeminiLive] Model transcript:", msg.text);
-              addTranscriptEntry("model", msg.text, !msg.isFinal);
-              if (msg.isFinal) {
-                // Ensure model speaking state is updated when transcript is final
-                setIsAISpeaking(false);
-              }
-            }
+          case "turn_complete":
             break;
 
           case "interrupted":
             console.log("[GeminiLive] Model was interrupted, clearing audio");
-            // Tell the player worklet to clear its ring buffer
             playerNodeRef.current?.port.postMessage({ command: "clear" });
             isPlayingRef.current = false;
             setIsAISpeaking(false);
-            // Finalize the transcript entry
-            setTranscript((prev) => {
-              const last = prev[prev.length - 1];
-              if (last && last.role === "model" && last.isStreaming) {
-                const updated = {
-                  ...last,
-                  isStreaming: false,
-                  text: last.text + "...",
-                };
-                return [...prev.slice(0, -1), updated];
-              }
-              return prev;
-            });
             break;
 
           case "tool_call":
@@ -283,6 +229,20 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             }
             break;
 
+          case "input_transcription":
+            pushTranscript("user", msg.text || "", Boolean(msg.isFinal));
+            break;
+
+          case "output_transcription":
+            pushTranscript("model", msg.text || "", Boolean(msg.isFinal));
+            break;
+
+          case "transcript":
+            if (msg.role === "user" || msg.role === "model") {
+              pushTranscript(msg.role, msg.text || "", Boolean(msg.finished));
+            }
+            break;
+
           case "error":
             console.error("[GeminiLive] Server error:", msg.message);
             optionsRef.current.onError?.(msg.message);
@@ -296,18 +256,17 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             break;
 
           default:
-            console.log("[GeminiLive] Unknown message type:", msg.type);
+            break;
         }
       } catch (err) {
         console.error("[GeminiLive] Failed to parse server message:", err);
       }
     },
-    [addTranscriptEntry],
+    [pushTranscript],
   );
 
   // --- Audio Resource Cleanup ---
   const cleanupAudioResources = useCallback(() => {
-    // Disconnect worklet nodes
     recorderNodeRef.current?.disconnect();
     recorderNodeRef.current = null;
     playerNodeRef.current?.disconnect();
@@ -316,13 +275,11 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     vadNodeRef.current = null;
     micSourceRef.current = null;
 
-    // Stop mic stream
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
     }
 
-    // Close audio contexts
     if (captureCtxRef.current && captureCtxRef.current.state !== "closed") {
       captureCtxRef.current.close().catch(console.error);
       captureCtxRef.current = null;
@@ -355,25 +312,19 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       if (isReconnect) {
         setIsReconnecting(true);
         setConnectionError(null);
-        hasUserInputRef.current = false;
         vadActivitySentRef.current = false;
-        suppressAdditionalModelBeforeUserRef.current = transcript.some(
-          (t) => t.role === "model",
-        );
       } else {
         setIsConnecting(true);
         setIsConnected(false);
         setConnectionError(null);
         setPersonaLeft(false);
-        setTranscript([]);
         setInsights([]);
         setObjections([]);
         setMoods([]);
+        setTranscript([]);
         startTimeRef.current = Date.now();
         reconnectAttemptsRef.current = 0;
-        hasUserInputRef.current = false;
         vadActivitySentRef.current = false;
-        suppressAdditionalModelBeforeUserRef.current = false;
       }
 
       try {
@@ -394,7 +345,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         captureCtxRef.current = captureCtx;
         await captureCtx.resume();
 
-        // Load AudioWorklet modules
         await captureCtx.audioWorklet.addModule(
           "/worklets/pcm-recorder-processor.js",
         );
@@ -411,7 +361,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         const micSource = captureCtx.createMediaStreamSource(mic);
         micSourceRef.current = micSource;
 
-        // PCM Recorder worklet: captures 16kHz Int16 PCM
         const recorderNode = new AudioWorkletNode(
           captureCtx,
           "pcm-recorder-processor",
@@ -419,20 +368,18 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         recorderNodeRef.current = recorderNode;
         micSource.connect(recorderNode);
 
-        // Recorder sends binary PCM directly over WebSocket
         recorderNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
           if (
             !wsRef.current ||
             wsRef.current.readyState !== WebSocket.OPEN ||
             !isConnectedRef.current ||
-            isMutedRef.current
+            isMutedRef.current ||
+            !vadActivitySentRef.current
           )
             return;
-          // Send raw binary PCM frame (no base64, no JSON wrapper)
           wsRef.current.send(e.data);
         };
 
-        // VAD worklet: detects speech onset/offset
         const vadNode = new AudioWorkletNode(captureCtx, "vad-processor");
         vadNodeRef.current = vadNode;
         micSource.connect(vadNode);
@@ -441,22 +388,19 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           if (
             !wsRef.current ||
             wsRef.current.readyState !== WebSocket.OPEN ||
-            !isConnectedRef.current
+            !isConnectedRef.current ||
+            isMutedRef.current
           )
             return;
 
           const vadEvent = e.data?.event;
+          if (Date.now() < suppressVadUntilRef.current) return;
 
           if (vadEvent === "activity_start") {
-            // Suppress while AI is playing to prevent speaker echo from being
-            // mis-detected as user speech and interrupting the AI.
-            if (isPlayingRef.current) return;
+            // Remove the isPlayingRef check to allow interruption
             vadActivitySentRef.current = true;
             wsRef.current.send(JSON.stringify(e.data));
           } else if (vadEvent === "activity_end") {
-            // Only send activity_end if we previously sent activity_start.
-            // Orphan activity_end signals (e.g. from echo after suppression)
-            // can confuse Gemini into thinking the user said something empty.
             if (!vadActivitySentRef.current) return;
             vadActivitySentRef.current = false;
             wsRef.current.send(JSON.stringify(e.data));
@@ -478,7 +422,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         playerNodeRef.current = playerNode;
         playerNode.connect(playbackCtx.destination);
 
-        // Listen for drain events (buffer emptied → AI stopped speaking)
         playerNode.port.onmessage = (e: MessageEvent) => {
           if (e.data?.type === "drain") {
             isPlayingRef.current = false;
@@ -487,7 +430,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         };
 
         // ── Mixer for recording both sides ────────────────────────────────
-        // Create a mixer destination on the capture context for MediaRecorder
         const mixer = captureCtx.createMediaStreamDestination();
         mixerRef.current = mixer;
         micSource.connect(mixer);
@@ -501,7 +443,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         console.log("[GeminiLive] Connecting to ADK live-agent...");
 
         const ws = new WebSocket(url);
-        ws.binaryType = "arraybuffer"; // Receive audio as ArrayBuffer, not Blob
+        ws.binaryType = "arraybuffer";
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -519,20 +461,13 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
 
         ws.onmessage = (e: MessageEvent) => {
           if (e.data instanceof ArrayBuffer) {
-            // Binary frame: PCM audio from Gemini (24kHz)
-            if (
-              suppressAdditionalModelBeforeUserRef.current ||
-              !isConnectedRef.current
-            ) {
-              return;
-            }
+            if (!isConnectedRef.current) return;
             isPlayingRef.current = true;
             setIsAISpeaking(true);
-            // Forward to player worklet ring buffer (zero-copy transfer)
+            suppressVadUntilRef.current = Date.now() + 800;
             const buf = e.data as ArrayBuffer;
             playerNodeRef.current?.port.postMessage(buf, [buf]);
           } else {
-            // Text frame: JSON control messages
             handleServerMessage(e.data as string);
           }
         };
@@ -605,13 +540,16 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         );
       }
     },
-    [handleServerMessage, cleanupAudioResources, transcript],
+    [handleServerMessage, cleanupAudioResources],
   );
 
-  // Keep connectRef in sync so ws.onclose can call the latest connect
   useEffect(() => {
     connectRef.current = connect;
   }, [connect]);
+
+  useEffect(() => {
+    optionsRef.current.onTranscriptUpdate?.(transcript);
+  }, [transcript]);
 
   const disconnect = useCallback(() => {
     isIntentionalDisconnectRef.current = true;
@@ -688,9 +626,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     connect,
     disconnect,
     sendText: (text: string) => {
-      hasUserInputRef.current = true;
-      suppressAdditionalModelBeforeUserRef.current = false;
-      addTranscriptEntry("user", text);
+      pushTranscript("user", text, true);
       wsRef.current?.send(JSON.stringify({ type: "text", text }));
     },
     logManualInsight: () =>
@@ -705,7 +641,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
       isMutedRef.current = nextMuted;
       setIsMuted(nextMuted);
 
-      // Disconnect/reconnect recorder worklet to ensure zero audio when muted
       if (recorderNodeRef.current && micSourceRef.current) {
         try {
           if (nextMuted) {
@@ -720,6 +655,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     },
     isRecording,
     isAISpeaking,
+    isModelThinking,
+    streamingModelText,
     startRecording,
     stopRecording,
     getRecordingBlob: () =>
@@ -727,7 +664,6 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         ? new Blob(recordedChunksRef.current, { type: "audio/webm" })
         : null,
     waitForPlaybackFinish: async () => {
-      // Poll the player worklet for buffer state
       const maxWait = 15000;
       const start = Date.now();
       while (isPlayingRef.current && Date.now() - start < maxWait) {

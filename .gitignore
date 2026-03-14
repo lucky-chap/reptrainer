@@ -49,3 +49,8 @@ next-env.d.ts
 
 # live-api-web-console (the demo from https://github.com/google-gemini/live-api-web-console)
 live-api-web-console
+
+
+# Pyc files
+__pycache__
+*.pyc

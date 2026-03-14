@@ -130,21 +130,21 @@ export class GeminiLiveProxy {
           }),
           inputAudioTranscription: setup.input_audio_transcription,
           outputAudioTranscription: setup.output_audio_transcription,
-          realtimeInputConfig: {
-            automaticActivityDetection: {
-              prefixPaddingMs:
-                setup.realtime_input_config.automatic_activity_detection
-                  .prefix_padding_ms,
-              silenceDurationMs:
-                setup.realtime_input_config.automatic_activity_detection
-                  .silence_duration_ms,
-              startOfSpeechSensitivity: setup.realtime_input_config
-                .automatic_activity_detection
-                .start_of_speech_sensitivity as any,
-              endOfSpeechSensitivity: setup.realtime_input_config
-                .automatic_activity_detection.end_of_speech_sensitivity as any,
-            },
-          },
+          // realtimeInputConfig: {
+          //   automaticActivityDetection: {
+          //     prefixPaddingMs:
+          //       setup.realtime_input_config.automatic_activity_detection
+          //         .prefix_padding_ms,
+          //     silenceDurationMs:
+          //       setup.realtime_input_config.automatic_activity_detection
+          //         .silence_duration_ms,
+          //     startOfSpeechSensitivity: setup.realtime_input_config
+          //       .automatic_activity_detection
+          //       .start_of_speech_sensitivity as any,
+          //     endOfSpeechSensitivity: setup.realtime_input_config
+          //       .automatic_activity_detection.end_of_speech_sensitivity as any,
+          //   },
+          // },
           responseModalities: setup.generation_config
             .response_modalities as any,
           speechConfig: {
@@ -183,7 +183,6 @@ export class GeminiLiveProxy {
       });
 
       console.log("[GeminiLiveProxy] Connection command initiated");
-
     } catch (err) {
       this.isConnecting = false;
       this.session = null;
@@ -283,7 +282,10 @@ export class GeminiLiveProxy {
 
     try {
       this.session.sendRealtimeInput({
-        audio: { data: data.toString("base64"), mimeType: "audio/pcm;rate=16000" },
+        audio: {
+          data: data.toString("base64"),
+          mimeType: "audio/pcm;rate=16000",
+        },
       });
     } catch (err) {
       console.error("[GeminiLiveProxy] Failed to send client audio:", err);
@@ -299,7 +301,7 @@ export class GeminiLiveProxy {
       const parts = msg.serverContent.modelTurn.parts;
       for (const part of parts) {
         if (part.inlineData?.data) {
-          if (this.suppressInitialOutput || this.suppressAfterToolCall) {
+          if (this.suppressInitialOutput) {
             continue;
           }
 
@@ -364,7 +366,7 @@ export class GeminiLiveProxy {
       msg.serverContent?.outputTranscription ||
       msg.serverContent?.output_audio_transcription;
     if (outputTx?.text) {
-      if (!this.suppressInitialOutput && !this.suppressAfterToolCall) {
+      if (!this.suppressInitialOutput) {
         const isFinal = !!(outputTx.isFinal ?? outputTx.is_final);
         if (!this.hasGreeted) {
           this.hasGreeted = true;
@@ -391,9 +393,7 @@ export class GeminiLiveProxy {
     if (msg.toolCall?.functionCalls) {
       const calls = msg.toolCall.functionCalls;
 
-      console.log(
-        `[GeminiLiveProxy] Tool calls received: ${calls.length}`,
-      );
+      console.log(`[GeminiLiveProxy] Tool calls received: ${calls.length}`);
 
       // Relay tool calls to the frontend for UI display
       for (const call of calls) {
@@ -427,7 +427,10 @@ export class GeminiLiveProxy {
                   },
                 },
               };
-              result = await (toolFn as any).execute({ args: call.args, context });
+              result = await (toolFn as any).execute({
+                args: call.args,
+                context,
+              });
               // Sync search count back
               if (context.actions.stateDelta.searchCount !== undefined) {
                 this.searchCount = context.actions.stateDelta.searchCount;
@@ -460,10 +463,7 @@ export class GeminiLiveProxy {
       try {
         this.session?.sendToolResponse({ functionResponses });
       } catch (err) {
-        console.error(
-          `[GeminiLiveProxy] Failed to send tool responses:`,
-          err,
-        );
+        console.error(`[GeminiLiveProxy] Failed to send tool responses:`, err);
       }
     }
 

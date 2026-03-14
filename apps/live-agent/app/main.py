@@ -4,6 +4,7 @@ Refactored to follow the bidi-agent architecture while maintaining unique featur
 """
 
 import asyncio
+import base64
 import json
 import logging
 from pathlib import Path
@@ -11,6 +12,8 @@ from pathlib import Path
 import google.genai.errors
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from starlette.websockets import WebSocketState
+from fastapi.middleware.cors import CORSMiddleware
 from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.agents.live_request_queue import LiveRequestQueue
 from google.genai import types
@@ -20,7 +23,6 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Import agent and runner
 from persona_agent.agent import runner, session_service, APP_NAME, agent
-from analysis import run_analysis
 from auth import verify_api_key
 from config import settings
 from firestore_client import get_knowledge_metadata
@@ -33,6 +35,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Reptrainer Live Agent", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/health")
 async def health():
@@ -51,13 +61,18 @@ async def live_session(
     affective_dialog: bool = False,
 ):
     """Bidirectional WebSocket endpoint for live roleplay sessions."""
+    logger.info("Incoming connection request: session=%s user=%s team=%s", session_id, user_id, team_id)
+
     # ── Auth ──────────────────────────────────────────────────────────────
     if not verify_api_key(api_key):
+        logger.warning("Auth failed: invalid API key provided for session=%s", session_id)
+        # We accept then close with a 4xxx code for better client-side diagnostics
+        await websocket.accept()
         await websocket.close(code=4001, reason="Unauthorized")
         return
 
     await websocket.accept()
-    logger.info("Client connected: session=%s user=%s team=%s", session_id, user_id, team_id)
+    logger.info("Client connected and authenticated: session=%s", session_id)
 
     # ── Wait for setup message ────────────────────────────────────────────
     try:
@@ -113,6 +128,10 @@ async def live_session(
     model_name = agent.model
     is_native_audio = "native-audio" in model_name.lower() or "live" in model_name.lower()
 
+    realtime_input_config = types.RealtimeInputConfig(
+        automatic_activity_detection=types.AutomaticActivityDetection(disabled=True)
+    )
+
     if is_native_audio:
         run_config = RunConfig(
             streaming_mode=StreamingMode.BIDI,
@@ -125,6 +144,7 @@ async def live_session(
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
             session_resumption=types.SessionResumptionConfig(),
+            realtime_input_config=realtime_input_config,
             proactivity=types.ProactivityConfig(proactive_audio=True) if proactivity else None,
             enable_affective_dialog=affective_dialog if affective_dialog else None,
         )
@@ -133,6 +153,7 @@ async def live_session(
             streaming_mode=StreamingMode.BIDI,
             response_modalities=["TEXT"],
             session_resumption=types.SessionResumptionConfig(),
+            realtime_input_config=realtime_input_config,
         )
 
     # ── Create LiveRequestQueue ───────────────────────────────────────────
@@ -143,6 +164,7 @@ async def live_session(
 
     # ── Upstream: Client → LiveRequestQueue (Bidi Pattern) ────────────────
     async def upstream():
+        vad_active = False
         try:
             await ready_event.wait()
             while True:
@@ -165,7 +187,12 @@ async def live_session(
                         )
                     elif event_type in ["activity_start", "activity_end"]:
                         logger.info("Received VAD signal: %s", event_type)
-                        # Gemini Live handles VAD internally, but we log the client signal
+                        if event_type == "activity_start" and not vad_active:
+                            vad_active = True
+                            live_request_queue.send_activity_start()
+                        elif event_type == "activity_end" and vad_active:
+                            vad_active = False
+                            live_request_queue.send_activity_end()
                     else:
                         logger.debug("Received unknown text message: %s", data)
         except WebSocketDisconnect:
@@ -173,13 +200,25 @@ async def live_session(
         finally:
             live_request_queue.close()
 
+    async def safe_send_bytes(data: bytes):
+        if websocket.application_state == WebSocketState.DISCONNECTED:
+            return
+        try:
+            await websocket.send_bytes(data)
+        except RuntimeError:
+            # Close was already sent
+            return
+
+    async def safe_send_json(payload: dict):
+        if websocket.application_state == WebSocketState.DISCONNECTED:
+            return
+        try:
+            await websocket.send_json(payload)
+        except RuntimeError:
+            return
+
     # ── Downstream: ADK Events → Client (Bidi Pattern + Unique Features) ──
     async def downstream():
-        transcript_lines: list[str] = []
-        current_user_text = ""
-        current_model_text = ""
-        analysis_task: asyncio.Task | None = None
-
         try:
             ready_event.set()
             # AI Initiation
@@ -195,67 +234,57 @@ async def live_session(
                 live_request_queue=live_request_queue,
                 run_config=run_config,
             ):
-                # ── Binary Audio Relay (Frontend expects raw bytes for 24kHz audio) ──
-                server_content = getattr(event, "server_content", None)
-                if server_content:
-                    model_turn = getattr(server_content, "model_turn", None)
-                    if model_turn:
-                        for part in (model_turn.parts or []):
-                            inline_data = getattr(part, "inline_data", None)
-                            if inline_data and getattr(inline_data, "data", None):
-                                await websocket.send_bytes(inline_data.data)
+                if websocket.application_state != WebSocketState.CONNECTED:
+                    break
+                # ── Binary Audio Relay ──
+                if event.content and event.content.parts:
+                    text_parts = []
+                    for part in event.content.parts:
+                        if part.inline_data and part.inline_data.data:
+                            raw = part.inline_data.data
+                            if isinstance(raw, str):
+                                raw = base64.b64decode(raw)
+                            await safe_send_bytes(raw)
+                        elif part.text:
+                            text_parts.append(part.text)
 
-                # ── Bidi-Agent Style: Dump raw event with injected type ─────
-                event_dict = event.model_dump(exclude_none=True, by_alias=True)
-                
-                # Inject 'type' field for frontend compatibility
-                if getattr(event, "turn_complete", False):
-                    event_dict["type"] = "turn_complete"
-                elif getattr(event, "server_content", None) and getattr(event.server_content, "interrupted", False):
-                    event_dict["type"] = "interrupted"
-                elif getattr(event, "input_transcription", None) is not None:
-                    event_dict["type"] = "input_transcription"
-                    tx = event.input_transcription
-                    event_dict["text"] = tx.text
-                    event_dict["isFinal"] = tx.finished
-                elif getattr(event, "output_transcription", None) is not None:
-                    event_dict["type"] = "output_transcription"
-                    tx = event.output_transcription
-                    event_dict["text"] = tx.text
-                    event_dict["isFinal"] = tx.finished
-                elif getattr(event, "server_content", None) and getattr(event.server_content, "model_turn", None):
-                    event_dict["type"] = "server_content"
-                else:
-                    event_dict["type"] = "unknown"
-
-                await websocket.send_json(event_dict)
-
-                # ── Unique Feature: Accumulate transcript for analysis ────
-                input_tx = getattr(event, "input_transcription", None)
-                if input_tx and input_tx.text:
-                    if input_tx.finished:
-                        current_user_text = input_tx.text
-
-                output_tx = getattr(event, "output_transcription", None)
-                if output_tx and output_tx.text:
-                    if output_tx.finished:
-                        current_model_text = output_tx.text
-
-                if getattr(event, "turn_complete", False):
-                    if current_user_text:
-                        transcript_lines.append(f"User: {current_user_text}")
-                        current_user_text = ""
-                    if current_model_text:
-                        transcript_lines.append(f"Persona: {current_model_text}")
-                        current_model_text = ""
-
-                    # Background analysis
-                    if len(transcript_lines) >= 2:
-                        if analysis_task and not analysis_task.done():
-                            analysis_task.cancel()
-                        analysis_task = asyncio.create_task(
-                            run_analysis(list(transcript_lines), [], event_queue)
+                    if text_parts and not event.output_transcription:
+                        await safe_send_json(
+                            {
+                                "type": "transcript",
+                                "role": "model",
+                                "text": "".join(text_parts),
+                                "finished": bool(event.turn_complete),
+                            }
                         )
+
+                # ── Transcription Relay ──
+                if event.input_transcription and event.input_transcription.text:
+                    await safe_send_json(
+                        {
+                            "type": "transcript",
+                            "role": "user",
+                            "text": event.input_transcription.text,
+                            "finished": bool(event.input_transcription.finished),
+                        }
+                    )
+
+                if event.output_transcription and event.output_transcription.text:
+                    await safe_send_json(
+                        {
+                            "type": "transcript",
+                            "role": "model",
+                            "text": event.output_transcription.text,
+                            "finished": bool(event.output_transcription.finished),
+                        }
+                    )
+
+                # ── Control signals ──
+                if event.turn_complete:
+                    await safe_send_json({"type": "turn_complete"})
+                elif event.interrupted:
+                    await safe_send_json({"type": "interrupted"})
+
         except google.genai.errors.APIError as e:
             logger.info("Gemini session closed: %s", e)
         except Exception as e:
@@ -266,7 +295,7 @@ async def live_session(
         try:
             while True:
                 evt = await event_queue.get()
-                await websocket.send_json(evt)
+                await safe_send_json(evt)
                 if evt.get("name") == "end_roleplay":
                     break
         except asyncio.CancelledError:

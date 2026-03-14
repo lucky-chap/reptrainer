@@ -64,7 +64,7 @@ async def run_analysis(
             contents=prompt,
             config=genai.types.GenerateContentConfig(
                 temperature=0.3,
-                max_output_tokens=512,
+                max_output_tokens=1024,
                 response_mime_type="application/json",
                 response_schema={
                     "type": "OBJECT",

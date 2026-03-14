@@ -98,11 +98,17 @@ reptrainer/
 
 - **Node.js**: ≥ 20.x
 - **pnpm**: ≥ 9.x
+- **Python**: ≥ 3.11 (for the Live Agent service)
+- **Google Cloud SDK (gcloud)**: (Optional, only for one-time setup or deployment)
+- **Firebase CLI**: (Optional, only for one-time setup or deployment)
 - **Docker & Docker Compose**: (Optional, for containerized setup)
 - **Google Cloud Project**: With Vertex AI and Cloud TTS enabled.
 - **Firebase Project**: With Auth, Firestore, and Storage enabled.
 
 ### ⚙️ Services Setup
+
+> [!IMPORTANT]
+> **One-Time Provisioning**: The steps below (Google Cloud, Firebase, Rules Deployment) only need to be performed **once per project**. If you are joining an existing project where the backend is already set up, you only need to obtain the `.env` values and skip to [Local Development](#local-development-non-docker).
 
 #### 1. Google Cloud Platform
 
@@ -249,7 +255,16 @@ pnpm dev:web    # Runs on http://localhost:3000
 pnpm dev:api    # Runs on http://localhost:4000
 ```
 
-#### 2. Setup Python Live Agent Service
+#### 2. Setup Google Cloud Credentials
+
+If you are running on a new local machine, you must authenticate to allow the Python code to access Google Cloud services:
+
+```bash
+# Install Google Cloud SDK first if you haven't (https://cloud.google.com/sdk/docs/install)
+gcloud auth application-default login
+```
+
+#### 3. Setup Python Live Agent Service
 
 The live agent service is the core AI logic and requires Python 3.11+.
 

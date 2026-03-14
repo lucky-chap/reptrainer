@@ -16,6 +16,8 @@ interface TranscriptAreaProps {
   persona: Persona;
   displayName: string;
   transcriptEndRef: React.RefObject<HTMLDivElement | null>;
+  isModelThinking?: boolean;
+  streamingModelText?: string;
 }
 
 export function TranscriptArea({
@@ -24,6 +26,8 @@ export function TranscriptArea({
   persona,
   displayName,
   transcriptEndRef,
+  isModelThinking,
+  streamingModelText,
 }: TranscriptAreaProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -93,6 +97,29 @@ export function TranscriptArea({
                 </div>
               </div>
             ))
+          )}
+
+          {isModelThinking && (
+            <div className="animate-fade-up flex flex-row gap-2.5">
+              <div className="bg-charcoal text-cream flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold">
+                {persona.name.charAt(0)}
+              </div>
+              <div className="bg-cream/80 text-charcoal max-w-[85%] rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-[13px]">
+                <p className="text-warm-gray mb-0.5 text-[9px] font-bold tracking-wider uppercase">
+                  {persona.name}
+                </p>
+                <div className="flex flex-col gap-1">
+                  <p className="leading-relaxed whitespace-pre-wrap italic opacity-70">
+                    {streamingModelText}
+                  </p>
+                  <div className="flex gap-1.5 py-1">
+                    <span className="bg-charcoal/20 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:-0.3s]" />
+                    <span className="bg-charcoal/20 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:-0.15s]" />
+                    <span className="bg-charcoal/20 h-1.5 w-1.5 animate-bounce rounded-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
         <div ref={transcriptEndRef} className="h-2" />

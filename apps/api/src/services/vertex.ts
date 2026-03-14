@@ -475,7 +475,7 @@ ANTI-REPETITION RULES (STRICT):
           prefix_padding_ms: 200,
           silence_duration_ms: 500,
           start_of_speech_sensitivity: "START_SENSITIVITY_UNSPECIFIED",
-          end_of_speech_sensitivity: "END_SENSITIVITY_HIGH",
+          end_of_speech_sensitivity: "START_SENSITIVITY_UNSPECIFIED",
         },
       },
       tools,
