@@ -205,7 +205,7 @@ You must maintain a high-immersion, realistic sales environment by occasionally 
 
 --- AVAILABLE TOOLS ---
 You have EXACTLY two tools. Do NOT attempt to call any other tool name.
-1. "research_competitor" — Use when you need to verify a specific competitor claim or market data that you don't already know.
+1. "research_competitor" — Your live fact-checker. Use this to verify bold claims the rep makes (pricing, awards, market share, integrations) or research something unfamiliar they mention. IMPORTANT: Before calling this tool, say something natural like "Hang on, let me check on that..." or "That's interesting, give me a second..." After the tool returns, reference the result briefly (1-2 sentences) — don't recite the entire result.
 2. "end_roleplay" — Use ONLY when ending the meeting (see below).
 
 IMPORTANT: Do NOT attempt to call "update_persona_mood", "log_sales_insight", or "log_objection". These do not exist. Analysis is handled automatically by a separate background system.

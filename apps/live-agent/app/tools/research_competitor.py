@@ -37,18 +37,18 @@ async def research_competitor(
     state = getattr(tool_context, "session", tool_context).state
     event_queue = state.get("event_queue")
 
+    async def _emit(name: str, args: dict):
+        if event_queue:
+            await event_queue.put({"type": "tool_call", "name": name, "args": args})
+
     if event_queue:
         logger.info("Putting research_competitor into event_queue for session: %s", getattr(tool_context, "session_id", "unknown"))
-        await event_queue.put({
-            "type": "tool_call",
-            "name": "research_competitor",
-            "args": {"competitorName": competitor_name},
-        })
+        await _emit("research_competitor", {"competitorName": competitor_name})
     else:
         logger.error("COULD NOT FIND event_queue in tool_context state for session: %s", getattr(tool_context, "session_id", "unknown"))
 
     # 1. Check cache in knowledgeMetadata
-    metadata = state.get("knowledge_metadata")
+    metadata = state.get("metadata")
     if metadata and metadata.get("competitorContexts"):
         name_lower = competitor_name.lower()
         for ctx in metadata["competitorContexts"]:
@@ -57,12 +57,14 @@ async def research_competitor(
                 logger.info(
                     "Found '%s' in knowledge base cache", competitor_name
                 )
+                await _emit("research_complete", {"competitorName": competitor_name})
                 return ctx
 
     # 2. Check search limit
     search_count = state.get("search_count", 0)
     if search_count >= MAX_SEARCHES_PER_SESSION:
         logger.info("Search limit reached (%d)", search_count)
+        await _emit("research_complete", {"competitorName": competitor_name})
         return {
             "error": "Search limit reached for this session. "
             "Use your internal knowledge or RAG data instead."
@@ -75,7 +77,9 @@ async def research_competitor(
         logger.info(
             "Live search successful. New count: %d", search_count + 1
         )
+        await _emit("research_complete", {"competitorName": competitor_name})
         return result
     except Exception as e:
         logger.error("Live search failed for %s: %s", competitor_name, e)
+        await _emit("research_complete", {"competitorName": competitor_name})
         return {"error": f"Failed to research competitor: {e}"}
