@@ -11,6 +11,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   API_SECRET_KEY: z.string().default("reptrainer-secret-123"),
   FIREBASE_STORAGE_BUCKET: z.string().optional(),
+  GOOGLE_GENAI_USE_VERTEXAI: z.string().default("FALSE"),
 });
 
 function validateEnv() {

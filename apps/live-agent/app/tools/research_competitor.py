@@ -31,19 +31,24 @@ async def research_competitor(
         competitor_name: The name of the competitor or topic to research.
         tool_context: ADK tool context (injected automatically).
     """
-    logger.info("Researching competitor: %s", competitor_name)
+    logger.info("Tool [research_competitor] called with: competitor_name='%s'", competitor_name)
 
-    # Emit tool_call event to frontend
-    event_queue = tool_context.state.get("event_queue")
+    # Use session.state for more robust access in bidi mode
+    state = getattr(tool_context, "session", tool_context).state
+    event_queue = state.get("event_queue")
+
     if event_queue:
+        logger.info("Putting research_competitor into event_queue for session: %s", getattr(tool_context, "session_id", "unknown"))
         await event_queue.put({
             "type": "tool_call",
             "name": "research_competitor",
             "args": {"competitorName": competitor_name},
         })
+    else:
+        logger.error("COULD NOT FIND event_queue in tool_context state for session: %s", getattr(tool_context, "session_id", "unknown"))
 
     # 1. Check cache in knowledgeMetadata
-    metadata = tool_context.state.get("knowledge_metadata")
+    metadata = state.get("knowledge_metadata")
     if metadata and metadata.get("competitorContexts"):
         name_lower = competitor_name.lower()
         for ctx in metadata["competitorContexts"]:
@@ -55,7 +60,7 @@ async def research_competitor(
                 return ctx
 
     # 2. Check search limit
-    search_count = tool_context.state.get("search_count", 0)
+    search_count = state.get("search_count", 0)
     if search_count >= MAX_SEARCHES_PER_SESSION:
         logger.info("Search limit reached (%d)", search_count)
         return {
@@ -66,7 +71,7 @@ async def research_competitor(
     # 3. Live search
     try:
         result = await research_competitor_live(competitor_name)
-        tool_context.state["search_count"] = search_count + 1
+        state["search_count"] = search_count + 1
         logger.info(
             "Live search successful. New count: %d", search_count + 1
         )

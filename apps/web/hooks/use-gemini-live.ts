@@ -11,6 +11,11 @@ import env from "@/config/env";
 
 export interface UseGeminiLiveOptions {
   systemPrompt: string;
+  persona?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  scenario?: Record<string, unknown>;
+  userName?: string;
+  companyName?: string;
   voiceName?: string;
   teamId?: string;
   sessionId?: string;
@@ -26,10 +31,11 @@ function getWsUrl(
   sessionId?: string,
   teamId?: string,
 ): string {
-  // Use the explicitly configured live agent URL (which now points to the Node API)
   const wsBaseUrl =
-    env.NEXT_PUBLIC_LIVE_AGENT_URL || "ws://localhost:4000/api/live";
+    env.NEXT_PUBLIC_LIVE_AGENT_URL || "ws://localhost:5000";
   const secretKey = env.NEXT_PUBLIC_API_SECRET_KEY;
+  const sid = sessionId || crypto.randomUUID();
+  const base = wsBaseUrl.endsWith("/") ? wsBaseUrl.slice(0, -1) : wsBaseUrl;
 
   const params = new URLSearchParams({
     apiKey: secretKey,
@@ -37,12 +43,9 @@ function getWsUrl(
   });
 
   if (teamId) params.append("teamId", teamId);
-  if (sessionId) params.append("sessionId", sessionId);
 
-  // Ensure we don't have a double slash if the base URL ends with one
-  const baseUrl = wsBaseUrl.endsWith("/") ? wsBaseUrl.slice(0, -1) : wsBaseUrl;
-
-  return `${baseUrl}?${params.toString()}`;
+  // Python FastAPI expects @app.websocket("/ws/{session_id}")
+  return `${base}/ws/${sid}?${params.toString()}`;
 }
 
 export function useGeminiLive(options: UseGeminiLiveOptions) {
@@ -133,6 +136,10 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
               isStreaming: !finished,
             },
           ];
+        }
+        // Deduplicate: skip if the last finished entry has the same role+text
+        if (last && last.role === role && !last.isStreaming && last.text === text) {
+          return prev;
         }
         return [
           ...prev,
@@ -449,12 +456,18 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         ws.onopen = () => {
           connectInFlightRef.current = false;
           console.log("[GeminiLive] WebSocket open. Sending setup...");
+          const opts = optionsRef.current;
           ws.send(
             JSON.stringify({
               type: "setup",
-              systemPrompt: optionsRef.current.systemPrompt,
-              voiceName: optionsRef.current.voiceName || "Kore",
-              sessionId: optionsRef.current.sessionId,
+              persona: opts.persona,
+              metadata: opts.metadata,
+              scenario: opts.scenario,
+              userName: opts.userName,
+              companyName: opts.companyName,
+              systemPrompt: opts.persona ? undefined : opts.systemPrompt,
+              voiceName: opts.voiceName || "Kore",
+              sessionId: opts.sessionId,
             }),
           );
         };

@@ -20,10 +20,14 @@ async def log_objection(
         sentiment: The sentiment of the response — "positive", "neutral", or "negative".
         tool_context: ADK tool context (injected automatically).
     """
-    logger.info("Logging objection: %s (sentiment: %s)", objection_type, sentiment)
+    logger.info("Tool [log_objection] called with: type='%s', sentiment='%s'", objection_type, sentiment)
 
-    event_queue = tool_context.state.get("event_queue")
+    # Use session.state for more robust access in bidi mode
+    state = getattr(tool_context, "session", tool_context).state
+    event_queue = state.get("event_queue")
+
     if event_queue:
+        logger.info("Putting log_objection into event_queue for session: %s", getattr(tool_context, "session_id", "unknown"))
         await event_queue.put({
             "type": "tool_call",
             "name": "log_objection",
@@ -33,5 +37,7 @@ async def log_objection(
                 "sentiment": sentiment,
             },
         })
+    else:
+        logger.error("COULD NOT FIND event_queue in tool_context state for session: %s", getattr(tool_context, "session_id", "unknown"))
 
     return {"success": True}

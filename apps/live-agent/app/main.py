@@ -23,9 +23,10 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Import agent and runner
 from persona_agent.agent import runner, session_service, APP_NAME, agent
+from analysis import run_analysis
 from auth import verify_api_key
 from config import settings
-from firestore_client import get_knowledge_metadata
+# from firestore_client import get_knowledge_metadata
 
 # Configure logging
 logging.basicConfig(
@@ -86,16 +87,24 @@ async def live_session(
         await websocket.close(code=4003, reason="Setup timeout or invalid JSON")
         return
 
-    system_prompt = setup.get("systemPrompt", "")
     voice_name = setup.get("voiceName", voice_name)
 
-    # ── Load knowledge metadata from Firestore ────────────────────────────
-    knowledge_metadata = None
-    if team_id:
-        try:
-            knowledge_metadata = await get_knowledge_metadata(team_id)
-        except Exception as e:
-            logger.warning("Failed to load knowledge metadata: %s", e)
+    # ── Parse persona data from setup (Python PersonaEngine builds the prompt) ─
+    persona_data = setup.get("persona")
+    metadata_data = setup.get("metadata")
+    scenario_data = setup.get("scenario")
+    setup_user_name = setup.get("userName")
+    setup_company_name = setup.get("companyName")
+
+    # Backwards compat: if frontend sends pre-built systemPrompt instead of persona
+    system_prompt = setup.get("systemPrompt", "")
+
+    logger.info(
+        "Setup received: persona=%s, metadata=%s, systemPrompt=%s chars",
+        bool(persona_data),
+        bool(metadata_data),
+        len(system_prompt),
+    )
 
     # ── Per-session event queue for background events (analysis, etc) ─────
     event_queue: asyncio.Queue = asyncio.Queue()
@@ -105,13 +114,18 @@ async def live_session(
         app_name=APP_NAME, user_id=user_id, session_id=session_id
     )
     if session is None:
+        logger.info("Creating NEW session for session_id=%s", session_id)
         session = await session_service.create_session(
             app_name=APP_NAME,
             user_id=user_id,
             session_id=session_id,
             state={
+                "persona": persona_data,
+                "metadata": metadata_data,
+                "scenario": scenario_data,
+                "user_name": setup_user_name,
+                "company_name": setup_company_name,
                 "system_prompt": system_prompt,
-                "knowledge_metadata": knowledge_metadata,
                 "search_count": 0,
                 "event_queue": event_queue,
                 "has_greeted": has_greeted,
@@ -119,10 +133,16 @@ async def live_session(
             },
         )
     else:
+        logger.info("Reusing EXISTING session for session_id=%s. Updating state.", session_id)
         session.state["event_queue"] = event_queue
-        session.state["system_prompt"] = system_prompt
-        if knowledge_metadata:
-            session.state["knowledge_metadata"] = knowledge_metadata
+        if persona_data:
+            session.state["persona"] = persona_data
+            session.state["metadata"] = metadata_data
+            session.state["scenario"] = scenario_data
+            session.state["user_name"] = setup_user_name
+            session.state["company_name"] = setup_company_name
+        elif system_prompt:
+            session.state["system_prompt"] = system_prompt
 
     # ── Build RunConfig (Modality Detection Pattern) ──────────────────────
     model_name = agent.model
@@ -182,11 +202,17 @@ async def live_session(
 
                     if msg_type == "text":
                         logger.info("Received text from client: %s", data.get("text"))
+                        # Mark as greeted if user sends text
+                        session.state["has_greeted"] = True
                         live_request_queue.send_content(
                             types.Content(role="user", parts=[types.Part(text=data.get("text", ""))])
                         )
                     elif event_type in ["activity_start", "activity_end"]:
                         logger.info("Received VAD signal: %s", event_type)
+                        # User is speaking, mark as greeted to suppress AI-initiation if it hasn't happened
+                        if event_type == "activity_start":
+                            session.state["has_greeted"] = True
+                        
                         if event_type == "activity_start" and not vad_active:
                             vad_active = True
                             live_request_queue.send_activity_start()
@@ -195,7 +221,7 @@ async def live_session(
                             live_request_queue.send_activity_end()
                     else:
                         logger.debug("Received unknown text message: %s", data)
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError):
             pass
         finally:
             live_request_queue.close()
@@ -213,16 +239,31 @@ async def live_session(
         if websocket.application_state == WebSocketState.DISCONNECTED:
             return
         try:
+            msg_type = payload.get("type", "unknown")
+            logger.info("Sending message to client: type=%s", msg_type)
+            if msg_type == "tool_call":
+                logger.info("Tool call payload: %s", json.dumps(payload, indent=2))
             await websocket.send_json(payload)
         except RuntimeError:
             return
+        except Exception as e:
+            logger.error("Error in safe_send_json: %s", e)
 
     # ── Downstream: ADK Events → Client (Bidi Pattern + Unique Features) ──
     async def downstream():
+        # Transcript lines for background analysis
+        transcript_lines: list[str] = []
+        previous_objections: list[str] = []
+        last_user_text = ""
+        last_model_text = ""
+        analysis_task: asyncio.Task | None = None
+
         try:
             ready_event.set()
-            # AI Initiation
-            if not session.state.get("has_greeted", False):
+            # AI Initiation: Only if not already greeted and proactivity is OFF.
+            # If proactivity is ON, the model initiates on its own.
+            if not session.state.get("has_greeted", False) and not proactivity:
+                logger.info("Triggering AI initiation for session=%s", session_id)
                 session.state["has_greeted"] = True
                 live_request_queue.send_content(
                     types.Content(role="user", parts=[types.Part(text="Please introduce yourself and start the roleplay.")])
@@ -248,15 +289,19 @@ async def live_session(
                         elif part.text:
                             text_parts.append(part.text)
 
-                    if text_parts and not event.output_transcription:
-                        await safe_send_json(
-                            {
-                                "type": "transcript",
-                                "role": "model",
-                                "text": "".join(text_parts),
-                                "finished": bool(event.turn_complete),
-                            }
-                        )
+                    if text_parts:
+                        # For native audio (Live), output_transcription is the source of truth for model text.
+                        # We only fallback to event.content text if output_transcription is NOT used (text-only)
+                        # or if we are NOT in native audio mode.
+                        if not is_native_audio:
+                            await safe_send_json(
+                                {
+                                    "type": "transcript",
+                                    "role": "model",
+                                    "text": "".join(text_parts),
+                                    "finished": bool(event.turn_complete),
+                                }
+                            )
 
                 # ── Transcription Relay ──
                 if event.input_transcription and event.input_transcription.text:
@@ -268,6 +313,8 @@ async def live_session(
                             "finished": bool(event.input_transcription.finished),
                         }
                     )
+                    if event.input_transcription.finished:
+                        last_user_text = event.input_transcription.text
 
                 if event.output_transcription and event.output_transcription.text:
                     await safe_send_json(
@@ -278,10 +325,35 @@ async def live_session(
                             "finished": bool(event.output_transcription.finished),
                         }
                     )
+                    if event.output_transcription.finished:
+                        last_model_text = event.output_transcription.text
 
                 # ── Control signals ──
                 if event.turn_complete:
                     await safe_send_json({"type": "turn_complete"})
+
+                    # ── Background analysis after model turn ──
+                    if last_user_text:
+                        transcript_lines.append(f"Rep: {last_user_text}")
+                        last_user_text = ""
+                    if last_model_text:
+                        transcript_lines.append(f"Buyer: {last_model_text}")
+                        last_model_text = ""
+
+                    if len(transcript_lines) >= 2:
+                        # Fire-and-forget: run analysis without blocking audio.
+                        # run_analysis appends to previous_objections in-place
+                        # and pushes events to event_queue.
+                        if analysis_task and not analysis_task.done():
+                            analysis_task.cancel()
+                        analysis_task = asyncio.create_task(
+                            run_analysis(
+                                list(transcript_lines),
+                                previous_objections,
+                                event_queue,
+                            )
+                        )
+
                 elif event.interrupted:
                     await safe_send_json({"type": "interrupted"})
 
@@ -292,14 +364,20 @@ async def live_session(
 
     # ── Tool Event Relay: background events → client ──────────────────────
     async def tool_event_relay():
+        logger.info("Starting tool_event_relay for session=%s", session_id)
         try:
             while True:
                 evt = await event_queue.get()
+                logger.info("Relaying tool event from queue: type=%s name=%s", evt.get("type"), evt.get("name"))
                 await safe_send_json(evt)
                 if evt.get("name") == "end_roleplay":
+                    logger.info("end_roleplay event received, stopping relay")
                     break
         except asyncio.CancelledError:
+            logger.info("tool_event_relay cancelled")
             pass
+        except Exception as e:
+            logger.error("Error in tool_event_relay: %s", e, exc_info=True)
 
     # ── Run tasks concurrently ────────────────────────────────────────────
     try:

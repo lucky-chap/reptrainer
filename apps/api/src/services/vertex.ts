@@ -6,7 +6,6 @@ import {
   FEMALE_VOICES,
   GEMINI_EVALUATION_MODEL,
   GEMINI_IMAGE_MODEL,
-  GEMINI_LIVE_MODEL,
   GEMINI_TEXT_MODEL,
   type GeneratePersonaRequest,
   type GeneratePersonaResponse,
@@ -15,17 +14,19 @@ import {
   type ProspectPersonalityTemplate,
 } from "@reptrainer/shared";
 import { env } from "../config/env.js";
-import { geminiLiveTools } from "./adk-tools.js";
 import { getKnowledgeMetadata } from "./knowledge.js";
 import { ragService } from "./rag.js";
 import { uploadAvatar } from "./storage.js";
 
-// Initialize Vertex AI using GoogleGenAI SDK
-const genAI = new GoogleGenAI({
-  vertexai: true,
-  project: env.GOOGLE_CLOUD_PROJECT,
-  location: env.GOOGLE_CLOUD_LOCATION,
-});
+// Initialize Vertex AI or Gemini API using GoogleGenAI SDK
+const genAI =
+  env.GOOGLE_GENAI_USE_VERTEXAI === "TRUE"
+    ? new GoogleGenAI({
+        vertexai: true,
+        project: env.GOOGLE_CLOUD_PROJECT,
+        location: env.GOOGLE_CLOUD_LOCATION,
+      })
+    : new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
 const TEXT_MODEL = GEMINI_TEXT_MODEL; // Stable Vertex model
 const EVALUATION_MODEL = GEMINI_EVALUATION_MODEL; // Stable Vertex model
@@ -379,108 +380,6 @@ Return ONLY valid JSON in this format:
   }
 
   return JSON.parse(jsonStr) as EvaluateSessionResponse;
-}
-
-/**
- * Get the setup configuration for Vertex AI Multimodal Live.
- */
-export function getLiveSetupConfig(
-  project: string,
-  location: string,
-  systemPrompt: string,
-  voiceNameInput: string,
-  ragCorpusId?: string,
-) {
-  // Ensure voiceName is valid for the Live API
-  const allVoices = [...FEMALE_VOICES, ...MALE_VOICES];
-  const voiceName = allVoices.includes(voiceNameInput)
-    ? voiceNameInput
-    : "Kore";
-
-  const tools: any[] = [
-    {
-      function_declarations: geminiLiveTools.map((t) =>
-        (t as any)._getDeclaration(),
-      ),
-    },
-    // Google search tool for dynamic market research
-    {
-      googleSearch: {},
-    },
-    // Since a team cannot even start a roleplay without a knowledge base, we can just
-    // use the retrieval tool to get the knowledge base directly.
-    ...(ragCorpusId
-      ? [
-          {
-            retrieval: {
-              vertexRagStore: {
-                ragResources: [
-                  {
-                    ragCorpus: `projects/${project}/locations/${location}/ragCorpora/${ragCorpusId}`,
-                  },
-                ],
-              },
-            },
-          },
-        ]
-      : []),
-  ];
-
-  return {
-    setup: {
-      model: `projects/${project}/locations/${location}/publishers/google/models/${GEMINI_LIVE_MODEL}`,
-      generation_config: {
-        response_modalities: ["AUDIO"],
-        temperature: 0.7,
-        top_p: 0.9,
-        max_output_tokens: 512,
-        speech_config: {
-          voice_config: {
-            prebuilt_voice_config: {
-              voice_name: voiceName,
-            },
-          },
-        },
-      },
-      system_instruction: {
-        parts: [
-          {
-            text: `### CORE RULES:
-1. VOICE IDENTITY: You MUST strictly maintain the persona defined in the SECOND section below for ALL vocal output.
-2. COACHING IDENTITY: You are also a world-class sales coach, but this is an INVISIBLE background role. Use this identity ONLY for tool calls (log_sales_insight, log_objection, update_persona_mood, research_competitor).
-3. SILENT TOOLS: NEVER speak about tool calls or their parameters. Call tools SILENTLY while continuing your persona dialogue.
-4. TURN-END LOGGING: You MUST ONLY call logging tools (log_sales_insight, log_objection, update_persona_mood) AFTER you have finished your complete thought and spoken it out loud in your persona. Do NOT interrupt your own speech to call a tool.
-5. INITIATE CONVERSATION: You MUST always initiate the conversation immediately when the session starts. Do NOT wait for the user to speak first. Start with your persona's greeting or a natural opening line.
-
-Environment: You are in a live multimodal conversational environment. Your output is audio-only. Be concise, direct, and maintain your persona naturally.
-Make sure to never repeat yourself and never send multiple messages. 
-- NEVER repeat a sentence or phrase you've already said in THIS session.
-- Even if interrupted, do NOT restart your thought. Continue or pivot naturally.
-
-
-ANTI-REPETITION RULES (STRICT):
-- After a tool call, CONTINUE exactly where you left off if you have more to say. 
-- Do NOT re-say the previous sentence or phrase.
-- If you just said "Hello", do NOT say "Hello" again if the connection resets or after a tool response.
-- DO NOT NARRATE YOUR ACTIONS. Just be the persona.
-`,
-          },
-          { text: systemPrompt },
-        ],
-      },
-      input_audio_transcription: {},
-      output_audio_transcription: {},
-      realtime_input_config: {
-        automatic_activity_detection: {
-          prefix_padding_ms: 200,
-          silence_duration_ms: 500,
-          start_of_speech_sensitivity: "START_SENSITIVITY_UNSPECIFIED",
-          end_of_speech_sensitivity: "START_SENSITIVITY_UNSPECIFIED",
-        },
-      },
-      tools,
-    },
-  };
 }
 
 /**

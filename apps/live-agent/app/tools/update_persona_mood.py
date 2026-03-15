@@ -23,12 +23,16 @@ async def update_persona_mood(
         tool_context: ADK tool context (injected automatically).
     """
     logger.info(
-        "Updating mood: trust=%.0f interest=%.0f frustration=%.0f deal=%.0f",
+        "Tool [update_persona_mood] called with: trust=%.0f interest=%.0f frustration=%.0f deal=%.0f",
         trust, interest, frustration, deal_likelihood,
     )
 
-    event_queue = tool_context.state.get("event_queue")
+    # Use session.state for more robust access in bidi mode
+    state = getattr(tool_context, "session", tool_context).state
+    event_queue = state.get("event_queue")
+
     if event_queue:
+        logger.info("Putting update_persona_mood into event_queue for session: %s", getattr(tool_context, "session_id", "unknown"))
         await event_queue.put({
             "type": "tool_call",
             "name": "update_persona_mood",
@@ -39,5 +43,7 @@ async def update_persona_mood(
                 "dealLikelihood": deal_likelihood,
             },
         })
+    else:
+        logger.error("COULD NOT FIND event_queue in tool_context state for session: %s", getattr(tool_context, "session_id", "unknown"))
 
     return {"success": True}

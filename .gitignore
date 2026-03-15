@@ -49,7 +49,9 @@ next-env.d.ts
 
 # live-api-web-console (the demo from https://github.com/google-gemini/live-api-web-console)
 live-api-web-console
-
+bidi-agent
+bidi-demo
+web-2
 
 # Pyc files
 __pycache__

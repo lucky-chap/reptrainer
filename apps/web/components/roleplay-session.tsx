@@ -105,7 +105,7 @@ export function RoleplaySession({
 
   const displayName = sessionUserName.trim() || "Sales Rep";
 
-  // Build system prompt using the PersonaEngine
+  // Build system prompt as fallback (Python PersonaEngine is primary)
   const systemPrompt = useMemo(() => {
     return PersonaEngine.generatePrompt(
       persona as unknown as SharedPersona,
@@ -191,6 +191,11 @@ export function RoleplaySession({
     waitForPlaybackFinish,
   } = useGeminiLive({
     systemPrompt,
+    persona: persona as unknown as Record<string, unknown>,
+    metadata: knowledgeMetadata as unknown as Record<string, unknown>,
+    scenario: (scenario || undefined) as unknown as Record<string, unknown>,
+    userName: sessionUserName.trim() || undefined,
+    companyName: knowledgeMetadata?.productCategory || undefined,
     voiceName,
     teamId: teamId || persona.teamId,
     sessionId: callSessionId,

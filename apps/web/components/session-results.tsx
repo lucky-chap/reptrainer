@@ -691,7 +691,7 @@ export function SessionResults({
             <CardContent className="min-h-0 flex-1 px-2 pt-0 pb-2">
               <ScrollArea className="h-full px-4 pt-4">
                 <div className="space-y-6">
-                  {session.transcript.split("\n\n").map((line, i) => {
+                  {(session.transcript || "").split("\n\n").map((line, i) => {
                     const colonIndex = line.indexOf(": ");
                     const speaker =
                       colonIndex !== -1 ? line.substring(0, colonIndex) : "";
