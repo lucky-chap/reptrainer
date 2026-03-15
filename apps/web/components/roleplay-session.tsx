@@ -3,13 +3,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   AlertCircle,
   AlertTriangle,
   UserX,
   PhoneOff,
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NameInputStage } from "./roleplay/stages/name-input-stage";
 import { DurationSelectorStage } from "./roleplay/stages/duration-selector-stage";
@@ -186,6 +184,8 @@ export function RoleplaySession({
     isAISpeaking,
     isModelThinking,
     streamingModelText,
+    isPersonaResearching,
+    researchTopic,
     startRecording,
     stopRecording,
     waitForPlaybackFinish,
@@ -532,86 +532,59 @@ export function RoleplaySession({
   }
 
   return (
-    <div className="animate-fade-up space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
-          <ArrowLeft className="size-4" />
-          Back
-        </Button>
-      </div>
-
-      {errorMessage && (
-        <Card className="border-rose-glow/30 bg-rose-glow/5 p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-rose-glow mt-0.5 size-5 shrink-0" />
-            <div className="flex-1">
-              <p className="text-rose-glow text-sm font-medium">
-                Connection Error
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs">
-                {errorMessage}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground text-xs"
+    <div className="animate-fade-up mx-auto w-full max-w-6xl">
+      {/* Floating alerts */}
+      <div className="space-y-2 pb-3">
+        {errorMessage && (
+          <div className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/90 px-4 py-2.5 backdrop-blur-sm">
+            <AlertCircle className="size-4 shrink-0 text-rose-500" />
+            <p className="flex-1 text-xs font-medium text-rose-700">
+              {errorMessage}
+            </p>
+            <button
+              className="text-[10px] font-medium text-rose-400 hover:text-rose-600"
               onClick={() => setErrorMessage(null)}
             >
               Dismiss
-            </Button>
+            </button>
           </div>
-        </Card>
-      )}
+        )}
 
-      {warningTriggered && !isTimeUp && isConnected && (
-        <Card className="animate-fade-up border-amber-500/40 bg-amber-50 p-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="size-5 shrink-0 animate-pulse text-amber-600" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-700">
-                ⏰ You have {CALL_WARNING_THRESHOLD_SECONDS} seconds left in
-                this call.
-              </p>
-              <p className="mt-0.5 text-xs text-amber-600/80">
-                Wrap up your key points and close the conversation.
-              </p>
-            </div>
-            <span className="font-mono text-lg font-bold text-amber-700">
+        {warningTriggered && !isTimeUp && isConnected && (
+          <div className="animate-fade-up flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-2.5 backdrop-blur-sm">
+            <AlertTriangle className="size-4 shrink-0 animate-pulse text-amber-500" />
+            <p className="flex-1 text-xs font-medium text-amber-700">
+              {CALL_WARNING_THRESHOLD_SECONDS}s remaining — wrap up your key
+              points
+            </p>
+            <span className="font-mono text-sm font-bold text-amber-700">
               {formattedRemaining}
             </span>
           </div>
-        </Card>
-      )}
+        )}
 
-      {personaLeft && isConnected && (
-        <Card className="border-amber-glow/30 bg-amber-glow/5 animate-fade-up p-4">
-          <div className="flex items-center gap-3">
-            <UserX className="text-amber-glow size-5 shrink-0" />
-            <div className="flex-1">
-              <p className="text-amber-glow text-sm font-medium">
-                {persona.name} has ended the meeting
-              </p>
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                The buyer has decided to leave. End the call to see your
-                performance review.
-              </p>
-            </div>
+        {personaLeft && isConnected && (
+          <div className="animate-fade-up flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-2.5 backdrop-blur-sm">
+            <UserX className="size-4 shrink-0 text-amber-500" />
+            <p className="flex-1 text-xs font-medium text-amber-700">
+              {persona.name} ended the meeting — end the call to see your review
+            </p>
             <Button
               onClick={handleEndCall}
               size="sm"
-              className="bg-amber-glow hover:bg-amber-glow/90 shrink-0 gap-1.5 font-medium text-black"
+              className="h-7 shrink-0 gap-1.5 rounded-lg bg-amber-500 px-3 text-[11px] font-medium text-white hover:bg-amber-600"
             >
-              <PhoneOff className="size-3.5" />
+              <PhoneOff className="size-3" />
               End Call
             </Button>
           </div>
-        </Card>
-      )}
+        )}
+      </div>
 
+      {/* Main call container */}
       <div
-        className="border-border/40 flex flex-col overflow-hidden rounded-[2rem] border bg-white shadow-xl"
-        style={{ height: "calc(100vh - 120px)", minHeight: "650px" }}
+        className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white shadow-lg"
+        style={{ height: "calc(100vh - 140px)", minHeight: "600px" }}
       >
         <CallHeader
           persona={persona}
@@ -626,8 +599,9 @@ export function RoleplaySession({
           displayName={displayName}
         />
 
-        <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3">
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex min-h-0 flex-1">
+          {/* Left: persona card + controls */}
+          <div className="flex min-w-0 flex-1 flex-col">
             <PersonaCallCard
               persona={persona}
               avatarUrl={avatarUrl}
@@ -639,6 +613,8 @@ export function RoleplaySession({
               displayName={displayName}
               showHUD={showHUD}
               latestInsight={latestInsight}
+              isPersonaResearching={isPersonaResearching}
+              researchTopic={researchTopic}
             />
 
             <CallControls
@@ -655,6 +631,7 @@ export function RoleplaySession({
             />
           </div>
 
+          {/* Right: sidebar */}
           <CallSidebar
             persona={persona}
             knowledgeMetadata={knowledgeMetadata}

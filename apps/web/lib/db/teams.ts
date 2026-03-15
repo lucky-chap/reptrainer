@@ -113,6 +113,7 @@ export function subscribeSessions(
   const userQ = query(
     collection(db, "callSessions"),
     where("userId", "==", userId),
+    where("callStatus", "==", "ended"),
     orderBy("createdAt", "desc"),
   );
 
@@ -146,6 +147,7 @@ export function subscribeSessions(
     const teamQ = query(
       collection(db, "callSessions"),
       where("teamId", "in", teamIds),
+      where("callStatus", "==", "ended"),
       orderBy("createdAt", "desc"),
     );
     unsubTeam = onSnapshot(

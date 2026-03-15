@@ -6,16 +6,16 @@ interface AudioVisualizerProps {
 
 export function AudioVisualizer({ isSpeaking }: AudioVisualizerProps) {
   return (
-    <div className="mt-2 flex h-8 items-end gap-1.5">
-      {Array.from({ length: 7 }).map((_, i) => (
+    <div className="mt-2 flex h-6 items-end gap-1">
+      {Array.from({ length: 5 }).map((_, i) => (
         <div
           key={i}
-          className={`bg-charcoal/40 w-1 rounded-full transition-all duration-300 ${
-            isSpeaking ? "animate-sound-wave" : "h-1"
+          className={`w-0.5 rounded-full bg-neutral-300 transition-all duration-300 ${
+            isSpeaking ? "animate-sound-wave" : "h-0.5"
           }`}
           style={{
-            animationDelay: `${i * 0.12}s`,
-            height: isSpeaking ? undefined : "4px",
+            animationDelay: `${i * 0.1}s`,
+            height: isSpeaking ? undefined : "2px",
           }}
         />
       ))}

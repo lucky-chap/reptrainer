@@ -301,8 +301,25 @@ export function SessionResults({
 
   const handleSeek = (seconds: number) => {
     if (audioRef.current) {
-      audioRef.current.currentTime = seconds;
-      audioRef.current.play();
+      console.log(`[SessionResults] Seeking to ${seconds}s`);
+      try {
+        audioRef.current.currentTime = seconds;
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((error) => {
+            console.warn(
+              "[SessionResults] Audio playback auto-play was prevented or interrupted:",
+              error,
+            );
+            // Fallback for some browsers: try to play again if it was a gesture
+            if (audioRef.current) audioRef.current.play();
+          });
+        }
+      } catch (err) {
+        console.error("[SessionResults] Error during seek/play:", err);
+      }
+    } else {
+      console.warn("[SessionResults] audioRef is null, cannot seek.");
     }
   };
 

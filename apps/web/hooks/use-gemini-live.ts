@@ -64,6 +64,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
   const [isMuted, setIsMuted] = useState(false);
   const [isModelThinking, setIsModelThinking] = useState(false);
   const [streamingModelText, setStreamingModelText] = useState("");
+  const [isPersonaResearching, setIsPersonaResearching] = useState(false);
+  const [researchTopic, setResearchTopic] = useState("");
 
   // --- Refs ---
   const optionsRef = useRef(options);
@@ -182,6 +184,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             break;
 
           case "tool_call":
+            console.log(`[GeminiLive] Tool call: ${msg.name}`, msg.args);
             if (msg.name === "log_sales_insight") {
               setInsights((prev) => [
                 ...prev,
@@ -219,6 +222,14 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
                   ),
                 },
               ]);
+            }
+            if (msg.name === "research_competitor") {
+              setIsPersonaResearching(true);
+              setResearchTopic(msg.args.competitorName || "");
+            }
+            if (msg.name === "research_complete") {
+              setIsPersonaResearching(false);
+              setResearchTopic("");
             }
             if (msg.name === "end_roleplay") {
               // Wait for buffered audio to drain before signaling end
@@ -670,6 +681,8 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
     isAISpeaking,
     isModelThinking,
     streamingModelText,
+    isPersonaResearching,
+    researchTopic,
     startRecording,
     stopRecording,
     getRecordingBlob: () =>
