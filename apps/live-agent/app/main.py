@@ -260,14 +260,10 @@ async def live_session(
 
         try:
             ready_event.set()
-            # AI Initiation: Only if not already greeted and proactivity is OFF.
-            # If proactivity is ON, the model initiates on its own.
-            if not session.state.get("has_greeted", False) and not proactivity:
-                logger.info("Triggering AI initiation for session=%s", session_id)
-                session.state["has_greeted"] = True
-                live_request_queue.send_content(
-                    types.Content(role="user", parts=[types.Part(text="Please introduce yourself and start the roleplay.")])
-                )
+            needs_initiation = (
+                not session.state.get("has_greeted", False) and not proactivity
+            )
+            initiated = False
 
             async for event in runner.run_live(
                 user_id=user_id,
@@ -277,6 +273,31 @@ async def live_session(
             ):
                 if websocket.application_state != WebSocketState.CONNECTED:
                     break
+
+                # ── Deferred AI Initiation ──
+                # Wait for the first event (live session established), then
+                # send initiation only if the model hasn't already started
+                # producing audio on its own.
+                if needs_initiation and not initiated:
+                    initiated = True
+                    has_model_output = (
+                        event.content
+                        and event.content.parts
+                        and any(
+                            (p.inline_data and p.inline_data.data) or p.text
+                            for p in event.content.parts
+                        )
+                    )
+                    if not has_model_output:
+                        logger.info("Triggering AI initiation for session=%s", session_id)
+                        session.state["has_greeted"] = True
+                        live_request_queue.send_content(
+                            types.Content(
+                                role="user",
+                                parts=[types.Part(text="Please introduce yourself and start the roleplay.")],
+                            )
+                        )
+
                 # ── Binary Audio Relay ──
                 if event.content and event.content.parts:
                     text_parts = []
