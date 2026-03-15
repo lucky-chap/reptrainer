@@ -133,7 +133,6 @@ export function ObjectionHeatmap({
                     <TooltipTrigger asChild>
                       <button
                         onClick={() => {
-                          setOpen(false); // Close dialog
                           onSeek?.(markerSeconds); // Jump to time
                         }}
                         className={cn(
@@ -207,12 +206,11 @@ export function ObjectionHeatmap({
                 >
                   <div className="flex shrink-0 flex-col items-center">
                     <span className="text-charcoal/60 mb-2 text-xs font-bold">
-                          {formatTime(marker.timestamp)}
-                        </span>
+                      {formatTime(marker.timestamp)}
+                    </span>
                     <button
                       className="hover:border-charcoal/30 text-charcoal/50 hover:text-charcoal flex size-6 items-center justify-center rounded-full border bg-white shadow-sm transition-all"
                       onClick={() => {
-                        setOpen(false);
                         onSeek?.(normalizeSeconds(marker.timestamp));
                       }}
                       title="Play from this moment"

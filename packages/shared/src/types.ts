@@ -9,6 +9,18 @@ export interface KnowledgeDocument {
   ragFileId?: string;
 }
 
+export interface Product {
+  id: string;
+  userId: string;
+  teamId: string;
+  companyName: string;
+  industry: string;
+  description: string;
+  targetCustomer: string;
+  objections: string[];
+  createdAt: string;
+}
+
 export interface KnowledgeBase {
   teamId: string;
   documents: KnowledgeDocument[];
@@ -78,6 +90,7 @@ export interface Persona {
   id: string;
   teamId: string;
   userId: string;
+  productId?: string;
   name: string;
   role: string;
 
@@ -194,6 +207,7 @@ export interface Session {
   id: string;
   personaId: string;
   teamId: string;
+  productId?: string;
   personaName?: string;
   personaRole?: string;
   personaAvatarUrl?: string;
@@ -216,6 +230,7 @@ export interface CallSession {
   userId: string;
   teamId: string;
   personaId: string;
+  productId?: string;
   userName: string;
   personaName?: string;
   personaRole?: string;
@@ -249,6 +264,7 @@ export interface CallSession {
   objections?: any[];
   moods?: any[];
   durationSeconds?: number;
+  transcript?: string; // Add transcript string field
 
   createdAt: string;
 }

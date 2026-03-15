@@ -21,7 +21,7 @@ import {
   Handshake,
   Ear,
 } from "lucide-react";
-import type { Session, Persona } from "@/lib/db";
+import type { Session, Persona, Product } from "@/lib/db";
 import {
   updateCallSession,
   uploadDebriefAudio,
@@ -62,6 +62,7 @@ import {
 interface SessionResultsProps {
   session: Session;
   persona?: Persona | null;
+  product?: Product | null;
   productCategory?: string | null;
   onBack: () => void;
 }
@@ -138,6 +139,7 @@ function ScoreIndicator({
 export function SessionResults({
   session,
   persona,
+  product,
   productCategory,
   onBack,
 }: SessionResultsProps) {
@@ -254,7 +256,8 @@ export function SessionResults({
 
   const sessionMetrics = calculateSessionMetrics(session);
   const overallScore = sessionMetrics.overall;
-  const evaluation = session.evaluation as any;
+  const evaluation = (session.evaluation ||
+    (session as any).legacyEvaluation) as any; // Fallback to legacyEvaluation
 
   const [audioUrl, setAudioUrl] = useState<string | null>(
     session.audioUrl || null,

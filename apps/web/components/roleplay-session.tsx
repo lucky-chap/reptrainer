@@ -413,6 +413,7 @@ export function RoleplaySession({
         callStatus: "ended",
         legacyEvaluation: evaluation,
         durationSeconds: duration,
+        transcript: transcriptText, // Add full transcript string
         insights: insights.map((i) => ({
           insight: i.insight,
           timestamp: i.timestamp,
@@ -463,6 +464,7 @@ export function RoleplaySession({
         callEndTime: new Date().toISOString(),
         callStatus: "ended",
         durationSeconds: duration,
+        transcript: transcriptText, // Add full transcript string even on error
         insights: insights.map((i) => ({
           insight: i.insight,
           timestamp: i.timestamp,

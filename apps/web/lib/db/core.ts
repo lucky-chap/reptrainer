@@ -22,6 +22,7 @@ import type {
   KnowledgeBase,
   KnowledgeMetadata,
   KnowledgeDocument,
+  Product,
 } from "@reptrainer/shared";
 
 // ─── Data Models ───
@@ -30,6 +31,7 @@ export interface Persona {
   id: string;
   userId: string;
   teamId: string;
+  productId?: string;
   name: string;
   role: string;
   personalityPrompt: string;
@@ -84,6 +86,7 @@ export interface Session {
   userId: string;
   personaId: string;
   teamId: string;
+  productId?: string;
   userName?: string;
   personaName?: string;
   personaRole?: string;
@@ -118,4 +121,5 @@ export type {
   KnowledgeBase,
   KnowledgeMetadata,
   KnowledgeDocument,
+  Product,
 };

@@ -95,7 +95,7 @@ export default function TeamPage() {
     try {
       await updateTeam(activeMembership.id, {
         name: teamName.trim(),
-        companyName: companyName.trim() || null,
+        companyName: companyName.trim(),
       });
       toast.success("Team settings updated successfully");
       window.location.reload();

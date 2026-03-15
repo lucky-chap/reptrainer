@@ -477,7 +477,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             if (!isConnectedRef.current) return;
             isPlayingRef.current = true;
             setIsAISpeaking(true);
-            suppressVadUntilRef.current = Date.now() + 800;
+            suppressVadUntilRef.current = Date.now() + 1500;
             const buf = e.data as ArrayBuffer;
             playerNodeRef.current?.port.postMessage(buf, [buf]);
           } else {

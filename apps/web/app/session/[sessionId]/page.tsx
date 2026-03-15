@@ -55,7 +55,9 @@ export default function SessionPage() {
 
         const [personaDoc, productDoc] = await Promise.all([
           getPersona(sessionDoc.personaId),
-          getProduct(sessionDoc.productId),
+          sessionDoc.productId
+            ? getProduct(sessionDoc.productId)
+            : Promise.resolve(null),
         ]);
 
         if (!cancelled) {
