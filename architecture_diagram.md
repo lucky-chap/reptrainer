@@ -3,54 +3,61 @@
 This diagram represents the system architecture for Reptrainer (DealPilot), illustrating the flow of real-time audio, agentic reasoning, and multimodal state management.
 
 ```mermaid
-graph TD
+graph TB
     subgraph Client ["Frontend (Next.js)"]
-        UI["Web UI (React)"]
+        UI["UI (React + Tailwind)"]
         Hook["useGeminiLive Hook"]
-        Audio["Web Audio API (PCM 16kHz)"]
+        VAD["Web Audio API + VAD"]
     end
 
-    subgraph API_Layer ["API Proxy (Express.js)"]
-        Proxy["Express Server"]
-        Auth["Firebase Auth & Secret Key"]
-        Session["Session Service"]
+    subgraph API_Orchestrator ["API Proxy (Express.js)"]
+        Exp["Express Server / Auth"]
+        NanoB["Nano Banana Service"]
+        Debrief["Debrief Orchestration"]
+        Eval["Evaluation Service"]
     end
 
-    subgraph AI_Service ["Live Agent (Python ADK)"]
+    subgraph Live_Agent_Service ["Live Agent (Python ADK)"]
         FastAPI["FastAPI WebSocket"]
-        ADK["ADK Wrapper"]
-        Persona["Persona Engine"]
-        Analysis["Background Analysis Task"]
+        ADK["ADK Runner / Gemini Live"]
+        PE["Persona Engine"]
+        Analysis["Live Analysis Task"]
     end
 
-    subgraph Google_Cloud ["Google Cloud Platform"]
-        LiveAPI["Gemini Live API (Vertex AI)"]
-        TTS["Cloud Text-to-Speech"]
-        Nano Banana["Nano Banana (Multimodal Debrief)"]
-        Firestore["Firebase Firestore (Session State)"]
-        Storage["Firebase Storage (Audio/Images)"]
+    subgraph External_Services ["Managed Infrastructure"]
+        subgraph Firebase ["Firebase & GCP"]
+            Auth["Firebase Auth"]
+            FS["Firestore (State/RAG)"]
+            Store["Storage (Audio/Assets)"]
+            VertexAI["Vertex AI / Gemini 1.5"]
+            SearchAI["Google Search Grounding"]
+        end
     end
 
+    %% Client flows
     UI <--> Hook
-    Hook <--> Audio
-    Hook -- "WebSocket (VAD/Audio/Text)" --> FastAPI
+    Hook <--> VAD
+    Hook -- "WebSocket (Bidi Audio/VAD)" --> FastAPI
 
-    Proxy -- "REST API (Auth/Debrief)" --> UI
-    Proxy -- "Orchestration" --> Session
+    %% API Orchestrator flows
+    UI -- "REST API (Session/Auth)" --> Exp
+    Exp -- "Orchestrate" --> Debrief
+    Debrief -- "Evaluate" --> Eval
+    Debrief -- "Visual Assets" --> NanoB
+    Debrief -- "Slide Generation" --> VertexAI
+    Eval -- "Grading / Score" --> VertexAI
+    Debrief -- "Save Results" --> FS
+    Eval -- "Fetch Transcript" --> FS
+    Exp -- "Save State" --> FS
+    Exp -- "Fetch/Save Assets" --> Store
 
+    %% Live Agent flows
     FastAPI <--> ADK
-    ADK -- "Bidi Audio/Tool Calls" --> LiveAPI
-    ADK -- "Prompt Context" --> Persona
-
-    ADK -- "Triggers" --> Analysis
-    Analysis -- "Feedback Data" --> Firestore
-
-    Proxy -- "Evaluation/Feedback" --> LiveAPI
-    Proxy -- "Audio Narration" --> TTS
-    Proxy -- "Visual Generation" --> Nano Banana
-
-    Proxy -- "Save Assets" --> Storage
-    Proxy -- "Sync State" --> Firestore
+    ADK -- "Persona Context" --> PE
+    ADK -- "Real-time Bidi Audio" --> VertexAI
+    PE -- "RAG / Grounding" --> FS
+    ADK -- "Trigger Analysis" --> Analysis
+    Analysis -- "Logged Insights" --> FS
 ```
 
 ## Data Flow Summary

@@ -24,6 +24,21 @@ Deployment to Google Cloud is fully automated. Choose your path:
 - **API Proxy (Node)**: `bash apps/api/deploy.sh`
 - **Web Frontend (Next.js)**: `bash apps/web/deploy.sh`
 
+### 3. Local Development (No Docker)
+
+**Fastest for daily coding.** Follow these steps to run the entire stack locally. You will need three terminal windows:
+
+1.  **Preparation**: Install Node.js (20+), Python (3.11+), and pnpm.
+2.  **Auth & Database**:
+    - Run `gcloud auth application-default login` and `firebase login`.
+    - **First time only**: Deploy rules/indexes: `firebase deploy --only firestore:rules,firestore:indexes,storage --project YOUR_PROJECT_ID`
+3.  **Dependencies**: Run `pnpm install` in the root and `uv sync` (or `pip install`) in `apps/live-agent`.
+4.  **Launch**:
+    - **Live Agent**: `cd apps/live-agent && uv run uvicorn app.main:app --reload --port 5000`
+    - **API Proxy**: `cd apps/api && pnpm dev`
+    - **Web App**: `cd apps/web && pnpm dev`
+5.  **Access the App**: Open [http://localhost:3000](http://localhost:3000) in your browser to see the app
+
 ---
 
 ## 📖 Table of Contents
@@ -61,9 +76,9 @@ Detailed project features, technology stack, data sources, and findings/learning
 For the **Gemini Live Agent Challenge** judges, the following links point to the core implementation of Google Cloud services:
 
 - **Live Agent Logic**: [main.py (L156-170)](./apps/live-agent/app/main.py#L156-170) - Gemini Live Bidi Config, [main.py (L264-269)](./apps/live-agent/app/main.py#L264-269) - ADK Live Runner.
-- **Service Orchestration**: [vertex.ts (L21-29)](./apps/api/src/services/vertex.ts#L21-29) - Vertex AI, [vertex.ts (L390-397)](./apps/api/src/services/vertex.ts#L390-397) - Nano Banana.
-- **Cloud TTS**: [tts.ts (L11-25)](./apps/api/src/services/tts.ts#L11-25) - Synthesis Implementation, [session.ts (L104-120)](./apps/api/src/routes/session.ts#L104-120) - Debrief Integration.
-- **Grounding Evidence**: [vertex.ts (L72-82)](./apps/api/src/services/vertex.ts#L72-82) - Google Search Tool, [vertex.ts (L142, L309, L489)](./apps/api/src/services/vertex.ts#L142-L493) - Knowledge Base (RAG).
+- **Service Orchestration**: [vertex.ts (L22-29)](./apps/api/src/services/vertex.ts#L22-L29) - Vertex AI.
+- **Unified Multimodal Debrief**: [vertex.ts (L607-614)](./apps/api/src/services/vertex.ts#L607-L614) - Multimodal Generation, [session.ts (L109-130)](./apps/api/src/routes/session.ts#L109-L130) - Debrief Route.
+- **Grounding Evidence**: [vertex.ts (L72-82)](./apps/api/src/services/vertex.ts#L72-L82) - Google Search Tool.
 - **Firebase & Infrastructure**: [firebase.ts (L4-13)](./apps/api/src/config/firebase.ts#L4-13) - SDK Initialization, [cors.json](./apps/web/cors.json) - Storage CORS Policy, [storage.rules](./apps/web/storage.rules) - Security Rules.
 
 ### 🤖 Automation & Scalability
@@ -81,18 +96,18 @@ The project is optimized for industrial-grade deployment using **Google Cloud Bu
 
 Reptrainer is a three-service architecture deployed on **Google Cloud Run**, with a shared **Firebase** data layer and multiple **Gemini** models powering AI features.
 
-![Architecture Illustration](./apps/web/public/images/architecture.png)
+![Architecture Illustration](./apps/web/public/images/architecture.svg)
 
 ### Data Flow Overview
 
-| Flow                         | Path                                                                   | Description                                                                                                                                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Real-time Voice Roleplay** | Browser → WebSocket → Live Agent → Gemini Live API                     | Bidirectional audio streaming via ADK `LiveRequestQueue`. The agent uses persona-specific system instructions and tools (Google Search, log objection/insight) for grounded, realistic buyer conversations. |
-| **Persona Generation**       | Dashboard → Server Action → Express API → `gemini-2.5-flash-image`     | Single multimodal Gemini call generates both persona JSON and avatar image. Saved to Firestore + Cloud Storage.                                                                                             |
-| **Post-Session Debrief**     | Session End → Express API (SSE) → `gemini-2.5-flash-image` + Cloud TTS | Generates coaching slides with inline infographics and synthesized narration audio. Progress streamed to frontend via Server-Sent Events.                                                                   |
-| **Call Upload & Analysis**   | File Upload → Express API → `gemini-2.5-pro`                           | Transcribes uploaded sales call audio with speaker labels, then generates a structured feedback report.                                                                                                     |
-| **Knowledge Base (RAG)**     | Dashboard → Express API → Vertex AI RAG + Firestore                    | Teams upload product docs (PDF/text), which are indexed via Vertex AI RAG. Retrieved as grounding context during persona generation and debrief.                                                            |
-| **Coaching Analytics**       | Dashboard → Firestore (client SDK)                                     | Aggregates session scores across Discovery, Positioning, Objection Handling, and Closing to surface skill gaps and team trends.                                                                             |
+| Flow                         | Path                                                               | Description                                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Real-time Voice Roleplay** | Browser → WebSocket → Live Agent → Gemini Live API                 | Bidirectional audio streaming via ADK `LiveRequestQueue`. The agent uses persona-specific system instructions and tools (Google Search, log objection/insight) for grounded, realistic buyer conversations. |
+| **Persona Generation**       | Dashboard → Server Action → Express API → `gemini-2.5-flash-image` | Single multimodal Gemini call generates both persona JSON and avatar image. Saved to Firestore + Cloud Storage.                                                                                             |
+| **Post-Session Debrief**     | Session End → Express API (SSE) → `gemini-2.5-flash`               | Generates coaching slides with inline infographics using Gemini's unified multimodal output. Progress streamed to frontend via Server-Sent Events.                                                          |
+| **Call Upload & Analysis**   | File Upload → Express API → `gemini-2.5-pro`                       | Transcribes uploaded sales call audio with speaker labels, then generates a structured feedback report.                                                                                                     |
+| **Knowledge Base (RAG)**     | Dashboard → Express API → Vertex AI RAG + Firestore                | Teams upload product docs (PDF/text), which are indexed via Vertex AI RAG. Retrieved as grounding context during persona generation and debrief.                                                            |
+| **Coaching Analytics**       | Dashboard → Firestore (client SDK)                                 | Aggregates session scores across Discovery, Positioning, Objection Handling, and Closing to surface skill gaps and team trends.                                                                             |
 
 ---
 
@@ -102,7 +117,7 @@ Reptrainer is a three-service architecture deployed on **Google Cloud Run**, wit
 - **👁️ Whisper Coach**: A real-time HUD that analyzes your conversation and "whispers" tactical nudges and objection-handling strategies.
 - **🧠 AI Persona Generation**: Instantly generate diverse buyer personas (from Skeptical CFOs to Decision Makers) tailored to your specific product.
 - **📊 Coaching Insights**: Advanced analytics that identify skill gaps (Discovery, Closing, Listening, etc) and trends across your team.
-- **🎞️ AI Debrief**: Post-session debriefs featuring synchronized audio narration, visual slides, and interactive objection heatmaps.
+- **🎞️ Multimodal AI Debrief**: Post-session debriefs featuring synchronized audio narration, visual slides, and interactive objection heatmaps.
 - **👥 Team Management**: Role-based access control for Admins (Team Leaders) and Members, with aggregated team performance dashboards.
 - **🔄 Automatic Reconnection**: WebSocket connection with exponential backoff reconnection for reliable real-time sessions.
 - **📝 Live Transcript**: Real-time transcript display with word-by-word reveal synced to audio playback.
@@ -172,8 +187,7 @@ reptrainer/
 
 - **Live Voice**: [Gemini Live API](https://aistudio.google.com/) via WebSockets
 - **Reasoning**: [Gemini 2.5 Pro/Flash](https://deepmind.google/technologies/gemini/) (via Vertex AI)
-- **Multimodal Generation**: Gemini 2.5 Flash Image (interleaved text + image output)
-- **Narrations**: Google Cloud Text-to-Speech
+- **Multimodal Generation**: Gemini 2.5 Flash (unified text + infographic image output)
 
 ### Infrastructure
 
@@ -193,7 +207,7 @@ reptrainer/
 - **Google Cloud SDK (gcloud)**: (Optional, only for one-time setup or deployment)
 - **Firebase CLI**: (Optional, only for one-time setup or deployment)
 - **Docker & Docker Compose**: (Optional, for containerized setup)
-- **Google Cloud Project**: With Vertex AI and Cloud TTS enabled.
+- **Google Cloud Project**: With Vertex AI enabled.
 - **Firebase Project**: With Auth, Firestore, and Storage enabled.
 
 ### ⚙️ Services Setup
@@ -206,8 +220,7 @@ reptrainer/
 1. Create a project in [Google Cloud Console](https://console.cloud.google.com/).
 2. Enable the following APIs:
    - **Vertex AI API**
-   - **Cloud Text-to-Speech API**
-3. Create a Service Account with `Vertex AI User` and `Cloud Text-to-Speech User` roles.
+3. Create a Service Account with `Vertex AI User` role.
 4. Download the JSON key and set `GOOGLE_APPLICATION_CREDENTIALS` if running outside of GCP.
 5. Get a Gemini API Key from [Google AI Studio](https://aistudio.google.com/).
 
@@ -319,75 +332,9 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 ## 🏃 Running the Application
 
-### Local Development (Non-Docker)
+### Local Development (Detailed)
 
-To run the entire stack locally without Docker, follow these steps in order. You will need three terminal windows.
-
-#### 0. Preparation: Global Tools
-
-Ensure you have the following installed:
-
-- [Node.js](https://nodejs.org/) (>= 20.x) & [pnpm](https://pnpm.io/installation)
-- [Python 3.11+](https://www.python.org/downloads/)
-- [uv](https://github.com/astral-sh/uv) (Recommended for Python) or `pip`
-
-#### 1. Common Setup (Root)
-
-Install dependencies and authenticate with Google Cloud & Firebase.
-
-```bash
-# Install Node dependencies
-pnpm install
-
-# Authenticate Google Cloud (Needed for Vertex AI/Gemini)
-gcloud auth application-default login
-
-# Authenticate Firebase (Needed for Firestore/Storage rules)
-npm install -g firebase-tools
-firebase login
-```
-
-#### 2. AI Live Agent (Python)
-
-This service handles the real-time Gemini Live communication.
-
-```bash
-cd apps/live-agent
-
-# Using uv (Recommended)
-uv sync
-uv run uvicorn app.main:app --reload --port 5000
-
-# OR using standard venv
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-uvicorn app.main:app --reload --port 5000
-```
-
-_Wait for the agent to start on port 5000._
-
-#### 3. API Proxy (Node.js)
-
-The bridge between the frontend and the AI services.
-
-```bash
-cd apps/api
-# Ensure apps/api/.env exists
-pnpm dev
-```
-
-_Runs on http://localhost:4000._
-
-#### 4. Web Frontend (Next.js)
-
-```bash
-cd apps/web
-# Ensure apps/web/.env.local exists
-pnpm dev
-```
-
-_Runs on http://localhost:3000._
+For a step-by-step guide with detailed environment configuration, see the [Getting Started](#getting-started) section or the [Quick Start](#3-local-development-no-docker) above.
 
 ---
 

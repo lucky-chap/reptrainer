@@ -50,8 +50,9 @@ export function generateCoachingInsights(
 
   const evaluatedSessions = sessions.filter(
     (s) =>
-      ("evaluation" in s ? s.evaluation : (s as any).legacyEvaluation) ||
-      ("feedbackReport" in s ? (s as any).feedbackReport : null),
+      (("evaluation" in s ? s.evaluation : (s as any).legacyEvaluation) ||
+        ("feedbackReport" in s ? (s as any).feedbackReport : null)) &&
+      s.transcript !== "Simulated conversation for demo purposes.",
   );
   if (evaluatedSessions.length === 0) return insights;
 
@@ -223,6 +224,7 @@ export function buildScoreSummaries(
 ): CoachingInsightsScoreSummary[] {
   const sessionsByUser = new Map<string, (Session | CallSession)[]>();
   sessions.forEach((s) => {
+    if (s.transcript === "Simulated conversation for demo purposes.") return;
     const uid = "userId" in s ? s.userId : "unknown";
     if (!sessionsByUser.has(uid)) sessionsByUser.set(uid, []);
     sessionsByUser.get(uid)!.push(s);

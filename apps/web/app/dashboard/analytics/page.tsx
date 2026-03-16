@@ -343,10 +343,14 @@ export default function AnalyticsPage() {
       return;
     }
 
-    getTeamInsightsAtMilestone(activeMembership.id, milestone).then((si) => {
+    getTeamInsightsAtMilestone(
+      activeMembership.id,
+      milestone,
+      selectedMemberId,
+    ).then((si) => {
       setSavedInsight(si || null);
     });
-  }, [activeMembership?.id, milestone]);
+  }, [activeMembership?.id, milestone, selectedMemberId]);
 
   // Fetch RAG insights when score summaries change
   useEffect(() => {
@@ -391,8 +395,13 @@ export default function AnalyticsPage() {
           setRagInsights(insights);
           if (insights.length > 0) {
             // Save automatic milestone 5 insights
+            const insightId =
+              selectedMemberId !== "all"
+                ? `${activeMembership.id}_${milestone}_${selectedMemberId}`
+                : `${activeMembership.id}_${milestone}`;
+
             saveTeamInsights({
-              id: `${activeMembership.id}_${milestone}`,
+              id: insightId,
               teamId: activeMembership.id,
               milestone,
               insights,
@@ -440,9 +449,14 @@ export default function AnalyticsPage() {
       const insights = res.insights || [];
       setRagInsights(insights);
 
+      const insightId =
+        selectedMemberId !== "all"
+          ? `${activeMembership.id}_${milestone}_${selectedMemberId}`
+          : `${activeMembership.id}_${milestone}`;
+
       // Save manual insights
       await saveTeamInsights({
-        id: `${activeMembership.id}_${milestone}`,
+        id: insightId,
         teamId: activeMembership.id,
         milestone,
         insights,
@@ -468,6 +482,9 @@ export default function AnalyticsPage() {
   const mergedInsights = useMemo(() => {
     // If we haven't hit the first milestone, don't show any insights yet
     if (milestone === 0) return [];
+
+    // If loading new RAG insights, don't mix with old/heuristic ones to avoid stale data
+    if (ragInsightsLoading) return [];
 
     const all = [...(ragInsights || []), ...clientInsights];
 

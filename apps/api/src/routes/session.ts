@@ -13,8 +13,8 @@ import {
 } from "../services/vertex.js";
 import { generateFeedbackReport } from "../services/feedback.js";
 import { generateRAGCoachingInsights } from "../services/coaching-insights.js";
-import { synthesizeSpeech } from "../services/tts.js";
 import { uploadFile } from "../services/storage.js";
+import { synthesizeSpeech } from "../services/tts.js";
 import { v4 as uuidv4 } from "uuid";
 
 export const sessionRoutes: Router = Router();
@@ -74,12 +74,11 @@ const debriefSchema = z.object({
 
 /**
  * POST /api/session/debrief
- * Generates a 4-slide personalized AI coaching debrief with voiceover and infographics.
+ * Generates a 4-slide personalized AI coaching debrief using native multimodal output.
  *
  * Streams progress events via SSE so the frontend can show real-time stage updates.
  * Uses Gemini's native multimodal output (text + image in a single call) for coherent,
- * low-latency debrief generation. Falls back to the legacy 3-service pipeline
- * (Gemini text → Nano Banana images → Cloud TTS audio) if multimodal generation fails.
+ * low-latency debrief generation.
  */
 sessionRoutes.post(
   "/debrief",
@@ -137,17 +136,15 @@ sessionRoutes.post(
           const audioBase64 = await synthesizeSpeech(slide.narration);
           if (audioBase64) {
             const buffer = Buffer.from(audioBase64, "base64");
-            const destination = `debriefs/${sessionId}/audio-slide-${slideIndex}.mp3`;
+            const destination = `debriefs/${sessionId}/slide-${slideIndex}.mp3`;
             const url = await uploadFile(buffer, destination, "audio/mpeg");
             audioUrls.push(url);
+            slide.audioUrl = url;
           } else {
             audioUrls.push("");
           }
         } catch (error) {
-          console.error(
-            `[debrief] Audio upload failed for slide ${slideIndex}:`,
-            error,
-          );
+          console.error(`[debrief] TTS failed for slide ${slideIndex}:`, error);
           audioUrls.push("");
         }
 

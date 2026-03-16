@@ -125,10 +125,17 @@ export function CoachingInsights({
             </Badge>
           )}
           <Badge variant="outline" className="text-xs font-normal">
-            {insights.length} {insights.length === 1 ? "Insight" : "Insights"}{" "}
-            {insights.length === 0 && !loading && milestone === 0
-              ? "(Need 5+ sessions)"
-              : ""}
+            {loading ? (
+              <span className="flex items-center gap-1">Analyzing...</span>
+            ) : (
+              <>
+                {insights.length}{" "}
+                {insights.length === 1 ? "Insight" : "Insights"}{" "}
+                {insights.length === 0 && milestone === 0
+                  ? "(Need 5+ sessions)"
+                  : ""}
+              </>
+            )}
           </Badge>
         </div>
       </div>

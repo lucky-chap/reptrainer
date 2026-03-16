@@ -107,11 +107,15 @@ class RagService {
     try {
       const response = (await this.retrievalClient.retrieveContexts({
         parent: this.getParentPath(),
+        vertexRagStore: {
+          ragResources: [{ ragCorpus: corpusId }],
+        },
         query: {
           text: query,
-          similarityTopK: topK,
-          ragResources: [{ ragCorpus: corpusId }],
-        } as any,
+          ragRetrievalConfig: {
+            topK: topK,
+          },
+        },
       })) as any;
 
       // The response might be [response] or just response depending on version

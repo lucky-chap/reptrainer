@@ -32,8 +32,8 @@ import { useTeam } from "@/context/team-context";
 import { useAuth } from "@/context/auth-context";
 import {
   updateTeam,
-  getTeamMembers,
-  getPendingInvitations,
+  subscribeTeamMembers,
+  subscribePendingInvitations,
   removeTeamMember,
   seedDemoTeamData,
   removeDemoTeamData,
@@ -60,24 +60,37 @@ export default function TeamPage() {
 
   const hasDemoData = members.some((m) => m.userName === "Amara Okafor");
 
-  const fetchData = async () => {
-    if (!activeMembership) return;
-    try {
-      const [m, i] = await Promise.all([
-        getTeamMembers(activeMembership.id),
-        getPendingInvitations(activeMembership.id),
-      ]);
-      setMembers(m);
-      setInvitations(i);
-    } catch (error) {
-      console.error("Error fetching team data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
+    if (!activeMembership) return;
+
+    setLoading(true);
+
+    const unsubMembers = subscribeTeamMembers(
+      activeMembership.id,
+      (m) => {
+        setMembers(m);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error subscribing to members:", err);
+        setLoading(false);
+      },
+    );
+
+    const unsubInvites = subscribePendingInvitations(
+      activeMembership.id,
+      (i) => {
+        setInvitations(i);
+      },
+      (err) => {
+        console.error("Error subscribing to invitations:", err);
+      },
+    );
+
+    return () => {
+      unsubMembers();
+      unsubInvites();
+    };
   }, [activeMembership]);
 
   useEffect(() => {
@@ -121,7 +134,6 @@ export default function TeamPage() {
 
     try {
       await removeTeamMember(activeMembership.id, userId);
-      await fetchData();
     } catch (error) {
       console.error("Error removing member:", error);
       alert("Failed to remove member.");
@@ -136,7 +148,6 @@ export default function TeamPage() {
 
     try {
       await seedDemoTeamData(user.uid, activeMembership.id);
-      await fetchData();
       toast.success("Demo data imported successfully", { id: toastId });
     } catch (error) {
       console.error("Error seeding demo data:", error);
@@ -157,7 +168,6 @@ export default function TeamPage() {
 
     try {
       await removeDemoTeamData(activeMembership.id);
-      await fetchData();
       toast.success("Demo data removed successfully", { id: toastId });
     } catch (error) {
       console.error("Error removing demo data:", error);
@@ -484,7 +494,6 @@ export default function TeamPage() {
       <InviteMemberModal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
-        onInviteSent={fetchData}
       />
     </div>
   );

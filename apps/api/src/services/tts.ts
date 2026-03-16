@@ -1,6 +1,5 @@
 import { TextToSpeechClient } from "@google-cloud/text-to-speech";
 import { protos } from "@google-cloud/text-to-speech";
-import { env } from "../config/env.js";
 import { GEMINI_VOICE_MODEL, GEMINI_VOICE_NAME } from "@reptrainer/shared";
 
 const client = new TextToSpeechClient();

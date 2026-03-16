@@ -86,7 +86,7 @@ export async function generateRAGCoachingInsights(
   const prompt = `You are a senior sales enablement strategist. Your job is to generate coaching insights for a sales team by cross-referencing their performance data with the team's actual product knowledge base.
 
 ─── PERFORMANCE DATA ───
-View: ${isTeamView ? "Team-wide" : "Individual"}
+View: ${isTeamView ? "Team-wide (Analytics for Team Leader)" : "Individual (Growth for Sales Member)"}
 ${summariesText}
 
 ─── PRODUCT & MARKET KNOWLEDGE ───
@@ -99,6 +99,7 @@ Generate 2-3 highly specific coaching insights. Each insight MUST:
 1. Deeply reference concrete product knowledge (value props, differentiators, or common objections) from the team's knowledge base.
 2. Avoid generic sales advice; every recommendation must include specific product terminology or messaging strategies.
 3. Bridge a detected performance gap (from the data) with a specific piece of product knowledge (from the KB).
+4. ${isTeamView ? "Tailor for a TEAM LEADER: focus on broader patterns, identifying shared weaknesses across the team, and suggesting group-level training or systemic changes." : "Tailor for a SALES MEMBER: focus on personal growth, specific individual skill gaps, and custom practice scenarios they can run themselves."}
 
 Available insight types:
 - "needs_coaching": A rep needs focused coaching on a skill, with product-specific guidance.
@@ -116,7 +117,7 @@ Return ONLY a valid JSON array:
 [
   {
     "type": "<one of the types above>",
-    "user": "<rep name or 'Team'>",
+    "user": "<rep name, or 'Team' if isTeamView is true>",
     "title": "<concise headline, max 60 chars>",
     "explanation": "<1-2 sentences explaining the gap, referencing specific performance data points>",
     "recommendation": "<1-2 sentences with concrete, product-specific action items>",

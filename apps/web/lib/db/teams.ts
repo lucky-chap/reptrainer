@@ -438,7 +438,10 @@ export async function acceptInvitation(
   userAvatarUrl?: string,
   userEmail?: string,
 ): Promise<void> {
-  const invitation = await getInvitation(tokenId);
+  const invitationRef = doc(db, "invitations", tokenId);
+  const invitationSnap = await getDoc(invitationRef);
+  const invitation = invitationSnap.data() as Invitation | undefined;
+
   if (!invitation || invitation.status !== "pending") {
     throw new Error("Invalid or expired invitation");
   }
@@ -450,6 +453,7 @@ export async function acceptInvitation(
     throw new Error("This invitation was sent to a different email address.");
   }
 
+  // Remove from existing teams first
   const existingTeams = await getUserTeams(userId);
   if (existingTeams.length > 0) {
     for (const team of existingTeams) {
@@ -457,14 +461,28 @@ export async function acceptInvitation(
     }
   }
 
-  await addTeamMember(
-    invitation.teamId,
-    userId,
-    invitation.role,
-    userName,
-    userAvatarUrl,
-  );
-  await updateDoc(doc(db, "invitations", tokenId), { status: "accepted" });
+  // Use a transaction for atomic update
+  const { runTransaction } = await import("firebase/firestore");
+  await runTransaction(db, async (transaction) => {
+    const memberId = `${invitation.teamId}_${userId}`;
+    const memberRef = doc(db, "teamMembers", memberId);
+
+    const member: TeamMember = {
+      id: memberId,
+      teamId: invitation.teamId,
+      userId,
+      role: invitation.role,
+      status: "active",
+      joinedAt: new Date().toISOString(),
+      userName: userName || undefined,
+      userAvatarUrl: userAvatarUrl || undefined,
+    };
+
+    transaction.set(memberRef, member);
+    transaction.update(invitationRef, { status: "accepted" });
+  });
+
+  console.log(`Accepted invitation ${tokenId} for user ${userId}`);
 }
 
 export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
@@ -508,4 +526,24 @@ export async function getPendingInvitations(
   );
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map((doc) => doc.data() as Invitation);
+}
+export function subscribePendingInvitations(
+  teamId: string,
+  onData: (invitations: Invitation[]) => void,
+  onError: (err: Error) => void,
+) {
+  const q = query(
+    collection(db, "invitations"),
+    where("teamId", "==", teamId),
+    where("status", "==", "pending"),
+    orderBy("expiresAt", "desc"),
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => d.data() as Invitation));
+    },
+    onError,
+  );
 }

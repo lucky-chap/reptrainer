@@ -40,13 +40,18 @@ export async function getLatestTeamInsights(
 }
 
 /**
- * Retrieves insights for a specific milestone.
+ * Retrieves insights for a specific milestone, optionally filtered by user.
  */
 export async function getTeamInsightsAtMilestone(
   teamId: string,
   milestone: number,
+  userId?: string,
 ): Promise<SavedTeamInsight | undefined> {
-  const docRef = doc(db, "teamInsights", `${teamId}_${milestone}`);
+  const id =
+    userId && userId !== "all"
+      ? `${teamId}_${milestone}_${userId}`
+      : `${teamId}_${milestone}`;
+  const docRef = doc(db, "teamInsights", id);
   const docSnap = await getDoc(docRef);
   return docSnap.exists() ? (docSnap.data() as SavedTeamInsight) : undefined;
 }
