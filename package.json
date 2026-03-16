@@ -3,18 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm --parallel -r run dev",
+    "dev": "turbo dev",
     "dev:web": "pnpm --filter @reptrainer/web dev",
     "dev:api": "pnpm --filter @reptrainer/api dev",
-    "build": "pnpm -r run build",
+    "build": "turbo build",
     "build:web": "pnpm --filter @reptrainer/web build",
     "build:api": "pnpm --filter @reptrainer/api build",
-    "lint": "pnpm -r run lint",
-    "clean": "pnpm -r run clean",
-    "typecheck": "pnpm -r run typecheck"
+    "lint": "turbo lint",
+    "clean": "turbo clean",
+    "typecheck": "turbo typecheck"
   },
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@10.30.3",
+  "devDependencies": {
+    "turbo": "^2.1.2"
   }
 }

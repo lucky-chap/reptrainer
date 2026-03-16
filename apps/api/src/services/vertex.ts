@@ -6,6 +6,7 @@ import {
   FEMALE_VOICES,
   GEMINI_EVALUATION_MODEL,
   GEMINI_IMAGE_MODEL,
+  GEMINI_MULTIMODAL_MODEL,
   GEMINI_TEXT_MODEL,
   type GeneratePersonaRequest,
   type GeneratePersonaResponse,
@@ -590,4 +591,162 @@ Do not include explanations or extra text.`;
   }
 
   return JSON.parse(jsonStr);
+}
+
+/**
+ * Unified multimodal debrief: generates coaching text + inline infographic images
+ * in a single Gemini call using native interleaved text/image output.
+ *
+ * Returns slides in the same shape as the legacy pipeline (DebriefSlide[]),
+ * but with visualBase64 already populated from inline image generation.
+ */
+export async function generateMultimodalDebrief(
+  transcript: string,
+  personaName: string,
+  personaRole: string,
+  objections: any[] = [],
+  moods: any[] = [],
+  teamId?: string,
+): Promise<any[]> {
+  // Retrieve RAG context if teamId is provided
+  let ragContextString = "";
+  if (teamId) {
+    try {
+      const ragContext = await ragService.retrieve(
+        teamId,
+        `key product differences, specific features, and ideal improved pitches related to: ${transcript.substring(0, 1000)}`,
+        5,
+      );
+      if (ragContext.length > 0) {
+        ragContextString = `\n\n─── PRODUCT KNOWLEDGE (RAG) ───\nUse these validated product facts to provide accurate corrections in Slide 3:\n${ragContext.join("\n\n")}`;
+      }
+    } catch (error) {
+      console.error(
+        "[generateMultimodalDebrief] RAG retrieval failed:",
+        error,
+      );
+    }
+  }
+
+  const prompt = `You are a world-class sales coach creating a 4-slide "Coach Debrief" for a sales rep after a practice call.
+
+For EACH slide you must output:
+1. A JSON block (wrapped in \`\`\`json ... \`\`\`) containing: title, narration, type, and visual (description).
+2. Immediately after the JSON block, generate an infographic IMAGE that visualizes the coaching insight.
+
+Persona Context:
+- Buyer Name: ${personaName}
+- Buyer Role: ${personaRole}
+
+Transcript:
+${transcript}
+
+Session Data:
+- Objections Logged: ${JSON.stringify(objections, null, 2)}
+- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}${ragContextString}
+
+─── SLIDE FORMAT ───
+
+For each slide, output a JSON block then generate an image. Repeat 4 times.
+
+Slide JSON structure:
+\`\`\`json
+{
+  "title": "Concise headline",
+  "narration": "Spoken coaching script, under 50 words. Clear, confident, supportive.",
+  "type": "overview|problem|correction|drill",
+  "visual": "Description of what the infographic shows"
+}
+\`\`\`
+Then generate an image: a clean, modern SaaS dashboard infographic with flat design, minimal UI, white background, subtle purple and blue accents. No cartoons or artistic illustrations — use charts, diagrams, timelines, comparison cards, and dashboards.
+
+─── SLIDE REQUIREMENTS ───
+
+Slide 1 (type: overview): High-level call summary. Image: coaching analytics dashboard or performance heatmap showing Introduction, Discovery, Pitch, Objection Handling, Closing stages. Incorporate mood trend data.
+
+Slide 2 (type: problem): The SINGLE biggest mistake. Quote the rep if possible. Image: conversation timeline with a red drop at the friction point, or a highlighted objection moment.
+
+Slide 3 (type: correction): How to fix it with a "Before vs After" example. ${ragContextString ? "Use the RAG product knowledge for accuracy." : ""} Image: side-by-side comparison — "Original Response" vs "Improved Response".
+
+Slide 4 (type: drill): One actionable practice drill. Image: step-by-step coaching card or practice framework diagram.
+
+Output exactly 4 slides. Each slide = one JSON block + one generated image.`;
+
+  console.log(
+    `[multimodal-debrief] Generating unified text+image debrief for ${personaName} (${personaRole})`,
+  );
+
+  const response = await genAI.models.generateContent({
+    model: GEMINI_MULTIMODAL_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      // @ts-ignore - responseModalities is valid for multimodal output models
+      responseModalities: ["TEXT", "IMAGE"],
+    },
+  });
+
+  // Parse interleaved text + image parts from the response
+  const parts = response.candidates?.[0]?.content?.parts || [];
+  const slides: any[] = [];
+  let currentSlide: any = null;
+
+  for (const part of parts) {
+    if (part.text) {
+      // Extract JSON from text parts
+      const jsonMatch = part.text.match(/```json\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[1].trim();
+        try {
+          currentSlide = JSON.parse(jsonStr);
+        } catch {
+          console.warn(
+            "[multimodal-debrief] Failed to parse slide JSON:",
+            jsonStr.substring(0, 100),
+          );
+        }
+      } else {
+        // Try direct JSON extraction as fallback
+        const directJson = extractJson(part.text);
+        if (directJson) {
+          try {
+            const parsed = JSON.parse(directJson);
+            if (parsed.title && parsed.narration) {
+              currentSlide = parsed;
+            }
+          } catch {
+            // Not valid JSON, skip
+          }
+        }
+      }
+    } else if (part.inlineData) {
+      // Image part — attach to the current slide
+      if (currentSlide) {
+        currentSlide.visualBase64 = `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`;
+        slides.push(currentSlide);
+        currentSlide = null;
+      } else {
+        console.warn(
+          "[multimodal-debrief] Received image without preceding slide JSON, skipping",
+        );
+      }
+    }
+  }
+
+  // Handle any trailing slide that didn't get an image
+  if (currentSlide) {
+    slides.push(currentSlide);
+    currentSlide = null;
+  }
+
+  console.log(
+    `[multimodal-debrief] Parsed ${slides.length} slides (${slides.filter((s) => s.visualBase64).length} with inline images)`,
+  );
+
+  if (slides.length === 0) {
+    throw new Error(
+      "Failed to generate multimodal debrief. No slides could be parsed from response.",
+    );
+  }
+
+  return slides;
 }

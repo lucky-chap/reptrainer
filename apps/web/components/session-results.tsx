@@ -24,14 +24,16 @@ import {
 import type { Session, Persona, Product } from "@/lib/db";
 import {
   updateCallSession,
-  uploadDebriefAudio,
   deleteDebriefAudio,
-  uploadDebriefVisuals,
   deleteDebriefVisuals,
 } from "@/lib/db";
 import { CoachDebrief } from "./coach-debrief";
-import { generateCoachDebrief } from "@/app/actions/api";
 import type { CoachDebriefResponse } from "@reptrainer/shared";
+import { toast } from "sonner";
+import {
+  streamCoachDebrief,
+  type DebriefProgressEvent,
+} from "@/lib/debrief-stream";
 import { calculateSessionMetrics } from "@/lib/analytics/standardizer";
 import {
   Card,
@@ -152,73 +154,71 @@ export function SessionResults({
   const [isDeletingDebrief, setIsDeletingDebrief] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const stageMessages: Record<string, string> = {
+    analyzing: "Analyzing session transcript...",
+    generating_slides: "Generating coaching insights & infographics...",
+    uploading_audio: "Synthesizing narration",
+    uploading_visuals: "Uploading visuals",
+    finalizing: "Finalizing debrief...",
+  };
+
   const handleGenerateDebrief = async () => {
     if (generatingDebrief || isPersistingDebrief) return;
     setGeneratingDebrief(true);
+    const toastId = toast.loading("Analyzing session transcript...");
     try {
-      console.log("[SessionResults] Generating on-demand coach debrief...");
-      const debrief = await generateCoachDebrief({
-        transcript: session.transcript,
-        personaName: persona?.name || session.personaName || "Unknown",
-        personaRole: persona?.role || session.personaRole || "AI Persona",
-        durationSeconds: session.durationSeconds,
-        objections: (session as any).objections || [],
-        moods: (session as any).moods || [],
-      });
+      const onProgress = (event: DebriefProgressEvent) => {
+        const base = stageMessages[event.stage] || event.stage;
+        const msg = event.detail ? `${base} (${event.detail})...` : base;
+        toast.loading(msg, { id: toastId });
+      };
 
-      // Update local state immediately with base64 for instant preview if needed
-      // but we'll wait for persistence before showing the "View" button fully if we want
-      setDebriefData(debrief);
+      const debrief = await streamCoachDebrief(
+        {
+          transcript: session.transcript,
+          personaName: persona?.name || session.personaName || "Unknown",
+          personaRole: persona?.role || session.personaRole || "AI Persona",
+          durationSeconds: session.durationSeconds,
+          objections: (session as any).objections || [],
+          moods: (session as any).moods || [],
+        },
+        onProgress,
+      );
 
+      // Server already uploaded assets — prepare optimized debrief with URLs
+      toast.loading("Persisting debrief...", { id: toastId });
       setIsPersistingDebrief(true);
-      try {
-        console.log(
-          "[SessionResults] Uploading debrief assets to Firebase Storage...",
-        );
-        const [audioUrls, visualUrls] = await Promise.all([
-          uploadDebriefAudio(
-            session.userId,
-            session.id,
-            debrief.audioBase64 || [],
-          ),
-          uploadDebriefVisuals(
-            session.userId,
-            session.id,
-            debrief.slides.map((s) => s.visualBase64 || ""),
-          ),
-        ]);
 
-        // Prepare optimized debrief (no base64, just urls)
+      try {
+        const audioUrls = debrief.audioUrls || [];
+        const visualUrls = debrief.visualUrls || [];
+
         const optimizedDebrief: CoachDebriefResponse = {
           ...debrief,
           audioUrls,
-          visualUrls: visualUrls || [],
-          audioBase64: [], // Clear out base64 to save Firestore space
-          visualBase64: [], // Clear out base64
+          visualUrls,
+          audioBase64: [],
+          visualBase64: [],
           slides: debrief.slides.map((slide, index) => {
             const { visualBase64: _vb64, ...rest } = slide;
             return {
               ...rest,
-              visualUrl: visualUrls?.[index] || slide.visualUrl || "",
+              visualUrl: slide.visualUrl || visualUrls?.[index] || "",
             };
           }),
         };
 
-        // Update local state with URLs
         setDebriefData(optimizedDebrief);
-
-        // Persist to Firestore
-        console.log(
-          "[SessionResults] Persisting optimized debrief to Firestore...",
-        );
         await updateCallSession(session.id, { debrief: optimizedDebrief });
       } finally {
         setIsPersistingDebrief(false);
       }
 
+      toast.success("Coach debrief ready!", { id: toastId });
       setShowDebrief(true);
     } catch (error) {
       console.error("Failed to generate on-demand debrief:", error);
+      toast.error("Failed to generate debrief", { id: toastId });
     } finally {
       setGeneratingDebrief(false);
     }

@@ -26,7 +26,7 @@ import {
   getTeamMembers,
 } from "@/lib/db";
 import { recalculateUserMetrics } from "@/lib/progress-service";
-import { generateCoachDebrief } from "@/app/actions/api";
+import { streamCoachDebrief } from "@/lib/debrief-stream";
 import { SessionResults } from "@/components/session-results";
 import {
   DropdownMenu,
@@ -161,7 +161,7 @@ export default function HistoryPage() {
     setGeneratingDebriefId(session.id);
     try {
       const persona = personas[session.personaId];
-      const debrief = await generateCoachDebrief({
+      const debrief = await streamCoachDebrief({
         transcript: session.transcript,
         personaName: persona?.name || session.personaName || "Unknown",
         personaRole: persona?.role || session.personaRole || "AI Persona",
@@ -310,15 +310,6 @@ export default function HistoryPage() {
                               )}
                             </span>
                           </div>
-                        </div>
-                      </div>
-
-                      <div className="mr-4 flex items-center gap-3">
-                        <div className="shrink-0 text-right">
-                          <Badge>{overallScore}</Badge>
-                          <span className="text-warm-gray/60 ml-2 text-[10px] font-bold">
-                            Points
-                          </span>
                         </div>
                       </div>
                     </div>

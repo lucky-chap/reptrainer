@@ -10,6 +10,7 @@ import { requireApiSecret } from "../middleware/auth.js";
 import {
   evaluateSession,
   generateCoachDebrief,
+  generateMultimodalDebrief,
   generateSlideInfographic,
 } from "../services/vertex.js";
 import { generateFeedbackReport } from "../services/feedback.js";
@@ -54,23 +55,61 @@ const debriefSchema = z.object({
 /**
  * POST /api/session/debrief
  * Generates a 4-slide personalized AI coaching debrief with voiceover and infographics.
+ *
+ * Streams progress events via SSE so the frontend can show real-time stage updates.
+ * Uses Gemini's native multimodal output (text + image in a single call) for coherent,
+ * low-latency debrief generation. Falls back to the legacy 3-service pipeline
+ * (Gemini text → Imagen 3 images → Cloud TTS audio) if multimodal generation fails.
  */
 sessionRoutes.post(
   "/debrief",
   requireApiSecret,
   validateBody(debriefSchema),
   async (req: Request, res: Response, next: NextFunction) => {
+    // Set up SSE streaming
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    const sendProgress = (stage: string, detail?: string) => {
+      res.write(
+        `event: progress\ndata: ${JSON.stringify({ stage, detail })}\n\n`,
+      );
+    };
+
     try {
       const { transcript, personaName, personaRole } = req.body;
-      const sessionId = uuidv4(); // Unique ID for storing assets
+      const sessionId = uuidv4();
 
       console.log(
-        `[debrief] Generating multimodal coach debrief for session ${sessionId} with ${personaName} (${personaRole})`,
+        `[debrief] Generating coach debrief for session ${sessionId} with ${personaName} (${personaRole})`,
       );
 
-      // 1. Generate 4 slides JSON via Gemini
-      let slides;
+      // ── Step 1: Generate slides (unified multimodal → fallback to legacy) ──
+      let slides: any[];
+      let usedMultimodal = false;
+
+      sendProgress("analyzing");
+
       try {
+        slides = await generateMultimodalDebrief(
+          transcript,
+          personaName,
+          personaRole,
+          req.body.objections,
+          req.body.moods,
+          req.body.teamId,
+        );
+        usedMultimodal = true;
+        console.log(
+          `[debrief] Multimodal generation succeeded: ${slides.length} slides`,
+        );
+      } catch (multimodalError: any) {
+        console.warn(
+          `[debrief] Multimodal generation failed, falling back to legacy pipeline:`,
+          multimodalError.message,
+        );
         slides = await generateCoachDebrief(
           transcript,
           personaName,
@@ -80,27 +119,25 @@ sessionRoutes.post(
           req.body.teamId,
         );
         console.log(
-          `[debrief] Successfully generated ${slides.length} slides for ${personaName}`,
+          `[debrief] Legacy generation succeeded: ${slides.length} slides`,
         );
-      } catch (geminiError: any) {
-        console.error(`[debrief] Gemini slide generation failed:`, geminiError);
-        throw new Error(`AI generation failed: ${geminiError.message}`);
       }
 
-      // 2. Synthesize audio AND generate infographics for each slide
-      console.log(
-        `[debrief] Processing multimodal assets for ${slides.length} slides...`,
-      );
+      sendProgress("generating_slides", `${slides.length} slides generated`);
 
+      // ── Step 2: Upload visuals + synthesize audio for each slide ──
       const audioUrls: string[] = [];
       const visualUrls: string[] = [];
 
-      // Process slides sequentially to avoid potential rate limits and manage Storage uploads
       for (let i = 0; i < slides.length; i++) {
         const slide = slides[i];
         const slideIndex = i + 1;
 
-        // A. Process Audio (TTS)
+        // A. Synthesize narration audio via Cloud TTS
+        sendProgress(
+          "uploading_audio",
+          `Slide ${slideIndex}/${slides.length}`,
+        );
         try {
           const audioBase64 = await synthesizeSpeech(slide.narration);
           if (audioBase64) {
@@ -119,22 +156,38 @@ sessionRoutes.post(
           audioUrls.push("");
         }
 
-        // B. Process Visual (Imagen)
+        // B. Upload inline image (multimodal) or generate via Imagen (legacy fallback)
+        sendProgress(
+          "uploading_visuals",
+          `Slide ${slideIndex}/${slides.length}`,
+        );
         try {
-          let visualBase64 = await generateSlideInfographic(slide.visual);
-          if (visualBase64) {
-            // Strip data:image prefix if present
-            if (visualBase64.startsWith("data:")) {
-              visualBase64 = visualBase64.split(",")[1];
+          if (slide.visualBase64) {
+            // Multimodal path: image was generated inline by Gemini
+            let base64Data = slide.visualBase64;
+            if (base64Data.startsWith("data:")) {
+              base64Data = base64Data.split(",")[1];
             }
-
-            const buffer = Buffer.from(visualBase64, "base64");
-            const destination = `debriefs/${sessionId}/visual-slide-${slideIndex}.jpg`;
-            const url = await uploadFile(buffer, destination, "image/jpeg");
+            const buffer = Buffer.from(base64Data, "base64");
+            const destination = `debriefs/${sessionId}/visual-slide-${slideIndex}.png`;
+            const url = await uploadFile(buffer, destination, "image/png");
             visualUrls.push(url);
-            slide.visualUrl = url; // Set the URL in the slide object
+            slide.visualUrl = url;
           } else {
-            visualUrls.push("");
+            // Legacy fallback: generate image separately via Imagen 3
+            let visualBase64 = await generateSlideInfographic(slide.visual);
+            if (visualBase64) {
+              if (visualBase64.startsWith("data:")) {
+                visualBase64 = visualBase64.split(",")[1];
+              }
+              const buffer = Buffer.from(visualBase64, "base64");
+              const destination = `debriefs/${sessionId}/visual-slide-${slideIndex}.jpg`;
+              const url = await uploadFile(buffer, destination, "image/jpeg");
+              visualUrls.push(url);
+              slide.visualUrl = url;
+            } else {
+              visualUrls.push("");
+            }
           }
         } catch (error) {
           console.error(
@@ -144,23 +197,28 @@ sessionRoutes.post(
           visualUrls.push("");
         }
 
-        // Clean up base64 from slide object if it exists (it shouldn't yet, but for safety)
+        // Clean up base64 from slide payload
         delete (slide as any).visualBase64;
         delete (slide as any).audioBase64;
       }
 
       console.log(
-        `[debrief] Multimodal generation and upload complete. Audio: ${audioUrls.filter((a) => !!a).length}/${slides.length}, Visuals: ${visualUrls.filter((v) => !!v).length}/${slides.length}`,
+        `[debrief] Debrief complete (${usedMultimodal ? "multimodal" : "legacy"}). Audio: ${audioUrls.filter((a) => !!a).length}/${slides.length}, Visuals: ${visualUrls.filter((v) => !!v).length}/${slides.length}`,
       );
 
-      res.json({
-        slides,
-        audioUrls,
-        visualUrls,
-      });
+      sendProgress("finalizing");
+
+      // Send the final result
+      res.write(
+        `event: result\ndata: ${JSON.stringify({ slides, audioUrls, visualUrls })}\n\n`,
+      );
+      res.end();
     } catch (error: any) {
       console.error("[debrief] Fatal error in debrief route:", error);
-      res.status(500).json({ error: error.message || "Internal Server Error" });
+      res.write(
+        `event: error\ndata: ${JSON.stringify({ error: error.message || "Internal Server Error" })}\n\n`,
+      );
+      res.end();
     }
   },
 );

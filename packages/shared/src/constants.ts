@@ -16,6 +16,9 @@ export const GEMINI_VOICE_NAME = "Zephyr";
 /** Gemini model used for avatar generation */
 export const GEMINI_IMAGE_MODEL = "imagen-3.0-generate-001";
 
+/** Gemini model used for multimodal output (interleaved text + image generation) */
+export const GEMINI_MULTIMODAL_MODEL = "gemini-2.5-flash-image";
+
 /** Scoring range */
 export const MIN_SCORE = 1;
 export const MAX_SCORE = 10;
