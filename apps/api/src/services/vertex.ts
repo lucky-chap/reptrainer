@@ -473,6 +473,74 @@ export async function generateSlideInfographic(
 }
 
 /**
+ * Build a combined RAG + knowledge metadata context string for debrief prompts.
+ * Retrieves both raw document snippets and structured metadata (value props,
+ * differentiators, objections, competitors) to ground the coaching across all slides.
+ */
+async function buildDebriefKnowledgeContext(
+  teamId: string,
+  transcript: string,
+): Promise<string> {
+  let sections: string[] = [];
+
+  // 1. Structured knowledge metadata
+  try {
+    const metadata = await getKnowledgeMetadata(teamId);
+    if (metadata) {
+      const parts: string[] = [];
+      if (metadata.productCategory)
+        parts.push(`Product Category: ${metadata.productCategory}`);
+      if (metadata.valueProps?.length)
+        parts.push(`Value Propositions:\n- ${metadata.valueProps.join("\n- ")}`);
+      if (metadata.differentiators?.length)
+        parts.push(
+          `Key Differentiators:\n- ${metadata.differentiators.join("\n- ")}`,
+        );
+      if (metadata.objections?.length)
+        parts.push(
+          `Common Objections:\n- ${metadata.objections.join("\n- ")}`,
+        );
+      if (metadata.competitors?.length)
+        parts.push(`Competitors: ${metadata.competitors.join(", ")}`);
+      if (metadata.competitorContexts?.length) {
+        const compSummaries = metadata.competitorContexts
+          .map(
+            (c: any) =>
+              `  • ${c.name}: ${c.productDescription || ""}${c.painPoints?.length ? ` | Pain points: ${c.painPoints.join(", ")}` : ""}`,
+          )
+          .join("\n");
+        parts.push(`Competitor Intelligence:\n${compSummaries}`);
+      }
+      if (parts.length > 0) {
+        sections.push(
+          `─── PRODUCT & MARKET KNOWLEDGE ───\n${parts.join("\n\n")}`,
+        );
+      }
+    }
+  } catch (error) {
+    console.error("[buildDebriefKnowledgeContext] Metadata fetch failed:", error);
+  }
+
+  // 2. RAG document snippets
+  try {
+    const ragContext = await ragService.retrieve(
+      teamId,
+      `key product differences, specific features, and ideal improved pitches related to: ${transcript.substring(0, 1000)}`,
+      5,
+    );
+    if (ragContext.length > 0) {
+      sections.push(
+        `─── PRODUCT KNOWLEDGE (RAG) ───\n${ragContext.join("\n\n")}`,
+      );
+    }
+  } catch (error) {
+    console.error("[buildDebriefKnowledgeContext] RAG retrieval failed:", error);
+  }
+
+  return sections.length > 0 ? `\n\n${sections.join("\n\n")}` : "";
+}
+
+/**
  * Generate a personalized coach debrief (4 slides) using Vertex AI.
  */
 export async function generateCoachDebrief(
@@ -483,21 +551,10 @@ export async function generateCoachDebrief(
   moods: any[] = [],
   teamId?: string,
 ): Promise<any[]> {
-  // Retrieve RAG context if teamId is provided
-  let ragContextString = "";
+  // Retrieve RAG context + knowledge metadata if teamId is provided
+  let knowledgeContext = "";
   if (teamId) {
-    try {
-      const ragContext = await ragService.retrieve(
-        teamId,
-        `key product differences, specific features, and ideal improved pitches related to: ${transcript.substring(0, 1000)}`,
-        5,
-      );
-      if (ragContext.length > 0) {
-        ragContextString = `\n\n─── PRODUCT KNOWLEDGE (RAG) ───\nUse these validated product facts to provide accurate corrections in Slide 3:\n${ragContext.join("\n\n")}`;
-      }
-    } catch (error) {
-      console.error("[generateCoachDebrief] RAG retrieval failed:", error);
-    }
+    knowledgeContext = await buildDebriefKnowledgeContext(teamId, transcript);
   }
 
   const prompt = `You are a world-class sales coach creating a short "Coach Debrief" presentation for a sales rep after a practice call.
@@ -511,10 +568,10 @@ ${transcript}
 
 Session Data:
 - Objections Logged: ${JSON.stringify(objections, null, 2)}
-- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}${ragContextString}
+- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}${knowledgeContext}
 
 Your job is to produce a concise, insightful 4-slide coaching presentation.
-
+${knowledgeContext ? `\n**IMPORTANT**: Product & market knowledge has been provided above. Use it across ALL slides to ground your coaching in the team's actual product, value propositions, differentiators, and competitive landscape. Do not invent product features — use only what is documented.\n` : ""}
 Each slide will be turned into:
 - narrated audio (TTS)
 - an AI-generated infographic image
@@ -540,35 +597,41 @@ Generate EXACTLY 4 slides using this strict JSON structure:
   "title": "Concise headline for the slide",
   "narration": "A spoken coaching script. Keep it under 20 seconds when spoken (40–50 words max). Clear, confident, and supportive.",
   "visual": "A detailed description of an infographic or analytics-style diagram that illustrates the coaching insight.",
-  "type": "overview" | "problem" | "correction" | "drill"
+  "type": "overview" | "problem" | "correction" | "drill",
+  "previousApproach": "For type 'correction' only: A quote or description of the rep's original weak approach.",
+  "betterApproach": "For type 'correction' only: The recommended improved script or approach."
 }
 
 Slide Requirements:
 
 Slide 1 (type: overview)
 Provide a high-level summary of the call.
+${knowledgeContext ? "Evaluate whether the rep correctly positioned the product's key value propositions and differentiators from the knowledge base." : ""}
 The visual should be a coaching analytics dashboard or conversation performance heatmap showing stages like:
-Introduction, Discovery, Pitch, Objection Handling, Closing. 
+Introduction, Discovery, Pitch, Objection Handling, Closing.
 Incorporate the "Mood Trends" into this visual description (e.g. "a line graph showing trust increasing during discovery but dipping during pricing").
 
 Slide 2 (type: problem)
 Identify the SINGLE biggest mistake or friction point in the conversation.
 Quote or reference the rep's words if possible.
+${knowledgeContext ? "Check if the mistake involved misquoting product capabilities, missing a key differentiator, or failing to address a known objection from the knowledge base." : ""}
 The visual should highlight the problematic moment, such as:
 - a conversation timeline with a red drop in engagement (reference specific mood data if trust/interest dropped)
 - a highlighted objection moment (reference one of the logged objections)
 - a comparison chart showing strong vs weak moments.
 
 Slide 3 (type: correction)
-Explain how to fix the problem.
-Include a clear "Before vs After" example of what the rep should say.
-**If PRODUCT KNOWLEDGE (RAG) is provided above, ensure the "Improved Response" is factually accurate and uses the correct product terminology.**
+Explain how to fix the problem identified in Slide 2.
+Include a clear "Before vs After" example.
+${knowledgeContext ? "The \"betterApproach\" MUST be factually accurate and use the correct product terminology, value props, and differentiators from the knowledge base." : ""}
 The visual should be a side-by-side comparison infographic showing:
 "Original Response" vs "Improved Response".
+Populate "previousApproach" and "betterApproach" for this slide.
 
 Slide 4 (type: drill)
 Give the rep one actionable practice drill they can do before their next call.
 The drill should be specific and practical.
+${knowledgeContext ? "Tailor the drill to the team's specific product language, common objections, and competitive positioning from the knowledge base." : ""}
 The visual should be a practice framework diagram or step-by-step coaching card showing how to rehearse the skill.
 
 Return ONLY a valid JSON array of 4 slide objects.
@@ -608,24 +671,10 @@ export async function generateMultimodalDebrief(
   moods: any[] = [],
   teamId?: string,
 ): Promise<any[]> {
-  // Retrieve RAG context if teamId is provided
-  let ragContextString = "";
+  // Retrieve RAG context + knowledge metadata if teamId is provided
+  let knowledgeContext = "";
   if (teamId) {
-    try {
-      const ragContext = await ragService.retrieve(
-        teamId,
-        `key product differences, specific features, and ideal improved pitches related to: ${transcript.substring(0, 1000)}`,
-        5,
-      );
-      if (ragContext.length > 0) {
-        ragContextString = `\n\n─── PRODUCT KNOWLEDGE (RAG) ───\nUse these validated product facts to provide accurate corrections in Slide 3:\n${ragContext.join("\n\n")}`;
-      }
-    } catch (error) {
-      console.error(
-        "[generateMultimodalDebrief] RAG retrieval failed:",
-        error,
-      );
-    }
+    knowledgeContext = await buildDebriefKnowledgeContext(teamId, transcript);
   }
 
   const prompt = `You are a world-class sales coach creating a 4-slide "Coach Debrief" for a sales rep after a practice call.
@@ -643,8 +692,8 @@ ${transcript}
 
 Session Data:
 - Objections Logged: ${JSON.stringify(objections, null, 2)}
-- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}${ragContextString}
-
+- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}${knowledgeContext}
+${knowledgeContext ? `\n**IMPORTANT**: Product & market knowledge has been provided above. Use it across ALL slides to ground your coaching in the team's actual product, value propositions, differentiators, and competitive landscape. Do not invent product features — use only what is documented.\n` : ""}
 ─── SLIDE FORMAT ───
 
 For each slide, output a JSON block then generate an image. Repeat 4 times.
@@ -655,20 +704,22 @@ Slide JSON structure:
   "title": "Concise headline",
   "narration": "Spoken coaching script, under 50 words. Clear, confident, supportive.",
   "type": "overview|problem|correction|drill",
-  "visual": "Description of what the infographic shows"
+  "visual": "Description of what the infographic shows",
+  "previousApproach": "Optional: For 'correction' slides, the original weak script.",
+  "betterApproach": "Optional: For 'correction' slides, the recommended improved script."
 }
 \`\`\`
 Then generate an image: a clean, modern SaaS dashboard infographic with flat design, minimal UI, white background, subtle purple and blue accents. No cartoons or artistic illustrations — use charts, diagrams, timelines, comparison cards, and dashboards.
 
 ─── SLIDE REQUIREMENTS ───
 
-Slide 1 (type: overview): High-level call summary. Image: coaching analytics dashboard or performance heatmap showing Introduction, Discovery, Pitch, Objection Handling, Closing stages. Incorporate mood trend data.
+Slide 1 (type: overview): High-level call summary. ${knowledgeContext ? "Evaluate whether the rep correctly positioned the product's key value propositions and differentiators." : ""} Image: coaching analytics dashboard or performance heatmap showing Introduction, Discovery, Pitch, Objection Handling, Closing stages. Incorporate mood trend data.
 
-Slide 2 (type: problem): The SINGLE biggest mistake. Quote the rep if possible. Image: conversation timeline with a red drop at the friction point, or a highlighted objection moment.
+Slide 2 (type: problem): The SINGLE biggest mistake. Quote the rep if possible. ${knowledgeContext ? "Check if the mistake involved misquoting product capabilities, missing a key differentiator, or failing to address a known objection." : ""} Image: conversation timeline with a red drop at the friction point, or a highlighted objection moment.
 
-Slide 3 (type: correction): How to fix it with a "Before vs After" example. ${ragContextString ? "Use the RAG product knowledge for accuracy." : ""} Image: side-by-side comparison — "Original Response" vs "Improved Response".
+Slide 3 (type: correction): How to fix it with a "Before vs After" example. ${knowledgeContext ? "The \"betterApproach\" MUST use correct product terminology, value props, and differentiators from the knowledge base." : ""} Image: side-by-side comparison — "Original Response" vs "Improved Response".
 
-Slide 4 (type: drill): One actionable practice drill. Image: step-by-step coaching card or practice framework diagram.
+Slide 4 (type: drill): One actionable practice drill. ${knowledgeContext ? "Tailor the drill to the team's specific product language, common objections, and competitive positioning." : ""} Image: step-by-step coaching card or practice framework diagram.
 
 Output exactly 4 slides. Each slide = one JSON block + one generated image.`;
 

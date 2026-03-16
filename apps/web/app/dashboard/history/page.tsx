@@ -166,6 +166,7 @@ export default function HistoryPage() {
         personaName: persona?.name || session.personaName || "Unknown",
         personaRole: persona?.role || session.personaRole || "AI Persona",
         durationSeconds: session.durationSeconds,
+        teamId: session.teamId,
       });
 
       await updateCallSession(session.id, { debrief });

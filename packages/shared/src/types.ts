@@ -384,6 +384,8 @@ export interface DebriefSlide {
   type: DebriefSlideType;
   visualBase64?: string; // AI-generated infographic (base64)
   visualUrl?: string; // AI-generated infographic (Storage URL)
+  previousApproach?: string; // Quote or description of rep's weak moment
+  betterApproach?: string; // Recommended correction
 }
 
 export interface CoachDebriefResponse {

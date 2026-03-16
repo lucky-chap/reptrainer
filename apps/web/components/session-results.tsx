@@ -181,6 +181,7 @@ export function SessionResults({
           durationSeconds: session.durationSeconds,
           objections: (session as any).objections || [],
           moods: (session as any).moods || [],
+          teamId: session.teamId,
         },
         onProgress,
       );

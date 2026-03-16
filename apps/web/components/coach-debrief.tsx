@@ -337,6 +337,8 @@ export function CoachDebrief({
             type={currentSlide.type}
             description={currentSlide.visual}
             visualUrl={currentSlide.visualUrl}
+            previousApproach={currentSlide.previousApproach}
+            betterApproach={currentSlide.betterApproach}
           />
         </motion.div>
 
@@ -359,7 +361,7 @@ export function CoachDebrief({
               />
             </div>
             <p className="animate-in fade-in ml-2 text-sm leading-relaxed font-medium italic opacity-85 delay-300 duration-1000 sm:ml-0 sm:text-xl md:text-2xl">
-              &quot;{currentSlide.narration}&quot;
+              {currentSlide.narration}
             </p>
           </div>
 
@@ -433,10 +435,14 @@ function VisualDiagram({
   type,
   description,
   visualUrl,
+  previousApproach,
+  betterApproach,
 }: {
   type: string;
   description: string;
   visualUrl?: string;
+  previousApproach?: string;
+  betterApproach?: string;
 }) {
   if (visualUrl) {
     return (
@@ -573,8 +579,8 @@ function VisualDiagram({
               </span>
             </div>
             <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm opacity-50 blur-[0.5px]">
-              &quot;I think our tool might be able to help you save some costs
-              if you have the time next week.&quot;
+              {previousApproach ||
+                "I think our tool might be able to help you save some costs if you have the time next week."}
             </div>
           </div>
           <div className="flex justify-center">
@@ -588,9 +594,8 @@ function VisualDiagram({
               </span>
             </div>
             <div className="animate-in zoom-in-95 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm font-medium duration-700">
-              &quot;Most of our clients in logistics see a 22% reduction in
-              operational spend. Should we sync Tuesday to quantify what that
-              looks like for you?&quot;
+              {betterApproach ||
+                "Most of our clients in logistics see a 22% reduction in operational spend. Should we sync Tuesday to quantify what that looks like for you?"}
             </div>
           </div>
         </div>

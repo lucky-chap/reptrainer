@@ -428,7 +428,9 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Coaching Insights */}
-      <CoachingInsights insights={insights} />
+      {isTeamView && selectedMemberId !== "all" && (
+        <CoachingInsights insights={insights} />
+      )}
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -809,13 +811,13 @@ export default function AnalyticsPage() {
                         <span
                           className={cn(
                             "inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold",
-                            session.evaluation
+                            isSessionCompleted(session as any)
                               ? "bg-charcoal text-cream"
                               : "bg-cream-dark text-warm-gray",
                           )}
                         >
-                          {session.evaluation
-                            ? getOverallScore(session.evaluation)
+                          {isSessionCompleted(session as any)
+                            ? getOverallScore(session as any)
                             : "—"}
                         </span>
                       </td>

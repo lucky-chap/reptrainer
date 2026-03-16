@@ -28,6 +28,7 @@ export async function streamCoachDebrief(
     durationSeconds: number;
     objections?: any[];
     moods?: any[];
+    teamId?: string;
   },
   onProgress?: (event: DebriefProgressEvent) => void,
 ): Promise<CoachDebriefResponse> {
