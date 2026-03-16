@@ -13,6 +13,7 @@ from tools.log_objection import log_objection
 from tools.update_persona_mood import update_persona_mood
 from tools.end_roleplay import end_roleplay
 from tools.research_competitor import research_competitor
+from tools.google_search import google_search
 
 __all__ = [
     "log_sales_insight",
@@ -20,4 +21,5 @@ __all__ = [
     "update_persona_mood",
     "end_roleplay",
     "research_competitor",
+    "google_search",
 ]

@@ -16,7 +16,7 @@
 // Tuning constants
 const ENERGY_THRESHOLD = 0.02; // RMS energy threshold for voice detection
 const ONSET_FRAMES = 8;        // Consecutive voiced frames to trigger start
-const OFFSET_FRAMES = 25;      // Consecutive silent frames to trigger end
+const OFFSET_FRAMES = 60;      // Consecutive silent frames to trigger end (~480ms)
 
 class VADProcessor extends AudioWorkletProcessor {
   constructor() {

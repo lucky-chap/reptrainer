@@ -31,8 +31,7 @@ function getWsUrl(
   sessionId?: string,
   teamId?: string,
 ): string {
-  const wsBaseUrl =
-    env.NEXT_PUBLIC_LIVE_AGENT_URL || "ws://localhost:5000";
+  const wsBaseUrl = env.NEXT_PUBLIC_LIVE_AGENT_URL || "ws://localhost:5000";
   const secretKey = env.NEXT_PUBLIC_API_SECRET_KEY;
   const sid = sessionId || crypto.randomUUID();
   const base = wsBaseUrl.endsWith("/") ? wsBaseUrl.slice(0, -1) : wsBaseUrl;
@@ -140,7 +139,12 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
           ];
         }
         // Deduplicate: skip if the last finished entry has the same role+text
-        if (last && last.role === role && !last.isStreaming && last.text === text) {
+        if (
+          last &&
+          last.role === role &&
+          !last.isStreaming &&
+          last.text === text
+        ) {
           return prev;
         }
         return [
@@ -440,6 +444,11 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         playerNodeRef.current = playerNode;
         playerNode.connect(playbackCtx.destination);
 
+        // Bridge: Capture AI audio for recording
+        const aiPlaybackDestination =
+          playbackCtx.createMediaStreamDestination();
+        playerNode.connect(aiPlaybackDestination);
+
         playerNode.port.onmessage = (e: MessageEvent) => {
           if (e.data?.type === "drain") {
             isPlayingRef.current = false;
@@ -451,6 +460,12 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
         const mixer = captureCtx.createMediaStreamDestination();
         mixerRef.current = mixer;
         micSource.connect(mixer);
+
+        // Connect bridged AI audio to the mixer
+        const aiSource = captureCtx.createMediaStreamSource(
+          aiPlaybackDestination.stream,
+        );
+        aiSource.connect(mixer);
 
         // ── Connect WebSocket to Python ADK live-agent ────────────────────
         const url = getWsUrl(
@@ -488,7 +503,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
             if (!isConnectedRef.current) return;
             isPlayingRef.current = true;
             setIsAISpeaking(true);
-            suppressVadUntilRef.current = Date.now() + 1500;
+            suppressVadUntilRef.current = Date.now() + 300;
             const buf = e.data as ArrayBuffer;
             playerNodeRef.current?.port.postMessage(buf, [buf]);
           } else {

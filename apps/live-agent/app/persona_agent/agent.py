@@ -16,6 +16,7 @@ from config import settings
 from persona_engine import generate_prompt
 from tools import (
     end_roleplay,
+    google_search,
     research_competitor,
 )
 
@@ -53,6 +54,7 @@ agent = Agent(
     tools=[
         research_competitor,
         end_roleplay,
+        google_search,
     ],
     # Per-session instruction: reads from session state so each connection
     # gets its own persona system profile without rebuilding the agent.

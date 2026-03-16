@@ -302,17 +302,38 @@ export function SessionResults({
   const handleSeek = (seconds: number) => {
     if (audioRef.current) {
       console.log(`[SessionResults] Seeking to ${seconds}s`);
+      if (typeof seconds !== "number" || isNaN(seconds)) {
+        console.warn(
+          "[SessionResults] Seek rejected: seconds is not a valid number",
+          seconds,
+        );
+        return;
+      }
+
       try {
-        audioRef.current.currentTime = seconds;
+        // Ensure seconds is non-negative
+        const safeSeconds = Math.max(0, seconds);
+
+        // If duration is known, cap the seek time
+        if (audioRef.current.duration > 0) {
+          audioRef.current.currentTime = Math.min(
+            safeSeconds,
+            audioRef.current.duration,
+          );
+        } else {
+          audioRef.current.currentTime = safeSeconds;
+        }
+
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch((error) => {
-            console.warn(
-              "[SessionResults] Audio playback auto-play was prevented or interrupted:",
-              error,
-            );
-            // Fallback for some browsers: try to play again if it was a gesture
-            if (audioRef.current) audioRef.current.play();
+            if (error.name === "NotAllowedError") {
+              console.warn(
+                "[SessionResults] Playback blocked by browser. User interaction required.",
+              );
+            } else {
+              console.warn("[SessionResults] Audio playback error:", error);
+            }
           });
         }
       } catch (err) {
@@ -592,8 +613,10 @@ export function SessionResults({
                   </div>
 
                   <audio
+                    key={audioUrl}
                     ref={audioRef}
                     controls
+                    preload="auto"
                     src={audioUrl}
                     className="accent-charcoal h-10 w-full"
                   />

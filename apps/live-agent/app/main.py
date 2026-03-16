@@ -161,8 +161,8 @@ async def live_session(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name)
                 )
             ),
-            input_audio_transcription=types.AudioTranscriptionConfig(),
-            output_audio_transcription=types.AudioTranscriptionConfig(),
+            input_audio_transcription=types.AudioTranscriptionConfig(language_codes=["en"]),
+            output_audio_transcription=types.AudioTranscriptionConfig(language_codes=["en"]),
             session_resumption=types.SessionResumptionConfig(),
             realtime_input_config=realtime_input_config,
             proactivity=types.ProactivityConfig(proactive_audio=True) if proactivity else None,
@@ -259,11 +259,7 @@ async def live_session(
         analysis_task: asyncio.Task | None = None
 
         try:
-            ready_event.set()
-            needs_initiation = (
-                not session.state.get("has_greeted", False) and not proactivity
-            )
-            initiated = False
+            model_has_spoken = False
 
             async for event in runner.run_live(
                 user_id=user_id,
@@ -274,29 +270,14 @@ async def live_session(
                 if websocket.application_state != WebSocketState.CONNECTED:
                     break
 
-                # ── Deferred AI Initiation ──
-                # Wait for the first event (live session established), then
-                # send initiation only if the model hasn't already started
-                # producing audio on its own.
-                if needs_initiation and not initiated:
-                    initiated = True
-                    has_model_output = (
-                        event.content
-                        and event.content.parts
-                        and any(
-                            (p.inline_data and p.inline_data.data) or p.text
-                            for p in event.content.parts
-                        )
-                    )
-                    if not has_model_output:
-                        logger.info("Triggering AI initiation for session=%s", session_id)
+                # ── Track whether the model has started speaking on its own ──
+                if not model_has_spoken and event.content and event.content.parts:
+                    if any(
+                        (p.inline_data and p.inline_data.data) or p.text
+                        for p in event.content.parts
+                    ):
+                        model_has_spoken = True
                         session.state["has_greeted"] = True
-                        live_request_queue.send_content(
-                            types.Content(
-                                role="user",
-                                parts=[types.Part(text="Please introduce yourself and start the roleplay.")],
-                            )
-                        )
 
                 # ── Binary Audio Relay ──
                 if event.content and event.content.parts:
@@ -375,6 +356,11 @@ async def live_session(
                             )
                         )
 
+                    # Note: do NOT break here on session_ended — let the downstream
+                    # continue so the client receives the end_roleplay event via
+                    # tool_event_relay and can show the "persona left" UI before
+                    # disconnecting.  The loop ends when the client closes the WS.
+
                 elif event.interrupted:
                     await safe_send_json({"type": "interrupted"})
 
@@ -400,9 +386,37 @@ async def live_session(
         except Exception as e:
             logger.error("Error in tool_event_relay: %s", e, exc_info=True)
 
+    # ── Deferred AI Initiation ──────────────────────────────────────────
+    # Wait for the live session to establish, then nudge the model to greet
+    # ONLY if it hasn't already started speaking on its own and the user
+    # hasn't spoken either.
+    needs_initiation = (
+        not session.state.get("has_greeted", False) and not proactivity
+    )
+
+    async def deferred_initiation():
+        """Wait, then send initiation prompt if the model hasn't spoken yet."""
+        if not needs_initiation:
+            return
+        # Give the model time to start speaking on its own
+        await asyncio.sleep(2.0)
+        # Check if model already spoke or user already spoke
+        if session.state.get("has_greeted", False):
+            logger.info("Skipping initiation — user or model already greeted (session=%s)", session_id)
+            return
+        logger.info("Triggering AI initiation for session=%s", session_id)
+        session.state["has_greeted"] = True
+        live_request_queue.send_content(
+            types.Content(
+                role="user",
+                parts=[types.Part(text="Please introduce yourself and start the roleplay.")],
+            )
+        )
+
     # ── Run tasks concurrently ────────────────────────────────────────────
+    ready_event.set()
     try:
-        await asyncio.gather(upstream(), downstream(), tool_event_relay())
+        await asyncio.gather(upstream(), downstream(), tool_event_relay(), deferred_initiation())
     except WebSocketDisconnect:
         logger.info("Session ended: session=%s", session_id)
     finally:

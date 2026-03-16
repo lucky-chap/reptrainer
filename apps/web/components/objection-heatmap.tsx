@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Zap, Info, PlayCircle } from "lucide-react";
 import {
@@ -72,6 +72,16 @@ export function ObjectionHeatmap({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const handleSeekAndClose = useCallback(
+    (seconds: number) => {
+      setOpen(false);
+      // Delay seek until the dialog portal is unmounted so the browser
+      // treats the subsequent .play() as originating from the main document.
+      setTimeout(() => onSeek?.(seconds), 150);
+    },
+    [onSeek],
+  );
+
   if (insights.length === 0) {
     return null;
   }
@@ -133,7 +143,7 @@ export function ObjectionHeatmap({
                     <TooltipTrigger asChild>
                       <button
                         onClick={() => {
-                          onSeek?.(markerSeconds); // Jump to time
+                          handleSeekAndClose(markerSeconds);
                         }}
                         className={cn(
                           "group absolute top-1.5 flex h-9 w-4 -translate-x-1/2 flex-col items-center justify-center transition-all hover:z-20 focus:outline-hidden",
@@ -211,7 +221,7 @@ export function ObjectionHeatmap({
                     <button
                       className="hover:border-charcoal/30 text-charcoal/50 hover:text-charcoal flex size-6 items-center justify-center rounded-full border bg-white shadow-sm transition-all"
                       onClick={() => {
-                        onSeek?.(normalizeSeconds(marker.timestamp));
+                        handleSeekAndClose(normalizeSeconds(marker.timestamp));
                       }}
                       title="Play from this moment"
                     >
