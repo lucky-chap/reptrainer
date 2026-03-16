@@ -4,17 +4,17 @@ export const GEMINI_TEXT_MODEL = "gemini-2.5-flash";
 /** Gemini model used for evaluation */
 export const GEMINI_EVALUATION_MODEL = "gemini-2.5-flash";
 
-/** Gemini model used for the Multimodal Live API (WebSocket) */
+/** Gemini Pro model for advanced analysis and long context */
+export const GEMINI_PRO_MODEL = "gemini-2.5-pro";
+
+/** Gemini model used for the Live API (WebSocket) */
 export const GEMINI_LIVE_MODEL = "gemini-live-2.5-flash-native-audio";
 
-/** Gemini model used for voice generation */
-export const GEMINI_VOICE_MODEL = "gemini-2.5-flash-preview-tts";
+/** Gemini model used for TTS voice generation */
+export const GEMINI_VOICE_MODEL = "gemini-2.5-flash-tts";
 
 /** Gemini voice name */
 export const GEMINI_VOICE_NAME = "Zephyr";
-
-/** Gemini model used for avatar generation */
-export const GEMINI_IMAGE_MODEL = "imagen-3.0-generate-001";
 
 /** Gemini model used for multimodal output (interleaved text + image generation) */
 export const GEMINI_MULTIMODAL_MODEL = "gemini-2.5-flash-image";
@@ -42,6 +42,7 @@ export const API_ROUTES = {
   PERSONA_GENERATE: "/api/persona/generate",
   SESSION_EVALUATE: "/api/session/evaluate",
   SESSION_FEEDBACK: "/api/session/feedback",
+  SESSION_COACHING_INSIGHTS: "/api/session/coaching-insights",
 } as const;
 
 /** Prospect Personality Templates */

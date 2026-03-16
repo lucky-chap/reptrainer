@@ -179,6 +179,7 @@ async def live_session(
     # ── Create LiveRequestQueue ───────────────────────────────────────────
     live_request_queue = LiveRequestQueue()
     ready_event = asyncio.Event()
+    greeted_event = asyncio.Event()  # Fired when model or user speaks first
 
     await websocket.send_json({"type": "connected"})
 
@@ -212,6 +213,7 @@ async def live_session(
                         # User is speaking, mark as greeted to suppress AI-initiation if it hasn't happened
                         if event_type == "activity_start":
                             session.state["has_greeted"] = True
+                            greeted_event.set()
                         
                         if event_type == "activity_start" and not vad_active:
                             vad_active = True
@@ -278,6 +280,7 @@ async def live_session(
                     ):
                         model_has_spoken = True
                         session.state["has_greeted"] = True
+                        greeted_event.set()
 
                 # ── Binary Audio Relay ──
                 if event.content and event.content.parts:
@@ -365,7 +368,21 @@ async def live_session(
                     await safe_send_json({"type": "interrupted"})
 
         except google.genai.errors.APIError as e:
-            logger.info("Gemini session closed: %s", e)
+            error_msg = str(e)
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                logger.warning("Gemini rate limit hit (429): %s", e)
+                await safe_send_json({
+                    "type": "error",
+                    "message": "The AI service is temporarily overloaded. Please wait a moment and try again.",
+                    "fatal": True,
+                })
+            else:
+                logger.info("Gemini API error: %s", e)
+                await safe_send_json({
+                    "type": "error",
+                    "message": "AI connection was interrupted. Please try reconnecting.",
+                    "fatal": True,
+                })
         except Exception as e:
             logger.error("Downstream error: %s", e, exc_info=True)
 
@@ -395,17 +412,28 @@ async def live_session(
     )
 
     async def deferred_initiation():
-        """Wait, then send initiation prompt if the model hasn't spoken yet."""
+        """Wait, then send initiation prompt if the model hasn't spoken yet.
+
+        Uses greeted_event to react immediately when the model or user speaks,
+        rather than relying on a fixed sleep which causes race conditions.
+        """
         if not needs_initiation:
             return
-        # Give the model time to start speaking on its own
-        await asyncio.sleep(2.0)
-        # Check if model already spoke or user already spoke
+        # Wait up to 3s for the model to speak on its own or the user to start talking.
+        # If greeted_event fires, we skip initiation immediately — no double greeting.
+        try:
+            await asyncio.wait_for(greeted_event.wait(), timeout=3.0)
+            logger.info("Skipping initiation — model or user already greeted (session=%s)", session_id)
+            return
+        except asyncio.TimeoutError:
+            pass
+        # Double-check state in case it was set between the timeout and here
         if session.state.get("has_greeted", False):
-            logger.info("Skipping initiation — user or model already greeted (session=%s)", session_id)
+            logger.info("Skipping initiation — has_greeted already set (session=%s)", session_id)
             return
         logger.info("Triggering AI initiation for session=%s", session_id)
         session.state["has_greeted"] = True
+        greeted_event.set()
         live_request_queue.send_content(
             types.Content(
                 role="user",

@@ -70,7 +70,10 @@ export function AdminDashboard({
   }, [allSessions]);
   // Compute stats
   const totalSessions = sessions.length;
-  const totalDuration = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
+  const totalDuration = sessions.reduce(
+    (sum, s) => sum + (Number(s.durationSeconds) || 0),
+    0,
+  );
   const evaluatedSessions = sessions;
 
   const {

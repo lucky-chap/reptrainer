@@ -2,12 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertCircle,
-  AlertTriangle,
-  UserX,
-  PhoneOff,
-} from "lucide-react";
+import { AlertCircle, AlertTriangle, UserX, PhoneOff } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { NameInputStage } from "./roleplay/stages/name-input-stage";
 import { DurationSelectorStage } from "./roleplay/stages/duration-selector-stage";
@@ -92,6 +88,7 @@ export function RoleplaySession({
   const [callSessionId] = useState(() => uuidv4());
   const [inputLocked, setInputLocked] = useState(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const disconnectRef = useRef<(() => void) | null>(null);
 
   // ─── Training Track Context ───────────────────────────────────────────
   const track = trackId ? TRAINING_TRACKS.find((t) => t.id === trackId) : null;
@@ -155,9 +152,17 @@ export function RoleplaySession({
     }, 100);
   }, []);
 
-  const handleError = useCallback((error: string) => {
-    console.error("Live API error:", error);
+  const handleError = useCallback((error: string, fatal?: boolean) => {
+    console.error("Live API error:", error, fatal ? "(fatal)" : "");
     setErrorMessage(error);
+    if (fatal) {
+      toast.error("Call Ended", {
+        description: error,
+        duration: 8000,
+      });
+      // Disconnect will be called after the hook re-renders
+      setTimeout(() => disconnectRef.current?.(), 100);
+    }
   }, []);
 
   const handlePersonaLeft = useCallback(() => {
@@ -204,6 +209,9 @@ export function RoleplaySession({
     onPersonaLeft: handlePersonaLeft,
   });
 
+  // Keep disconnectRef in sync so handleError can call it
+  disconnectRef.current = disconnect;
+
   // ─── Whisper HUD Logic ───────────────────────────────────────────────
   const [latestInsight, setLatestInsight] = useState<{
     insight: string;
@@ -245,10 +253,11 @@ export function RoleplaySession({
       return "/avatars/eager_founder.png";
     if (name.includes("architect") || name.includes("analytical"))
       return "/avatars/analytical_architect.png";
-    return null;
+    return "/placeholder-avatar.png";
   };
 
   const avatarUrl = getAvatarUrl();
+  const userAvatarUrl = user?.photoURL || "/placeholder-avatar.png";
 
   // ─── Call Timer ────────────────────────────────────────────────────────
   const handleTimerWarning = useCallback(() => {
@@ -305,6 +314,7 @@ export function RoleplaySession({
         callStartTime: new Date().toISOString(),
         trackId: trackId || null,
         scenarioId: scenarioId || null,
+        source: "roleplay",
       })
         .then(() =>
           console.log(
@@ -589,6 +599,7 @@ export function RoleplaySession({
         <CallHeader
           persona={persona}
           avatarUrl={avatarUrl}
+          userAvatarUrl={userAvatarUrl}
           track={track}
           isConnected={isConnected}
           warningTriggered={warningTriggered}
@@ -605,6 +616,7 @@ export function RoleplaySession({
             <PersonaCallCard
               persona={persona}
               avatarUrl={avatarUrl}
+              userAvatarUrl={userAvatarUrl}
               isConnected={isConnected}
               isConnecting={isConnecting}
               personaLeft={personaLeft}

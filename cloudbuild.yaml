@@ -1,10 +1,6 @@
 steps:
-  # 1. Build and Push API Service
-  - name: "gcr.io/cloud-builders/docker"
-    args: ["build", "-t", "gcr.io/$PROJECT_ID/reptrainer-api", "./apps/api"]
-    id: "build-api"
-
-  # 2. Build and Push Live Agent Service
+  # ─── 1. Live Agent (Python) ───────────────────────────────────────────────
+  # Build and Push Live Agent
   - name: "gcr.io/cloud-builders/docker"
     args:
       [
@@ -15,12 +11,7 @@ steps:
       ]
     id: "build-live-agent"
 
-  # 3. Build and Push Web Frontend Service
-  - name: "gcr.io/cloud-builders/docker"
-    args: ["build", "-t", "gcr.io/$PROJECT_ID/reptrainer-web", "./apps/web"]
-    id: "build-web"
-
-  # 4. Deploy Live Agent to Cloud Run
+  # Deploy Live Agent to Cloud Run (Immediate deployment to get the URL)
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "gcloud"
     args:
@@ -36,37 +27,64 @@ steps:
       ]
     id: "deploy-live-agent"
 
-  # 5. Deploy API to Cloud Run
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    entrypoint: "gcloud"
-    args:
-      [
-        "run",
-        "deploy",
-        "reptrainer-api",
-        "--image",
-        "gcr.io/$PROJECT_ID/reptrainer-api",
-        "--region",
-        "us-central1",
-        "--allow-unauthenticated",
-      ]
-    id: "deploy-api"
+  # ─── 2. API Proxy (Node.js) ────────────────────────────────────────────────
+  # Build and Push API
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/reptrainer-api", "./apps/api"]
+    id: "build-api"
 
-  # 6. Deploy Web to Cloud Run
+  # Deploy API to Cloud Run with LIVE_AGENT_URL discovery
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    entrypoint: "gcloud"
+    entrypoint: "bash"
     args:
-      [
-        "run",
-        "deploy",
-        "reptrainer-web",
-        "--image",
-        "gcr.io/$PROJECT_ID/reptrainer-web",
-        "--region",
-        "us-central1",
-        "--allow-unauthenticated",
-      ]
+      - "-c"
+      - |
+        LIVE_AGENT_URL=$(gcloud run services describe reptrainer-live-agent --region us-central1 --format='value(status.url)' | sed 's/https/wss/')
+        gcloud run deploy reptrainer-api \
+          --image gcr.io/$PROJECT_ID/reptrainer-api \
+          --region us-central1 \
+          --allow-unauthenticated \
+          --set-env-vars="LIVE_AGENT_URL=$${LIVE_AGENT_URL}"
+    id: "deploy-api"
+    waitFor: ["build-api", "deploy-live-agent"]
+
+  # ─── 3. Web Frontend (Next.js) ─────────────────────────────────────────────
+  # Build and Push Web Frontend with Dynamic Build Args
+  # Next.js requires these URLs at BUILD TIME for NEXT_PUBLIC_ variables
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        API_URL=$(gcloud run services describe reptrainer-api --region us-central1 --format='value(status.url)')
+        LIVE_AGENT_URL=$(gcloud run services describe reptrainer-live-agent --region us-central1 --format='value(status.url)' | sed 's/https/wss/')
+
+        docker build \
+          -t gcr.io/$PROJECT_ID/reptrainer-web \
+          --build-arg NEXT_PUBLIC_API_URL=$${API_URL} \
+          --build-arg NEXT_PUBLIC_LIVE_AGENT_URL=$${LIVE_AGENT_URL} \
+          ./apps/web
+
+        docker push gcr.io/$PROJECT_ID/reptrainer-web
+    id: "build-web"
+    waitFor: ["deploy-api", "deploy-live-agent"]
+
+  # Deploy Web to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        API_URL=$(gcloud run services describe reptrainer-api --region us-central1 --format='value(status.url)')
+        LIVE_AGENT_URL=$(gcloud run services describe reptrainer-live-agent --region us-central1 --format='value(status.url)' | sed 's/https/wss/')
+
+        gcloud run deploy reptrainer-web \
+          --image gcr.io/$PROJECT_ID/reptrainer-web \
+          --region us-central1 \
+          --allow-unauthenticated \
+          --set-env-vars="NEXT_PUBLIC_API_URL=$${API_URL},NEXT_PUBLIC_LIVE_AGENT_URL=$${LIVE_AGENT_URL}"
     id: "deploy-web"
+    waitFor: ["build-web"]
 
 images:
   - "gcr.io/$PROJECT_ID/reptrainer-api"
@@ -77,6 +95,7 @@ options:
   machineType: "E2_HIGHCPU_8"
   logging: CLOUD_LOGGING_ONLY
 
-# Scalability Note:
-# This pipeline automates the full-stack deployment of Reptrainer to Google Cloud Run,
-# ensuring all components (Next.js, Express, and Python) are containerized and scaled serverlessly.
+# Robustness Note:
+# This pipeline mirrors the orchestration logic of the manual deployment scripts.
+# By deploying in sequence, it allows the Web frontend to be compiled with
+# actual production URLs, ensuring seamless inter-service communication.

@@ -54,8 +54,8 @@ export function PersonaCard({
   onMoveToTeam,
 }: PersonaCardProps) {
   const { tasks } = useGeneration();
-  const isGeneratingAvatar = tasks.some(
-    (t) => t.personaId === persona.id && t.subStatus === "generating_avatar",
+  const isStillGenerating = tasks.some(
+    (t) => t.personaId === persona.id && t.status === "generating",
   );
 
   return (
@@ -153,13 +153,13 @@ export function PersonaCard({
         </p>
       </CardContent>
       <CardFooter className="px-6">
-        {isGeneratingAvatar ? (
+        {isStillGenerating ? (
           <Button
             disabled
             variant="brand"
             className="shadow-charcoal/10 group/btn h-12 w-full rounded-full transition-all"
           >
-            Generating Avatar...
+            Generating...
           </Button>
         ) : (
           <Button

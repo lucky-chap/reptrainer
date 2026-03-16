@@ -13,7 +13,7 @@ Reptrainer is a real-time AI "flight simulator" for enterprise sales teams. It a
 - **Multimodal AI Debrief (Gemini Native Output)**: Generates a synchronized 4-slide presentation after each session using Gemini's native multimodal output — coaching text and infographic images are generated together in a single API call, producing contextually coherent visuals that directly reflect the coaching analysis. Features:
   - AI-analyzed coaching insights with inline-generated infographics (single Gemini call).
   - Personalized audio narration via Cloud TTS.
-  - Automatic fallback to Imagen 3 pipeline for resilience.
+  - Automatic fallback to Nano Banana pipeline for resilience.
 - **RAG-Grounded Personas**: Buyer personas are grounded in the user's uploaded product documentation and competitor "battle cards."
 
 ### Technologies Used
@@ -21,7 +21,7 @@ Reptrainer is a real-time AI "flight simulator" for enterprise sales teams. It a
 - **Gemini Live API & ADK**: For the real-time bidirectional voice agent.
 - **Gemini 2.5 Flash (Multimodal Output)**: For unified debrief generation — produces coaching analysis text and infographic images in a single interleaved response using `responseModalities: ['TEXT', 'IMAGE']`.
 - **Gemini 2.5 Flash**: For conversation analysis, grading, and persona generation.
-- **Vertex AI (Imagen 3)**: For persona avatars and fallback debrief visuals.
+- **Vertex AI (Nano Banana)**: For persona avatars and fallback debrief visuals.
 - **Google Cloud TTS**: For debrief narration.
 - **Firebase (Auth, Firestore, Storage)**: For real-time state synchronization and asset management.
 - **Next.js & Express**: Full-stack framework for the web dashboard and proxy layer.
@@ -31,7 +31,7 @@ Reptrainer is a real-time AI "flight simulator" for enterprise sales teams. It a
 - **The Power of Interruption**: One of the biggest technical hurdles was managing WebSocket latency to ensure the AI "stops" speaking instantly when the user interrupts. Leveraging the ADK's VAD triggers significantly improved the "feel" of natural conversation.
 - **The Battle for Brevity in Live Audio**: Unlike text chat where detailed responses are helpful, live voice interactions demand extreme brevity. We discovered that any AI response over 15-20 seconds feels like a monologue and discourages user interaction. We had to implement strict "Max 3 Sentences" guards in the system prompt and explicitly instruct the model to use natural pauses and keep-it-short prompts to maintain a true back-and-forth flow.
 - **Tool Calling Latency vs. Immersion**: Executing tools (like Google Search or competitor research) during a live roleplay creates a "dead air" gap that can break the user's immersion. We found that the most effective solution was prompting the AI to use natural "filler" phrases (e.g., "One second, let me verify that detail...") while the tool executes, and ensuring that tool results are synthesized into a single natural conversational sentence rather than recited as raw data.
-- **Unified Multimodal Output > Multi-Service Pipelines**: Our biggest performance win came from replacing the 3-service debrief pipeline (Gemini text → Imagen 3 → Cloud TTS) with Gemini's native multimodal output (`responseModalities: ['TEXT', 'IMAGE']`). A single API call now generates coaching text and contextually coherent infographics together, cutting latency by ~60% and eliminating the "lost in translation" problem where separately-generated images didn't match the coaching narrative.
+- **Unified Multimodal Output > Multi-Service Pipelines**: Our biggest performance win came from replacing the 3-service debrief pipeline (Gemini text → Nano Banana → Cloud TTS) with Gemini's native multimodal output (`responseModalities: ['TEXT', 'IMAGE']`). A single API call now generates coaching text and contextually coherent infographics together, cutting latency by ~60% and eliminating the "lost in translation" problem where separately-generated images didn't match the coaching narrative.
 - [x] **GCP Integration**: Using a unified Google Cloud ecosystem (Vertex AI + Firebase + TTS) allowed us to build complex multimodal features with minimal glue code, as the SDKs handle authentication and data flow seamlessly.
 
 ## 🖥️ Proof of Google Cloud Deployment
@@ -45,7 +45,7 @@ Reptrainer leverages the following Google Cloud services, satisfying the hackath
 - **Gemini Multimodal Output**: Generates coaching text + infographic images in a single unified API call using native interleaved output.
   - [Multimodal Debrief Generation](./apps/api/src/services/vertex.ts#L600-L700)
   - [Unified Debrief Route](./apps/api/src/routes/session.ts#L58-L175)
-- **Imagen 3**: Generates photorealistic persona avatars (and fallback debrief infographics).
+- **Nano Banana**: Generates photorealistic persona avatars (and fallback debrief infographics).
   - [Image Generation (L390-397)](./apps/api/src/services/vertex.ts#L390-397)
   - [Infographic Fallback (L447-472)](./apps/api/src/services/vertex.ts#L447-472)
 - **Cloud TTS**: Synthesizes multi-slide coaching narrations.
@@ -104,13 +104,13 @@ We built Reptrainer as a distributed multimodal architecture:
 
 - **Frontend**: A **Next.js** application utilizing the **Web Audio API** with custom **Worklets** for 16kHz PCM capture and Voice Activity Detection (VAD).
 - **Real-Time Brain**: A **Python** service powered by the **Google ADK (Agent Development Kit)** and **FastAPI**, which manages bidirectional streaming with the **Gemini Live API**.
-- **Orchestration**: An **Express.js** API that coordinates the "Debrief" flow using **Gemini's native multimodal output** to generate coaching text and infographic images in a single call, plus **Cloud TTS** for narration. Falls back to the legacy Imagen 3 pipeline for resilience.
+- **Orchestration**: An **Express.js** API that coordinates the "Debrief" flow using **Gemini's native multimodal output** to generate coaching text and infographic images in a single call, plus **Cloud TTS** for narration. Falls back to the legacy Nano Banana pipeline for resilience.
 - **Infrastructure**: **Firebase** (Auth, Firestore, Storage) provides the real-time state sync and asset hosting, while **Google Cloud Build** and **Cloud Run** ensure a seamless CI/CD pipeline.
 
 ## Challenges we ran into
 
 - **The "Barge-In" Problem**: Achieving zero-latency interruption (barge-in) was our biggest hurdle. We had to optimize the WebSocket bridge and fine-tune VAD parameters in the browser to ensure the AI "stops" instantly when the user speaks.
-- **Multimodal Synchronization → Unified Output**: Our original pipeline stitched together 3 separate services (Gemini text → Imagen 3 images → Cloud TTS) with 12+ sequential API calls per debrief. We solved this by migrating to Gemini's native multimodal output, generating coaching text and infographics in a single API call. This eliminated the text-image coherence gap and dramatically reduced latency.
+- **Multimodal Synchronization → Unified Output**: Our original pipeline stitched together 3 separate services (Gemini text → Nano Banana images → Cloud TTS) with 12+ sequential API calls per debrief. We solved this by migrating to Gemini's native multimodal output, generating coaching text and infographics in a single API call. This eliminated the text-image coherence gap and dramatically reduced latency.
 - **Balancing Depth vs. Latency**: Grounding the AI in complex product documents (RAG) while maintaining the conversational speed required for a voice call was a constant balancing act between retrieved context and response time.
 
 ## Accomplishments that we're proud of

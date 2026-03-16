@@ -95,6 +95,7 @@ export interface Session {
   durationSeconds: number;
   evaluation: SessionEvaluation | null;
   createdAt: string;
+  source?: "roleplay" | "external";
   insights?: { insight: string; timestamp: number }[];
   audioUrl?: string; // Changed from audioBlob for Firestore/Storage
   debrief?: CoachDebriefResponse | null;

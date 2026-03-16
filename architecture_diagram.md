@@ -26,7 +26,7 @@ graph TD
     subgraph Google_Cloud ["Google Cloud Platform"]
         LiveAPI["Gemini Live API (Vertex AI)"]
         TTS["Cloud Text-to-Speech"]
-        Imagen["Imagen 3 (Multimodal Debrief)"]
+        Nano Banana["Nano Banana (Multimodal Debrief)"]
         Firestore["Firebase Firestore (Session State)"]
         Storage["Firebase Storage (Audio/Images)"]
     end
@@ -34,21 +34,21 @@ graph TD
     UI <--> Hook
     Hook <--> Audio
     Hook -- "WebSocket (VAD/Audio/Text)" --> FastAPI
-    
+
     Proxy -- "REST API (Auth/Debrief)" --> UI
     Proxy -- "Orchestration" --> Session
-    
+
     FastAPI <--> ADK
     ADK -- "Bidi Audio/Tool Calls" --> LiveAPI
     ADK -- "Prompt Context" --> Persona
-    
+
     ADK -- "Triggers" --> Analysis
     Analysis -- "Feedback Data" --> Firestore
-    
+
     Proxy -- "Evaluation/Feedback" --> LiveAPI
     Proxy -- "Audio Narration" --> TTS
-    Proxy -- "Visual Generation" --> Imagen
-    
+    Proxy -- "Visual Generation" --> Nano Banana
+
     Proxy -- "Save Assets" --> Storage
     Proxy -- "Sync State" --> Firestore
 ```
@@ -58,7 +58,7 @@ graph TD
 1.  **Live Session**: The frontend captures PCM audio and detects Voice Activity (VAD), streaming it directly to the Python Live Agent service via WebSockets.
 2.  **Agentic Reasoning**: The Python service uses the Agent Development Kit (ADK) to interface with the Gemini Live API, providing real-time persona-based roleplay.
 3.  **Multimodal Debrief**: Upon session completion, the Express backend orchestrates a complex "Debrief" generation flow:
-    *   **Gemini 1.5 Pro** analyzes the transcript to generate 4 coaching slides.
-    *   **Imagen 3** generates specific infographics for each slide.
-    *   **Cloud TTS** generates a personalized voiceover for each slide.
-    *   Assets are stored in **Firebase Storage** and delivered to the user as a synchronized multimodal presentation.
+    - **Gemini 1.5 Pro** analyzes the transcript to generate 4 coaching slides.
+    - **Nano Banana** generates specific infographics for each slide.
+    - **Cloud TTS** generates a personalized voiceover for each slide.
+    - Assets are stored in **Firebase Storage** and delivered to the user as a synchronized multimodal presentation.

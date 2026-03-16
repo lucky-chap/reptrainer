@@ -21,12 +21,12 @@ The core interaction is powered by a **Python** backend using the **Google Agent
 - **Bidirectional Streaming**: We leverage WebSockets to stream 16kHz audio from the browser to our ADK-powered agent.
 - **Realistic Interruption (Barge-In)**: One of our proudest achievements was tuning Voice Activity Detection (VAD) to ensure the AI "stops" speaking instantly when the user speaks—just like a real prospect would.
 
-### 2. The Multimodal Debrief: Gemini 1.5, Imagen 3, and Cloud TTS
+### 2. The Multimodal Debrief: Gemini 1.5, Nano Banana, and Cloud TTS
 
 Sales training is only as good as the feedback. After every call, Reptrainer generates a full "Executive Coaching" presentation:
 
 - **Gemini 1.5 Pro**: Analyzes the transcript to identify objections handled correctly and missed opportunities.
-- **Imagen 3**: Generates high-fidelity infographics and buyer avatars to make the feedback visually engaging.
+- **Nano Banana**: Generates high-fidelity infographics and buyer avatars to make the feedback visually engaging.
 - **Google Cloud TTS**: Narrates the debrief, allowing the rep to listen to their coaching while reviewing the slides.
 
 ### 3. Grounded Intelligence with Vertex AI RAG

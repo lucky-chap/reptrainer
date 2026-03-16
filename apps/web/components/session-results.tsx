@@ -288,6 +288,50 @@ export function SessionResults({
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadReport = () => {
+    const report = `
+REPTRAINER ANALYSIS REPORT
+==========================
+Session ID: ${session.id}
+Date: ${new Date(session.createdAt).toLocaleString()}
+Overall Score: ${overallScore}/100
+
+METRICS
+-------
+Discovery: ${sessionMetrics.discovery}
+Objections: ${sessionMetrics.objection_handling}
+Positioning: ${sessionMetrics.positioning}
+Listening: ${sessionMetrics.listening}
+Closing: ${sessionMetrics.closing}
+Confidence: ${sessionMetrics.confidence}
+
+STRENGTHS
+---------
+${evaluation?.strengths?.map((s: string) => `- ${s}`).join("\n") || "No strengths recorded."}
+
+WEAKNESSES
+----------
+${evaluation?.weaknesses?.map((w: string) => `- ${w}`).join("\n") || "No weaknesses recorded."}
+
+COACHING TIPS
+-------------
+${evaluation?.improvementTips?.map((t: string) => `- ${t}`).join("\n") || "No tips recorded."}
+
+TRANSCRIPT
+----------
+${session.transcript}
+`;
+    const blob = new Blob([report], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `analysis-report-${session.id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleDownloadAudio = () => {
     if (!audioUrl) return;
     const a = document.createElement("a");
@@ -605,10 +649,18 @@ export function SessionResults({
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={handleDownloadReport}
+                        className="h-8 px-3 text-xs"
+                      >
+                        <Download className="mr-1.5 h-3.5 w-3.5" /> Report
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={handleDownloadAudio}
                         className="h-8 px-3 text-xs"
                       >
-                        <Download className="mr-1.5 h-3.5 w-3.5" /> Download
+                        <Download className="mr-1.5 h-3.5 w-3.5" /> Audio
                       </Button>
                     </div>
                   </div>

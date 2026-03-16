@@ -9,11 +9,10 @@ import { validateBody } from "../middleware/validate.js";
 import { requireApiSecret } from "../middleware/auth.js";
 import {
   evaluateSession,
-  generateCoachDebrief,
   generateMultimodalDebrief,
-  generateSlideInfographic,
 } from "../services/vertex.js";
 import { generateFeedbackReport } from "../services/feedback.js";
+import { generateRAGCoachingInsights } from "../services/coaching-insights.js";
 import { synthesizeSpeech } from "../services/tts.js";
 import { uploadFile } from "../services/storage.js";
 import { v4 as uuidv4 } from "uuid";
@@ -42,6 +41,27 @@ const feedbackSchema = z.object({
   teamId: z.string().optional(),
 });
 
+const coachingInsightsSchema = z.object({
+  teamId: z.string().min(1),
+  isTeamView: z.boolean(),
+  scoreSummaries: z.array(
+    z.object({
+      userName: z.string(),
+      sessionCount: z.number(),
+      avgScores: z.object({
+        overall: z.number(),
+        discovery: z.number(),
+        objection_handling: z.number(),
+        positioning: z.number(),
+        closing: z.number(),
+        listening: z.number(),
+      }),
+      weakestSkills: z.array(z.string()),
+      recentTrend: z.enum(["improving", "declining", "stable"]),
+    }),
+  ),
+});
+
 const debriefSchema = z.object({
   transcript: z.string().min(1),
   personaName: z.string().min(1),
@@ -59,7 +79,7 @@ const debriefSchema = z.object({
  * Streams progress events via SSE so the frontend can show real-time stage updates.
  * Uses Gemini's native multimodal output (text + image in a single call) for coherent,
  * low-latency debrief generation. Falls back to the legacy 3-service pipeline
- * (Gemini text → Imagen 3 images → Cloud TTS audio) if multimodal generation fails.
+ * (Gemini text → Nano Banana images → Cloud TTS audio) if multimodal generation fails.
  */
 sessionRoutes.post(
   "/debrief",
@@ -86,42 +106,20 @@ sessionRoutes.post(
         `[debrief] Generating coach debrief for session ${sessionId} with ${personaName} (${personaRole})`,
       );
 
-      // ── Step 1: Generate slides (unified multimodal → fallback to legacy) ──
-      let slides: any[];
-      let usedMultimodal = false;
-
+      // ── Step 1: Generate slides via multimodal Gemini ──
       sendProgress("analyzing");
 
-      try {
-        slides = await generateMultimodalDebrief(
-          transcript,
-          personaName,
-          personaRole,
-          req.body.objections,
-          req.body.moods,
-          req.body.teamId,
-        );
-        usedMultimodal = true;
-        console.log(
-          `[debrief] Multimodal generation succeeded: ${slides.length} slides`,
-        );
-      } catch (multimodalError: any) {
-        console.warn(
-          `[debrief] Multimodal generation failed, falling back to legacy pipeline:`,
-          multimodalError.message,
-        );
-        slides = await generateCoachDebrief(
-          transcript,
-          personaName,
-          personaRole,
-          req.body.objections,
-          req.body.moods,
-          req.body.teamId,
-        );
-        console.log(
-          `[debrief] Legacy generation succeeded: ${slides.length} slides`,
-        );
-      }
+      const slides = await generateMultimodalDebrief(
+        transcript,
+        personaName,
+        personaRole,
+        req.body.objections,
+        req.body.moods,
+        req.body.teamId,
+      );
+      console.log(
+        `[debrief] Multimodal generation succeeded: ${slides.length} slides`,
+      );
 
       sendProgress("generating_slides", `${slides.length} slides generated`);
 
@@ -134,10 +132,7 @@ sessionRoutes.post(
         const slideIndex = i + 1;
 
         // A. Synthesize narration audio via Cloud TTS
-        sendProgress(
-          "uploading_audio",
-          `Slide ${slideIndex}/${slides.length}`,
-        );
+        sendProgress("uploading_audio", `Slide ${slideIndex}/${slides.length}`);
         try {
           const audioBase64 = await synthesizeSpeech(slide.narration);
           if (audioBase64) {
@@ -156,14 +151,13 @@ sessionRoutes.post(
           audioUrls.push("");
         }
 
-        // B. Upload inline image (multimodal) or generate via Imagen (legacy fallback)
+        // B. Upload inline image from multimodal generation
         sendProgress(
           "uploading_visuals",
           `Slide ${slideIndex}/${slides.length}`,
         );
         try {
           if (slide.visualBase64) {
-            // Multimodal path: image was generated inline by Gemini
             let base64Data = slide.visualBase64;
             if (base64Data.startsWith("data:")) {
               base64Data = base64Data.split(",")[1];
@@ -174,20 +168,7 @@ sessionRoutes.post(
             visualUrls.push(url);
             slide.visualUrl = url;
           } else {
-            // Legacy fallback: generate image separately via Imagen 3
-            let visualBase64 = await generateSlideInfographic(slide.visual);
-            if (visualBase64) {
-              if (visualBase64.startsWith("data:")) {
-                visualBase64 = visualBase64.split(",")[1];
-              }
-              const buffer = Buffer.from(visualBase64, "base64");
-              const destination = `debriefs/${sessionId}/visual-slide-${slideIndex}.jpg`;
-              const url = await uploadFile(buffer, destination, "image/jpeg");
-              visualUrls.push(url);
-              slide.visualUrl = url;
-            } else {
-              visualUrls.push("");
-            }
+            visualUrls.push("");
           }
         } catch (error) {
           console.error(
@@ -203,7 +184,7 @@ sessionRoutes.post(
       }
 
       console.log(
-        `[debrief] Debrief complete (${usedMultimodal ? "multimodal" : "legacy"}). Audio: ${audioUrls.filter((a) => !!a).length}/${slides.length}, Visuals: ${visualUrls.filter((v) => !!v).length}/${slides.length}`,
+        `[debrief] Debrief complete. Audio: ${audioUrls.filter((a) => !!a).length}/${slides.length}, Visuals: ${visualUrls.filter((v) => !!v).length}/${slides.length}`,
       );
 
       sendProgress("finalizing");
@@ -264,3 +245,24 @@ sessionRoutes.post(
   },
 );
 
+/**
+ * POST /api/session/coaching-insights
+ * Generates RAG-enhanced coaching insights using team knowledge base.
+ */
+sessionRoutes.post(
+  "/coaching-insights",
+  requireApiSecret,
+  validateBody(coachingInsightsSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      console.log(
+        `[coaching-insights] Generating RAG insights for team ${req.body.teamId} (${req.body.scoreSummaries.length} summaries)`,
+      );
+      const insights = await generateRAGCoachingInsights(req.body);
+      res.json({ insights });
+    } catch (error) {
+      console.error("[coaching-insights] Error generating insights:", error);
+      next(error);
+    }
+  },
+);

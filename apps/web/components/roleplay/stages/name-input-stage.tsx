@@ -78,23 +78,17 @@ export function NameInputStage({
       {/* Persona preview */}
       <Card className="border-border/40 mx-auto max-w-lg rounded-2xl border bg-white/60 p-5">
         <div className="flex items-center gap-4">
-          {persona.avatarUrl || avatarUrl ? (
-            <Image
-              src={
-                persona.avatarUrl ||
-                (avatarUrl as string) ||
-                "/placeholder-avatar.png"
-              }
-              alt={persona.name}
-              width={48}
-              height={48}
-              className="bg-cream shrink-0 rounded-full object-cover shadow-sm"
-            />
-          ) : (
-            <div className="bg-charcoal text-cream flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-bold">
-              {persona.name.charAt(0)}
-            </div>
-          )}
+          <Image
+            src={
+              persona.avatarUrl ||
+              (avatarUrl as string) ||
+              "/placeholder-avatar.png"
+            }
+            alt={persona.name}
+            width={48}
+            height={48}
+            className="bg-cream shrink-0 rounded-full object-cover shadow-sm"
+          />
           <div className="min-w-0 flex-1">
             <h3 className="text-charcoal truncate text-sm font-semibold">
               {persona.name}

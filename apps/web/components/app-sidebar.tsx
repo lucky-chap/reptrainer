@@ -16,6 +16,7 @@ import {
   LogOut,
   ChevronUp,
   Database,
+  Upload,
 } from "lucide-react";
 
 import {
@@ -79,6 +80,11 @@ const navItems = [
     label: "Analytics",
     href: "/dashboard/analytics",
     icon: Activity,
+  },
+  {
+    label: "Analyze",
+    href: "/dashboard/analyze",
+    icon: Upload,
   },
 ];
 

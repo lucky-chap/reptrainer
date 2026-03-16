@@ -8,6 +8,7 @@ import { AudioVisualizer } from "./audio-visualizer";
 interface PersonaCallCardProps {
   persona: Persona;
   avatarUrl: string | null;
+  userAvatarUrl: string;
   isConnected: boolean;
   isConnecting: boolean;
   personaLeft: boolean;
@@ -23,6 +24,7 @@ interface PersonaCallCardProps {
 export function PersonaCallCard({
   persona,
   avatarUrl,
+  userAvatarUrl,
   isConnected,
   isConnecting,
   personaLeft,
@@ -81,21 +83,17 @@ export function PersonaCallCard({
           {/* Avatar */}
           <div className="relative">
             <div className="relative flex size-28 items-center justify-center overflow-hidden rounded-full bg-white text-4xl font-bold text-neutral-300 shadow-lg ring-1 ring-neutral-100 sm:size-36">
-              {persona.avatarUrl || avatarUrl ? (
-                <Image
-                  src={
-                    persona.avatarUrl ||
-                    (avatarUrl as string) ||
-                    "/placeholder-avatar.png"
-                  }
-                  alt={persona.name}
-                  className="h-full w-full object-cover"
-                  width={144}
-                  height={144}
-                />
-              ) : (
-                persona.name.charAt(0)
-              )}
+              <Image
+                src={
+                  persona.avatarUrl ||
+                  (avatarUrl as string) ||
+                  "/placeholder-avatar.png"
+                }
+                alt={persona.name}
+                className="h-full w-full object-cover"
+                width={144}
+                height={144}
+              />
             </div>
             {/* Speaking ring animation */}
             {isAISpeaking && (
@@ -161,21 +159,17 @@ export function PersonaCallCard({
         /* Pre-call idle */
         <div className="z-10 flex flex-col items-center justify-center text-center">
           <div className="mb-5 flex size-24 items-center justify-center overflow-hidden rounded-full bg-white text-4xl font-bold text-neutral-300 shadow-md ring-1 ring-neutral-100">
-            {persona.avatarUrl || avatarUrl ? (
-              <Image
-                src={
-                  persona.avatarUrl ||
-                  (avatarUrl as string) ||
-                  "/placeholder-avatar.png"
-                }
-                alt={persona.name}
-                width={96}
-                height={96}
-                className="h-full w-full rounded-full object-cover"
-              />
-            ) : (
-              persona.name.charAt(0)
-            )}
+            <Image
+              src={
+                persona.avatarUrl ||
+                (avatarUrl as string) ||
+                "/placeholder-avatar.png"
+              }
+              alt={persona.name}
+              width={96}
+              height={96}
+              className="h-full w-full rounded-full object-cover"
+            />
           </div>
           <p className="text-sm font-semibold text-neutral-700">
             Ready to start
@@ -190,8 +184,14 @@ export function PersonaCallCard({
       {/* "You" badge — top-left */}
       {isConnected && !personaLeft && (
         <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
-          <div className="flex size-6 items-center justify-center rounded-full bg-neutral-800 text-[9px] font-bold text-white">
-            {displayName.charAt(0).toUpperCase()}
+          <div className="flex size-6 items-center justify-center overflow-hidden rounded-full bg-neutral-800 text-[9px] font-bold text-white">
+            <Image
+              src={userAvatarUrl}
+              alt={displayName}
+              width={24}
+              height={24}
+              className="h-full w-full object-cover"
+            />
           </div>
           <span className="text-[10px] font-medium text-neutral-500">
             {displayName}

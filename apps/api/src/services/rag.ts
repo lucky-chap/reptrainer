@@ -106,10 +106,11 @@ class RagService {
 
     try {
       const response = (await this.retrievalClient.retrieveContexts({
-        parent: corpusId,
+        parent: this.getParentPath(),
         query: {
           text: query,
           similarityTopK: topK,
+          ragResources: [{ ragCorpus: corpusId }],
         } as any,
       })) as any;
 

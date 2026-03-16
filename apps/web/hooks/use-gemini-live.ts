@@ -21,7 +21,7 @@ export interface UseGeminiLiveOptions {
   sessionId?: string;
   onTranscriptUpdate?: (entries: TranscriptEntry[]) => void;
   onConnectionChange?: (connected: boolean) => void;
-  onError?: (error: string) => void;
+  onError?: (error: string, fatal?: boolean) => void;
   onPersonaLeft?: () => void;
 }
 
@@ -267,7 +267,7 @@ export function useGeminiLive(options: UseGeminiLiveOptions) {
 
           case "error":
             console.error("[GeminiLive] Server error:", msg.message);
-            optionsRef.current.onError?.(msg.message);
+            optionsRef.current.onError?.(msg.message, msg.fatal);
             break;
 
           case "closed":

@@ -28,22 +28,22 @@ Deployment to Google Cloud is fully automated. Choose your path:
 
 ## 📖 Table of Contents
 
-- [📁 Gemini Live Agent Challenge: Submission Requirements](#-gemini-live-agent-challenge-submission-requirements)
-- [🏗️ Architecture](#️-architecture)
-- [✨ Key Features](#-key-features)
-- [🧩 Core Concepts](#-core-concepts)
-- [🏗️ Monorepo Structure](#️-monorepo-structure)
-- [🛠️ Tech Stack](#️-tech-stack)
-- [🚀 Getting Started](#-getting-started)
-- [💻 Environment Variables](#-environment-variables)
-- [🏃 Running the Application](#-running-the-application)
-- [📊 Analytics & Insights](#-analytics--insights)
-- [🔌 WebSocket Protocol](#-websocket-protocol)
-- [🔐 Security Rules](#-security-rules)
-- [🧪 Testing](#-testing)
-- [📁 Project Structure](#-project-structure)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+- [📁 Gemini Live Agent Challenge: Submission Requirements](#gemini-live-agent-challenge-submission-requirements)
+- [🏗️ Architecture](#architecture)
+- [✨ Key Features](#key-features)
+- [🧩 Core Concepts](#core-concepts)
+- [🏗️ Monorepo Structure](#monorepo-structure)
+- [🛠️ Tech Stack](#tech-stack)
+- [🚀 Getting Started](#getting-started)
+- [💻 Environment Variables](#environment-variables)
+- [🏃 Running the Application](#running-the-application)
+- [📊 Analytics & Insights](#analytics--insights)
+- [🔌 WebSocket Protocol](#websocket-protocol)
+- [🔐 Security Rules](#security-rules)
+- [🧪 Testing](#testing)
+- [📁 Project Structure](#project-structure)
+- [🤝 Contributing](#contributing)
+- [📄 License](#license)
 
 ---
 
@@ -61,7 +61,7 @@ Detailed project features, technology stack, data sources, and findings/learning
 For the **Gemini Live Agent Challenge** judges, the following links point to the core implementation of Google Cloud services:
 
 - **Live Agent Logic**: [main.py (L156-170)](./apps/live-agent/app/main.py#L156-170) - Gemini Live Bidi Config, [main.py (L264-269)](./apps/live-agent/app/main.py#L264-269) - ADK Live Runner.
-- **Service Orchestration**: [vertex.ts (L21-29)](./apps/api/src/services/vertex.ts#L21-29) - Vertex AI, [vertex.ts (L390-397)](./apps/api/src/services/vertex.ts#L390-397) - Imagen 3.
+- **Service Orchestration**: [vertex.ts (L21-29)](./apps/api/src/services/vertex.ts#L21-29) - Vertex AI, [vertex.ts (L390-397)](./apps/api/src/services/vertex.ts#L390-397) - Nano Banana.
 - **Cloud TTS**: [tts.ts (L11-25)](./apps/api/src/services/tts.ts#L11-25) - Synthesis Implementation, [session.ts (L104-120)](./apps/api/src/routes/session.ts#L104-120) - Debrief Integration.
 - **Grounding Evidence**: [vertex.ts (L72-82)](./apps/api/src/services/vertex.ts#L72-82) - Google Search Tool, [vertex.ts (L142, L309, L489)](./apps/api/src/services/vertex.ts#L142-L493) - Knowledge Base (RAG).
 - **Firebase & Infrastructure**: [firebase.ts (L4-13)](./apps/api/src/config/firebase.ts#L4-13) - SDK Initialization, [cors.json](./apps/web/cors.json) - Storage CORS Policy, [storage.rules](./apps/web/storage.rules) - Security Rules.
@@ -72,47 +72,27 @@ The project is optimized for industrial-grade deployment using **Google Cloud Bu
 
 - **One-Command Orchestration**: The [deploy-gcp.sh](./deploy-gcp.sh) script automates the build and deployment of all three services, linking them automatically via environment variables.
 - **Service-Level Scripting**: Each app directory contains its own `deploy.sh` (e.g., [apps/web/deploy.sh](./apps/web/deploy.sh)) for independent deployment of components while maintaining service links.
-- **Master Build Pipeline**: [cloudbuild.yaml](./cloudbuild.yaml) provides a centralized way to build and deploy the entire multi-service architecture from a single trigger.
+- **Intelligent Production Pipeline**: [cloudbuild.yaml](./cloudbuild.yaml) orchestrates a multi-stage deployment. It first deploys the backend services to discover their live URLs, then injects these URLs as build-time arguments into the Next.js frontend, ensuring zero-config inter-service connectivity.
 - **Serverless Scaling**: The stateless architecture allows each service (Next.js, Express, and Python) to scale horizontally on Google Cloud Run based on request load.
-
-### 🏗️ Architecture Diagram
-
-(See the [Architecture](#️-architecture) section below for the live Mermaid diagram)
-
-### 📹 Demonstration Video
-
-(Placeholder: Link to the 4-minute demo video will be provided in the official submission form)
 
 ---
 
 ## 🏗️ Architecture
 
-Reptrainer (DealPilot) illustrates the flow of real-time audio, agentic reasoning, and multimodal state management.
+Reptrainer is a three-service architecture deployed on **Google Cloud Run**, with a shared **Firebase** data layer and multiple **Gemini** models powering AI features.
 
-```mermaid
-graph LR
-    User([User]) <--> Frontend[Next.js App]
-    Frontend <--> API_Proxy[Express API]
-    Frontend <--> LiveAgent[Python Live Agent]
-
-    subgraph Google_Cloud [Google Cloud Platform]
-        LiveAgent <--> GeminiLive[Gemini Live API]
-        API_Proxy <--> VertexAI[Gemini 1.5 Pro/Flash]
-        API_Proxy --> Imagen[Imagen 3]
-        API_Proxy --> TTS[Cloud TTS]
-        API_Proxy <--> Firestore[(Firestore)]
-        API_Proxy --> Storage[(Firebase Storage)]
-    end
-
-    classDef gcp fill:#4285F4,stroke:#333,stroke-width:2px,color:#fff;
-    class GeminiLive,VertexAI,Imagen,TTS,Firestore,Storage gcp;
-```
+![Architecture Illustration](./apps/web/public/images/architecture.png)
 
 ### Data Flow Overview
 
-1. **Real-time Voice**: User audio is streamed via WebSocket to the Python **Live Agent** service, which uses the **ADK** to communicate with the **Gemini Live API**.
-2. **Contextual Grounding**: The agent retrieves product context from the **Firestore** knowledge base.
-3. **Multimodal Debrief**: Upon session end, the **Express API** orchestrates **Vertex AI** for analysis, **Imagen 3** for infographics, and **Cloud TTS** for narration, storing all assets in **Firebase Storage**.
+| Flow                         | Path                                                                   | Description                                                                                                                                                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Real-time Voice Roleplay** | Browser → WebSocket → Live Agent → Gemini Live API                     | Bidirectional audio streaming via ADK `LiveRequestQueue`. The agent uses persona-specific system instructions and tools (Google Search, log objection/insight) for grounded, realistic buyer conversations. |
+| **Persona Generation**       | Dashboard → Server Action → Express API → `gemini-2.5-flash-image`     | Single multimodal Gemini call generates both persona JSON and avatar image. Saved to Firestore + Cloud Storage.                                                                                             |
+| **Post-Session Debrief**     | Session End → Express API (SSE) → `gemini-2.5-flash-image` + Cloud TTS | Generates coaching slides with inline infographics and synthesized narration audio. Progress streamed to frontend via Server-Sent Events.                                                                   |
+| **Call Upload & Analysis**   | File Upload → Express API → `gemini-2.5-pro`                           | Transcribes uploaded sales call audio with speaker labels, then generates a structured feedback report.                                                                                                     |
+| **Knowledge Base (RAG)**     | Dashboard → Express API → Vertex AI RAG + Firestore                    | Teams upload product docs (PDF/text), which are indexed via Vertex AI RAG. Retrieved as grounding context during persona generation and debrief.                                                            |
+| **Coaching Analytics**       | Dashboard → Firestore (client SDK)                                     | Aggregates session scores across Discovery, Positioning, Objection Handling, and Closing to surface skill gaps and team trends.                                                                             |
 
 ---
 
@@ -191,7 +171,8 @@ reptrainer/
 ### AI & Intelligence
 
 - **Live Voice**: [Gemini Live API](https://aistudio.google.com/) via WebSockets
-- **Reasoning**: [Gemini 1.5 Pro/Flash](https://deepmind.google/technologies/gemini/) (via Vertex AI)
+- **Reasoning**: [Gemini 2.5 Pro/Flash](https://deepmind.google/technologies/gemini/) (via Vertex AI)
+- **Multimodal Generation**: Gemini 2.5 Flash Image (interleaved text + image output)
 - **Narrations**: Google Cloud Text-to-Speech
 
 ### Infrastructure
@@ -340,54 +321,83 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 ### Local Development (Non-Docker)
 
-To run the entire stack locally, you need three terminals (or use `pnpm dev` for the Node services and a separate terminal for the Python service).
+To run the entire stack locally without Docker, follow these steps in order. You will need three terminal windows.
 
-#### 1. Setup Node.js Services (Web & API)
+#### 0. Preparation: Global Tools
+
+Ensure you have the following installed:
+
+- [Node.js](https://nodejs.org/) (>= 20.x) & [pnpm](https://pnpm.io/installation)
+- [Python 3.11+](https://www.python.org/downloads/)
+- [uv](https://github.com/astral-sh/uv) (Recommended for Python) or `pip`
+
+#### 1. Common Setup (Root)
+
+Install dependencies and authenticate with Google Cloud & Firebase.
 
 ```bash
-# From the root directory
+# Install Node dependencies
 pnpm install
 
-# Option A: Start both Web and API in parallel
-pnpm dev
-
-# Option B: Start them separately for better log visibility
-pnpm dev:web    # Runs on http://localhost:3000
-pnpm dev:api    # Runs on http://localhost:4000
-```
-
-#### 2. Setup Google Cloud Credentials
-
-If you are running on a new local machine, you must authenticate to allow the Python code to access Google Cloud services:
-
-```bash
-# Install Google Cloud SDK first if you haven't (https://cloud.google.com/sdk/docs/install)
+# Authenticate Google Cloud (Needed for Vertex AI/Gemini)
 gcloud auth application-default login
+
+# Authenticate Firebase (Needed for Firestore/Storage rules)
+npm install -g firebase-tools
+firebase login
 ```
 
-#### 3. Setup Python Live Agent Service
+#### 2. AI Live Agent (Python)
 
-The live agent service is the core AI logic and requires Python 3.11+.
+This service handles the real-time Gemini Live communication.
 
 ```bash
 cd apps/live-agent
 
-# Create and activate a virtual environment
-python3 -m venv .venv
+# Using uv (Recommended)
+uv sync
+uv run uvicorn app.main:app --reload --port 5000
+
+# OR using standard venv
+python -m venv .venv
 source .venv/bin/activate
-
-# Install dependencies
 pip install -e .
-
-# Run the service (defaults to http://localhost:5000)
-uvicorn main:app --reload --port 5000
+uvicorn app.main:app --reload --port 5000
 ```
 
-#### 3. Access the application
+_Wait for the agent to start on port 5000._
 
-- **Frontend**: http://localhost:3000
-- **API Backend**: http://localhost:4000
-- **Live Agent (internal)**: http://localhost:5000 (The API proxy handles communication with this service)
+#### 3. API Proxy (Node.js)
+
+The bridge between the frontend and the AI services.
+
+```bash
+cd apps/api
+# Ensure apps/api/.env exists
+pnpm dev
+```
+
+_Runs on http://localhost:4000._
+
+#### 4. Web Frontend (Next.js)
+
+```bash
+cd apps/web
+# Ensure apps/web/.env.local exists
+pnpm dev
+```
+
+_Runs on http://localhost:3000._
+
+---
+
+### Comparison: When to use what?
+
+| Method          | Best for...          | Pros                                                       | Cons                                       |
+| :-------------- | :------------------- | :--------------------------------------------------------- | :----------------------------------------- |
+| **Non-Docker**  | **Daily Coding**     | Fastest HMR, best debugger support, lowest resource usage. | Requires manual setup of Node/Python.      |
+| **Docker**      | **Env Verification** | Identical to production environment, zero-config setup.    | Slower build times, higher resource usage. |
+| **Cloud Build** | **Production**       | Immutable images, globally available, fully automated.     | Slowest feedback loop (minutes).           |
 
 ### Docker Setup
 

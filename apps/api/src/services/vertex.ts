@@ -5,7 +5,6 @@ import {
   type EvaluateSessionResponse,
   FEMALE_VOICES,
   GEMINI_EVALUATION_MODEL,
-  GEMINI_IMAGE_MODEL,
   GEMINI_MULTIMODAL_MODEL,
   GEMINI_TEXT_MODEL,
   type GeneratePersonaRequest,
@@ -20,7 +19,7 @@ import { ragService } from "./rag.js";
 import { uploadAvatar } from "./storage.js";
 
 // Initialize Vertex AI or Gemini API using GoogleGenAI SDK
-const genAI =
+export const genAI =
   env.GOOGLE_GENAI_USE_VERTEXAI === "TRUE"
     ? new GoogleGenAI({
         vertexai: true,
@@ -29,13 +28,13 @@ const genAI =
       })
     : new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
-const TEXT_MODEL = GEMINI_TEXT_MODEL; // Stable Vertex model
-const EVALUATION_MODEL = GEMINI_EVALUATION_MODEL; // Stable Vertex model
+export const TEXT_MODEL = GEMINI_TEXT_MODEL; // Stable Vertex model
+export const EVALUATION_MODEL = GEMINI_EVALUATION_MODEL; // Stable Vertex model
 
 /**
  * Extracts JSON from a potentially markdown-wrapped AI response.
  */
-function extractJson(text: string): string | null {
+export function extractJson(text: string): string | null {
   const match = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
   return match ? match[0] : null;
 }
@@ -112,9 +111,11 @@ export async function researchCompetitor(
   return JSON.parse(jsonStr) as CompetitorContext;
 }
 
-export async function generatePersona(
-  input: GeneratePersonaRequest,
-): Promise<GeneratePersonaResponse> {
+/**
+ * Builds all the shared context needed for persona generation prompts:
+ * metadata, RAG, competitor selection, gender, personality template.
+ */
+async function buildPersonaPromptContext(input: GeneratePersonaRequest) {
   const {
     teamId,
     personalityType,
@@ -133,8 +134,6 @@ export async function generatePersona(
   const {
     productCategory,
     icp: targetCustomer,
-    buyerRoles,
-    competitors,
     valueProps,
     objections,
   } = metadata;
@@ -157,7 +156,6 @@ export async function generatePersona(
 
   let competitorContext: CompetitorContext | undefined;
   if (metadata.competitorContexts && metadata.competitorContexts.length > 0) {
-    // Randomly select one competitor to ground the persona
     competitorContext =
       metadata.competitorContexts[
         Math.floor(Math.random() * metadata.competitorContexts.length)
@@ -191,7 +189,7 @@ export async function generatePersona(
 `
     : "";
 
-  const prompt = `You are a sales training AI. Generate a realistic, challenging buyer persona for a high-pressure sales roleplay session.
+  const basePrompt = `You are a sales training AI. Generate a realistic, challenging buyer persona for a high-pressure sales roleplay session.
 
 Context:
 - Company being pitched: ${companyName}
@@ -218,10 +216,9 @@ ${finalGender ? `- Preferred Gender: ${finalGender}` : ""}
 ${country ? `- Origin Country: ${country}` : ""}
 
 SUPPORTED LANGUAGES & BCP-47 CODES (Gemini Live):
-Afrikaans (af), Albanian (sq), Amharic (am), Arabic (ar), Armenian (hy), Assamese (as), Azerbaijani (az), Basque (eu), Belarusian (be), Bengali (bn), Bosnian (bs), Bulgarian (bg), Catalan (ca), Chinese (zh), Croatian (hr), Czech (cs), Danish (da), Dutch (nl), English (en), Estonian (et), Filipino (fil), Finnish (fi), French (fr), Galician (gl), Georgian (ka), German (de), Greek (el), Gujarati (gu), Hebrew (iw), Hindi (hi), Hungarian (hu), Icelandic (is), Indonesian (id), Italian (it), Japanese (ja), Kannada (kn), Kazakh (kk), Khmer (km), Korean (ko), Lao (lo), Latvian (lv), Lithuanian (lt), Macedonian (mk), Malay (ms), Malayalam (ml), Marathi (mr), Mongolian (mn), Nepali (ne), Norwegian (no), Odia (or), Polish (pl), Portuguese (pt), Punjabi (pa), Romanian (ro), Russian (ru), Serbian (sr), Slovak (sk), Slovenian (sl), Spanish (es), Swahili (sw), Swedish (sv), Tamil (ta), Telugu (te), Thai (th), Turkish (tr), Ukrainian (uk), Urdu (ur), Uzbek (uz), Vietnamese (vi), Zulu (zu).
+Afrikaans (af), Albanian (sq), Amharic (am), Arabic (ar), Armenian (hy), Assamese (as), Azerbaijani (az), Basque (eu), Belarusian (be), Bengali (bn), Bosnian (bs), Bulgarian (bg), Catalan (ca), Chinese (zh), Croatian (hr), Czech (cs), Danish (da), Dutch (nl), English (en), Estonian (et), Filipino (fil), Finnish (fi), French (fr), Galician (gl), Georgian (ka), German (de), Greek (el), Gujarati (gu), Hebrew (iw), Hindi (hi), Hungarian (hu), Icelandic (is), Indonesian (id), Italian (it), Japanese (ja), Kannada (kn), Kazakh (kk), Khmer (km), Korean (ko), Lao (lo), Latvian (lv), Lithuanian (lt), Macedonian (mk), Malay (ms), Malayalam (ml), Marathi (mr), Mongolian (mn), Nepali (ne), Norwegian (no), Odia (or), Polish (pl), Portuguese (pt), Punjabi (pa), Romanian (ro), Russian (ru), Serbian (sr), Slovak (sk), Slovenian (sl), Spanish (es), Swahili (sw), Swedish (sv), Tamil (ta), Telugu (te), Thai (th), Turkish (tr), Ukrainian (uk), Urdu (ur), Uzbek (uz), Vietnamese (vi), Zulu (zu).`;
 
-Generate a buyer persona with the following JSON structure. Return ONLY valid JSON:
-{
+  const jsonSchema = `{
   "name": "A realistic, memorable full name${finalGender ? ` for a ${finalGender} executive` : ""}${country ? ` from ${country}` : ""}. Use culturally diverse names appropriate to the origin country.",
   "role": "A specific, realistic job title (e.g., 'SVP of Revenue Operations', 'Chief Data Officer', 'Director of IT Infrastructure'). Avoid generic titles like 'Manager'.",
   "gender": "${finalGender || '"male" or "female"'} (must match the name)",
@@ -255,9 +252,9 @@ Generate a buyer persona with the following JSON structure. Return ONLY valid JS
   "personalityPrompt": "A detailed system prompt (5-8 sentences) describing how this persona behaves in sales meetings. ${template ? `IT MUST INCORPORATE THE BEHAVIORAL PROFILE, TONE, AND TRIGGERS FROM THE ${template.name} TEMPLATE.` : "Include: communication style, skepticism triggers, pet peeves, and decision-making approach."}",
   "objectionStrategy": "A specific 2-3 sentence strategy this persona uses to push back. This MUST be dynamic and specific to the product context.",
   "competitorContext": ${competitorContext ? JSON.stringify(competitorContext, null, 2) : "null"}
-}
+}`;
 
-IMPORTANT:
+  const validationRules = `IMPORTANT:
 - ${finalGender ? `The name and gender MUST be ${finalGender}.` : "Vary the gender across generations — create a realistic mix of male and female personas."}
 - The name MUST clearly match the gender field.
 - "intensityLevel" MUST be an integer between 1 and 5 (1=Friendly, 3=Tough, 5=Hostile).
@@ -267,25 +264,103 @@ IMPORTANT:
 - Vary cultural backgrounds. ${country ? `Prioritize the specified country (${country}) for the name, background, and accent.` : "Do NOT default to generic Anglo-Saxon names every time."}
 - "languageCode" MUST be a valid BCP-47 code from the provided list.`;
 
+  return {
+    basePrompt,
+    jsonSchema,
+    validationRules,
+    finalGender,
+    country,
+    competitorContext,
+  };
+}
+
+/**
+ * Generate a persona with text + avatar image in a single multimodal Gemini call.
+ * Falls back gracefully if no image is returned (avatarUrl will be undefined).
+ */
+export async function generateMultimodalPersona(
+  input: GeneratePersonaRequest,
+): Promise<GeneratePersonaResponse & { avatarUrl?: string }> {
+  const { basePrompt, jsonSchema, validationRules, finalGender, country } =
+    await buildPersonaPromptContext(input);
+
+  const countryContext = country ? ` from ${country}` : "";
+  const prompt = `${basePrompt}
+
+Generate a buyer persona with the following JSON structure. Wrap the JSON in a \`\`\`json code fence:
+\`\`\`json
+${jsonSchema}
+\`\`\`
+
+${validationRules}
+
+After outputting the JSON block, generate a professional, photorealistic headshot portrait of this persona based on the "physicalDescription" field you generated. The image must be: a ${finalGender || "person"} executive in their early 40s${countryContext}, with culturally appropriate features. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed and realistic.`;
+
+  console.log(
+    `[multimodal-persona] Generating unified text+image persona`,
+  );
+
   const response = await genAI.models.generateContent({
-    model: TEXT_MODEL,
+    model: GEMINI_MULTIMODAL_MODEL,
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {
+      // @ts-ignore - responseModalities is valid for multimodal output models
+      responseModalities: ["TEXT", "IMAGE"],
       temperature: 1.2,
-      responseMimeType: "application/json",
     },
   });
-  const text = response.text || "";
-  const jsonStr = extractJson(text);
 
-  if (!jsonStr) {
+  const parts = response.candidates?.[0]?.content?.parts || [];
+  let personaData: GeneratePersonaResponse | null = null;
+  let avatarUrl: string | undefined;
+
+  for (const part of parts) {
+    if (part.text) {
+      const jsonMatch = part.text.match(/```json\s*([\s\S]*?)```/);
+      const jsonStr = jsonMatch ? jsonMatch[1].trim() : extractJson(part.text);
+      if (jsonStr) {
+        try {
+          personaData = JSON.parse(jsonStr) as GeneratePersonaResponse;
+        } catch {
+          console.warn(
+            "[multimodal-persona] Failed to parse persona JSON:",
+            jsonStr.substring(0, 100),
+          );
+        }
+      }
+    } else if (part.inlineData) {
+      // Avatar image — upload to Firebase Storage
+      try {
+        let base64Data = part.inlineData.data || "";
+        if (base64Data.startsWith("data:")) {
+          base64Data = base64Data.split(",")[1];
+        }
+        const buffer = Buffer.from(base64Data, "base64");
+        avatarUrl = await uploadAvatar(buffer);
+        console.log("[multimodal-persona] Avatar uploaded successfully");
+      } catch (uploadError) {
+        console.error(
+          "[multimodal-persona] Avatar upload failed:",
+          uploadError,
+        );
+      }
+    }
+  }
+
+  if (!personaData) {
     throw Object.assign(
-      new Error("Failed to generate persona. Invalid JSON response from AI."),
+      new Error(
+        "Failed to generate multimodal persona. No valid JSON in response.",
+      ),
       { statusCode: 502 },
     );
   }
 
-  return JSON.parse(jsonStr) as GeneratePersonaResponse;
+  console.log(
+    `[multimodal-persona] Generated persona: ${personaData.name} (avatar: ${avatarUrl ? "yes" : "no"})`,
+  );
+
+  return { ...personaData, avatarUrl };
 }
 
 /**
@@ -383,94 +458,6 @@ Return ONLY valid JSON in this format:
   return JSON.parse(jsonStr) as EvaluateSessionResponse;
 }
 
-/**
- * Generate an image using Imagen 3 via @google/genai SDK
- * Returns the image buffer.
- */
-async function generateImage(prompt: string): Promise<Buffer> {
-  const response = await genAI.models.generateImages({
-    model: GEMINI_IMAGE_MODEL,
-    prompt,
-    config: {
-      numberOfImages: 1,
-      aspectRatio: "1:1",
-    },
-  });
-
-  const imageData = response.generatedImages?.[0]?.image?.imageBytes;
-
-  if (imageData) {
-    return Buffer.from(imageData, "base64");
-  }
-
-  console.error(
-    "Imagen API Response did not contain image data:",
-    JSON.stringify(response, null, 2),
-  );
-  throw new Error("No image data returned from Imagen API via SDK");
-}
-
-/**
- * Generate a persona avatar image using Imagen 3 and store in Firebase.
- * Returns the permanent storage URL.
- */
-export async function generatePersonaAvatar(
-  gender: string,
-  role: string,
-  country?: string,
-  physicalDescription?: string,
-): Promise<string> {
-  const countryContext = country ? ` from ${country}` : "";
-
-  const appearanceContext = physicalDescription
-    ? `, ${physicalDescription}`
-    : country
-      ? `, with culturally appropriate physical features and characteristics matching someone from ${country}`
-      : "";
-
-  const prompt = `A professional, photorealistic headshot portrait of a ${gender} executive in their early 40s${countryContext}${appearanceContext}. Job title: ${role}. High-end corporate photography, soft studio lighting, blurred office background, neutral professional attire. Highly detailed and realistic features.`;
-
-  console.log(`Generating avatar for ${gender} ${role}...`);
-  const imageBuffer = await generateImage(prompt);
-
-  console.log("Uploading avatar to Firebase Storage...");
-  const publicUrl = await uploadAvatar(imageBuffer);
-
-  console.log("Avatar upload done...");
-
-  return publicUrl;
-}
-
-/**
- * Generate a coaching infographic using Imagen 4.0 via SDK.
- * Returns the base64 encoded image string or a public URL.
- */
-export async function generateSlideInfographic(
-  visualDescription: string,
-): Promise<string> {
-  const stylePrefix =
-    "modern SaaS dashboard infographic, flat design, minimal, clean UI, vector style, white background, subtle purple and blue accents, startup analytics aesthetic. ";
-  const prompt = stylePrefix + visualDescription;
-
-  const response = await genAI.models.generateImages({
-    model: GEMINI_IMAGE_MODEL,
-    prompt,
-    config: {
-      numberOfImages: 1,
-      // @ts-ignore
-      mimeType: "image/jpeg",
-      compressionQuality: 80,
-    },
-  });
-
-  const imageData = response.generatedImages?.[0]?.image?.imageBytes;
-
-  if (imageData) {
-    return `data:image/jpeg;base64,${imageData}`;
-  }
-
-  throw new Error("No image data returned from Imagen API via SDK");
-}
 
 /**
  * Build a combined RAG + knowledge metadata context string for debrief prompts.
@@ -491,15 +478,15 @@ async function buildDebriefKnowledgeContext(
       if (metadata.productCategory)
         parts.push(`Product Category: ${metadata.productCategory}`);
       if (metadata.valueProps?.length)
-        parts.push(`Value Propositions:\n- ${metadata.valueProps.join("\n- ")}`);
+        parts.push(
+          `Value Propositions:\n- ${metadata.valueProps.join("\n- ")}`,
+        );
       if (metadata.differentiators?.length)
         parts.push(
           `Key Differentiators:\n- ${metadata.differentiators.join("\n- ")}`,
         );
       if (metadata.objections?.length)
-        parts.push(
-          `Common Objections:\n- ${metadata.objections.join("\n- ")}`,
-        );
+        parts.push(`Common Objections:\n- ${metadata.objections.join("\n- ")}`);
       if (metadata.competitors?.length)
         parts.push(`Competitors: ${metadata.competitors.join(", ")}`);
       if (metadata.competitorContexts?.length) {
@@ -518,7 +505,10 @@ async function buildDebriefKnowledgeContext(
       }
     }
   } catch (error) {
-    console.error("[buildDebriefKnowledgeContext] Metadata fetch failed:", error);
+    console.error(
+      "[buildDebriefKnowledgeContext] Metadata fetch failed:",
+      error,
+    );
   }
 
   // 2. RAG document snippets
@@ -534,126 +524,13 @@ async function buildDebriefKnowledgeContext(
       );
     }
   } catch (error) {
-    console.error("[buildDebriefKnowledgeContext] RAG retrieval failed:", error);
-  }
-
-  return sections.length > 0 ? `\n\n${sections.join("\n\n")}` : "";
-}
-
-/**
- * Generate a personalized coach debrief (4 slides) using Vertex AI.
- */
-export async function generateCoachDebrief(
-  transcript: string,
-  personaName: string,
-  personaRole: string,
-  objections: any[] = [],
-  moods: any[] = [],
-  teamId?: string,
-): Promise<any[]> {
-  // Retrieve RAG context + knowledge metadata if teamId is provided
-  let knowledgeContext = "";
-  if (teamId) {
-    knowledgeContext = await buildDebriefKnowledgeContext(teamId, transcript);
-  }
-
-  const prompt = `You are a world-class sales coach creating a short "Coach Debrief" presentation for a sales rep after a practice call.
-
-Persona Context:
-- Buyer Name: ${personaName}
-- Buyer Role: ${personaRole}
-
-Transcript:
-${transcript}
-
-Session Data:
-- Objections Logged: ${JSON.stringify(objections, null, 2)}
-- Persona Mood Trends: ${JSON.stringify(moods, null, 2)}${knowledgeContext}
-
-Your job is to produce a concise, insightful 4-slide coaching presentation.
-${knowledgeContext ? `\n**IMPORTANT**: Product & market knowledge has been provided above. Use it across ALL slides to ground your coaching in the team's actual product, value propositions, differentiators, and competitive landscape. Do not invent product features — use only what is documented.\n` : ""}
-Each slide will be turned into:
-- narrated audio (TTS)
-- an AI-generated infographic image
-
-Therefore, the visual descriptions MUST describe clean infographic-style diagrams suitable for a modern SaaS analytics dashboard.
-
-IMPORTANT VISUAL STYLE RULES:
-All visuals must follow this design language:
-- SaaS dashboard infographic
-- flat design
-- minimal
-- clean UI
-- vector style
-- white background
-- subtle purple and blue accents
-- modern startup analytics aesthetic
-
-Avoid artistic illustrations, cartoons, or paintings. Prefer charts, diagrams, timelines, comparison cards, and dashboards.
-
-Generate EXACTLY 4 slides using this strict JSON structure:
-
-{
-  "title": "Concise headline for the slide",
-  "narration": "A spoken coaching script. Keep it under 20 seconds when spoken (40–50 words max). Clear, confident, and supportive.",
-  "visual": "A detailed description of an infographic or analytics-style diagram that illustrates the coaching insight.",
-  "type": "overview" | "problem" | "correction" | "drill",
-  "previousApproach": "For type 'correction' only: A quote or description of the rep's original weak approach.",
-  "betterApproach": "For type 'correction' only: The recommended improved script or approach."
-}
-
-Slide Requirements:
-
-Slide 1 (type: overview)
-Provide a high-level summary of the call.
-${knowledgeContext ? "Evaluate whether the rep correctly positioned the product's key value propositions and differentiators from the knowledge base." : ""}
-The visual should be a coaching analytics dashboard or conversation performance heatmap showing stages like:
-Introduction, Discovery, Pitch, Objection Handling, Closing.
-Incorporate the "Mood Trends" into this visual description (e.g. "a line graph showing trust increasing during discovery but dipping during pricing").
-
-Slide 2 (type: problem)
-Identify the SINGLE biggest mistake or friction point in the conversation.
-Quote or reference the rep's words if possible.
-${knowledgeContext ? "Check if the mistake involved misquoting product capabilities, missing a key differentiator, or failing to address a known objection from the knowledge base." : ""}
-The visual should highlight the problematic moment, such as:
-- a conversation timeline with a red drop in engagement (reference specific mood data if trust/interest dropped)
-- a highlighted objection moment (reference one of the logged objections)
-- a comparison chart showing strong vs weak moments.
-
-Slide 3 (type: correction)
-Explain how to fix the problem identified in Slide 2.
-Include a clear "Before vs After" example.
-${knowledgeContext ? "The \"betterApproach\" MUST be factually accurate and use the correct product terminology, value props, and differentiators from the knowledge base." : ""}
-The visual should be a side-by-side comparison infographic showing:
-"Original Response" vs "Improved Response".
-Populate "previousApproach" and "betterApproach" for this slide.
-
-Slide 4 (type: drill)
-Give the rep one actionable practice drill they can do before their next call.
-The drill should be specific and practical.
-${knowledgeContext ? "Tailor the drill to the team's specific product language, common objections, and competitive positioning from the knowledge base." : ""}
-The visual should be a practice framework diagram or step-by-step coaching card showing how to rehearse the skill.
-
-Return ONLY a valid JSON array of 4 slide objects.
-Do not include explanations or extra text.`;
-
-  const response = await genAI.models.generateContent({
-    model: EVALUATION_MODEL,
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    config: {
-      responseMimeType: "application/json",
-    },
-  });
-  const text = response.text || "";
-  const jsonStr = extractJson(text);
-
-  if (!jsonStr) {
-    throw new Error(
-      "Failed to generate debrief. Invalid JSON response from AI.",
+    console.error(
+      "[buildDebriefKnowledgeContext] RAG retrieval failed:",
+      error,
     );
   }
 
-  return JSON.parse(jsonStr);
+  return sections.length > 0 ? `\n\n${sections.join("\n\n")}` : "";
 }
 
 /**
@@ -717,7 +594,7 @@ Slide 1 (type: overview): High-level call summary. ${knowledgeContext ? "Evaluat
 
 Slide 2 (type: problem): The SINGLE biggest mistake. Quote the rep if possible. ${knowledgeContext ? "Check if the mistake involved misquoting product capabilities, missing a key differentiator, or failing to address a known objection." : ""} Image: conversation timeline with a red drop at the friction point, or a highlighted objection moment.
 
-Slide 3 (type: correction): How to fix it with a "Before vs After" example. ${knowledgeContext ? "The \"betterApproach\" MUST use correct product terminology, value props, and differentiators from the knowledge base." : ""} Image: side-by-side comparison — "Original Response" vs "Improved Response".
+Slide 3 (type: correction): How to fix it with a "Before vs After" example. ${knowledgeContext ? 'The "betterApproach" MUST use correct product terminology, value props, and differentiators from the knowledge base.' : ""} Image: side-by-side comparison — "Original Response" vs "Improved Response".
 
 Slide 4 (type: drill): One actionable practice drill. ${knowledgeContext ? "Tailor the drill to the team's specific product language, common objections, and competitive positioning." : ""} Image: step-by-step coaching card or practice framework diagram.
 

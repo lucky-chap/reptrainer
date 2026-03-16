@@ -236,6 +236,14 @@ export interface CallSession {
   personaRole?: string;
   personaAvatarUrl?: string;
 
+  // Source
+  source: "roleplay" | "external";
+  externalMetadata?: {
+    fileName: string;
+    mimeType: string;
+    originalUrl?: string;
+  };
+
   // Timing
   callDurationMinutes: number; // selected duration in minutes
   callStartTime: string | null; // ISO timestamp when call actually started
@@ -380,7 +388,7 @@ export type DebriefSlideType = "overview" | "problem" | "correction" | "drill";
 export interface DebriefSlide {
   title: string;
   narration: string; // Max 20 seconds
-  visual: string; // Description for Imagen infographic
+  visual: string; // Description for Nano Banana infographic
   type: DebriefSlideType;
   visualBase64?: string; // AI-generated infographic (base64)
   visualUrl?: string; // AI-generated infographic (Storage URL)
@@ -426,4 +434,62 @@ export interface Invitation {
   status: "pending" | "accepted" | "expired";
   invitedBy: string; // userId
   expiresAt: string;
+}
+
+// ─── RAG Coaching Insights Types ─────────────────────────────────────────────
+
+export interface CoachingInsightsScoreSummary {
+  userName: string;
+  sessionCount: number;
+  avgScores: {
+    overall: number;
+    discovery: number;
+    objection_handling: number;
+    positioning: number;
+    closing: number;
+    listening: number;
+  };
+  weakestSkills: string[];
+  recentTrend: "improving" | "declining" | "stable";
+}
+
+export interface RAGCoachingInsightsRequest {
+  teamId: string;
+  isTeamView: boolean;
+  scoreSummaries: CoachingInsightsScoreSummary[];
+}
+
+export type RAGInsightType =
+  | "needs_coaching"
+  | "improvement"
+  | "team_weakness"
+  | "skill_avoidance"
+  | "product_gap"
+  | "competitive_edge";
+
+export interface RAGCoachingInsight {
+  type: RAGInsightType;
+  user: string;
+  title: string;
+  explanation: string;
+  recommendation: string;
+  priority: number;
+  source: "rag";
+  knowledgeReferences?: string[];
+}
+
+export interface SavedTeamInsight {
+  id: string; // e.g., teamId_milestone
+  teamId: string;
+  milestone: number; // 5, 10, 15...
+  insights: RAGCoachingInsight[];
+  createdAt: string;
+}
+
+export interface TeamInsightMilestone {
+  lastMilestone: number;
+  nextMilestone: number;
+  totalSessions: number;
+  canGenerateManual: boolean;
+  isFirstGeneration: boolean;
 }

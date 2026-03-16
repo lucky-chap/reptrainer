@@ -7,6 +7,7 @@ import type { Persona } from "@/lib/db";
 interface CallHeaderProps {
   persona: Persona;
   avatarUrl: string | null;
+  userAvatarUrl: string;
   track?: { name: string } | null;
   isConnected: boolean;
   warningTriggered: boolean;
@@ -20,6 +21,7 @@ interface CallHeaderProps {
 export function CallHeader({
   persona,
   avatarUrl,
+  userAvatarUrl,
   track,
   isConnected,
   warningTriggered,
@@ -34,25 +36,27 @@ export function CallHeader({
       {/* Left: participants */}
       <div className="flex items-center gap-3">
         <div className="flex items-center -space-x-2">
-          <div className="flex size-7 items-center justify-center rounded-full border-2 border-white bg-neutral-100 text-[10px] font-bold text-neutral-600 shadow-sm">
-            {displayName.charAt(0).toUpperCase()}
+          <div className="flex size-7 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-neutral-100 text-[10px] font-bold text-neutral-600 shadow-sm">
+            <Image
+              src={userAvatarUrl}
+              alt={displayName}
+              className="object-cover"
+              width={28}
+              height={28}
+            />
           </div>
           <div className="flex size-7 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-neutral-100 text-[10px] font-bold text-neutral-600 shadow-sm">
-            {persona.avatarUrl || avatarUrl ? (
-              <Image
-                src={
-                  persona.avatarUrl ||
-                  (avatarUrl as string) ||
-                  "/placeholder-avatar.png"
-                }
-                alt={persona.name}
-                className="object-cover"
-                width={28}
-                height={28}
-              />
-            ) : (
-              persona.name.charAt(0)
-            )}
+            <Image
+              src={
+                persona.avatarUrl ||
+                (avatarUrl as string) ||
+                "/placeholder-avatar.png"
+              }
+              alt={persona.name}
+              className="object-cover"
+              width={28}
+              height={28}
+            />
           </div>
         </div>
         <div className="leading-tight">

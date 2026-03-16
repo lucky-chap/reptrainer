@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -14,7 +14,9 @@ import {
   MessageSquare,
   CheckCircle2,
   type LucideIcon,
+  Sparkles,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
 import { useTeam } from "@/context/team-context";
 import {
@@ -22,8 +24,10 @@ import {
   subscribePersonas,
   subscribeTeamMembers,
   subscribeSessionsByUserIds,
+  getTeamInsightsAtMilestone,
+  saveTeamInsights,
 } from "@/lib/db";
-import type { Session, Persona, TeamMember } from "@/lib/db";
+import type { Session, Persona, TeamMember, SavedTeamInsight } from "@/lib/db";
 import {
   Select,
   SelectContent,
@@ -41,6 +45,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   calculateCompetencies,
@@ -50,9 +55,13 @@ import {
   calculateSessionMetrics,
   isSessionCompleted,
   generateCoachingInsights,
+  buildScoreSummaries,
 } from "@/lib/analytics-utils";
+import { fetchRAGCoachingInsights } from "@/app/actions/api";
+import type { RAGCoachingInsight } from "@reptrainer/shared";
 
 import { CoachingInsights } from "@/components/analytics/coaching-insights";
+import { CallUpload } from "@/components/call-upload";
 import {
   ResponsiveContainer,
   Radar,
@@ -93,6 +102,16 @@ export default function AnalyticsPage() {
       return () => clearTimeout(timer);
     }
   }, [isAdmin, teamLoading]);
+
+  // RAG Insights state
+  const [ragInsights, setRagInsights] = useState<RAGCoachingInsight[] | null>(
+    null,
+  );
+  const [ragInsightsLoading, setRagInsightsLoading] = useState(false);
+  const [savedInsight, setSavedInsight] = useState<SavedTeamInsight | null>(
+    null,
+  );
+  const ragInsightsHashRef = useRef<string>("");
 
   // Filters
   const [timeframe, setTimeframe] = useState<string>("all");
@@ -165,6 +184,20 @@ export default function AnalyticsPage() {
       }
 
       if (!isSessionCompleted(s as any)) return false;
+
+      // Persona filter
+      if (selectedPersonaId !== "all" && s.personaId !== selectedPersonaId) {
+        return false;
+      }
+
+      // Member filter (only in team view)
+      if (
+        isTeamView &&
+        selectedMemberId !== "all" &&
+        s.userId !== selectedMemberId
+      ) {
+        return false;
+      }
 
       return true;
     });
@@ -281,7 +314,7 @@ export default function AnalyticsPage() {
       });
   }, [filteredSessions, timeframe]);
 
-  const insights = useMemo(() => {
+  const clientInsights = useMemo(() => {
     return generateCoachingInsights(
       filteredSessions,
       selectedMemberId !== "all"
@@ -290,6 +323,169 @@ export default function AnalyticsPage() {
       viewMode === "team" && selectedMemberId === "all",
     );
   }, [filteredSessions, selectedMemberId, members, viewMode]);
+
+  // Build score summaries for RAG insights
+  const scoreSummaries = useMemo(
+    () => buildScoreSummaries(filteredSessions, members),
+    [filteredSessions, members],
+  );
+
+  const milestone = useMemo(() => {
+    const count = sessions.length;
+    if (count < 5) return 0;
+    return Math.floor(count / 5) * 5;
+  }, [sessions]);
+
+  // Load saved insights when milestone changes
+  useEffect(() => {
+    if (!activeMembership?.id || milestone === 0) {
+      setSavedInsight(null);
+      return;
+    }
+
+    getTeamInsightsAtMilestone(activeMembership.id, milestone).then((si) => {
+      setSavedInsight(si || null);
+    });
+  }, [activeMembership?.id, milestone]);
+
+  // Fetch RAG insights when score summaries change
+  useEffect(() => {
+    if (
+      !activeMembership?.id ||
+      scoreSummaries.length === 0 ||
+      milestone === 0
+    ) {
+      setRagInsights(null);
+      return;
+    }
+
+    // If we have saved insights for this milestone, use them
+    if (savedInsight) {
+      setRagInsights(savedInsight.insights);
+      return;
+    }
+
+    // Auto-generate ONLY for the first milestone (5)
+    if (milestone !== 5) {
+      setRagInsights(null);
+      return;
+    }
+
+    const hash = JSON.stringify(
+      scoreSummaries.map((s) => `${s.userName}:${s.avgScores.overall}`),
+    );
+    if (hash === ragInsightsHashRef.current) return;
+    ragInsightsHashRef.current = hash;
+
+    let cancelled = false;
+    setRagInsightsLoading(true);
+
+    fetchRAGCoachingInsights({
+      teamId: activeMembership.id,
+      isTeamView: viewMode === "team" && selectedMemberId === "all",
+      scoreSummaries,
+    })
+      .then((res) => {
+        if (!cancelled) {
+          const insights = res.insights || [];
+          setRagInsights(insights);
+          if (insights.length > 0) {
+            // Save automatic milestone 5 insights
+            saveTeamInsights({
+              id: `${activeMembership.id}_${milestone}`,
+              teamId: activeMembership.id,
+              milestone,
+              insights,
+              createdAt: new Date().toISOString(),
+            });
+
+            toast.success("Milestone Reached!", {
+              description: `Automated coaching insights generated for reaching ${milestone} sessions.`,
+              icon: <Sparkles className="size-4 text-purple-600" />,
+            });
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("[analytics] RAG insights fetch failed:", err);
+        if (!cancelled) setRagInsights([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRagInsightsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeMembership?.id,
+    scoreSummaries,
+    viewMode,
+    selectedMemberId,
+    milestone,
+    savedInsight,
+  ]);
+
+  const handleManualGenerate = async () => {
+    if (!activeMembership?.id || milestone < 10) return;
+
+    setRagInsightsLoading(true);
+    try {
+      const res = await fetchRAGCoachingInsights({
+        teamId: activeMembership.id,
+        isTeamView: viewMode === "team" && selectedMemberId === "all",
+        scoreSummaries,
+      });
+
+      const insights = res.insights || [];
+      setRagInsights(insights);
+
+      // Save manual insights
+      await saveTeamInsights({
+        id: `${activeMembership.id}_${milestone}`,
+        teamId: activeMembership.id,
+        milestone,
+        insights,
+        createdAt: new Date().toISOString(),
+      });
+
+      toast.success("Insights Updated", {
+        description: `New coaching insights saved for Milestone ${milestone}.`,
+        icon: <Sparkles className="size-4 text-purple-600" />,
+      });
+    } catch (err) {
+      console.error("[analytics] Manual insight generation failed:", err);
+      toast.error("Generation Failed", {
+        description:
+          "Could not generate or save new insights. Please try again.",
+      });
+    } finally {
+      setRagInsightsLoading(false);
+    }
+  };
+
+  // Merge client-side + RAG insights, sorted by priority, capped at 3
+  const mergedInsights = useMemo(() => {
+    // If we haven't hit the first milestone, don't show any insights yet
+    if (milestone === 0) return [];
+
+    const all = [...(ragInsights || []), ...clientInsights];
+
+    // Priority + Source based sorting
+    // RAG sources get an implicit boost, then sorted by priority
+    all.sort((a, b) => {
+      const aIsRag = "source" in a && a.source === "rag";
+      const bIsRag = "source" in b && b.source === "rag";
+
+      if (aIsRag && !bIsRag) return -1;
+      if (!aIsRag && bIsRag) return 1;
+
+      return b.priority - a.priority;
+    });
+
+    // Limit to exactly 3 for focus and layout cleanliness
+    return all.slice(0, 3);
+  }, [clientInsights, ragInsights]);
 
   if (loading) {
     return (
@@ -426,11 +622,6 @@ export default function AnalyticsPage() {
           )}
         </div>
       </div>
-
-      {/* Coaching Insights */}
-      {isTeamView && selectedMemberId !== "all" && (
-        <CoachingInsights insights={insights} />
-      )}
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -778,6 +969,9 @@ export default function AnalyticsPage() {
                     <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
                       Activity
                     </th>
+                    <th className="text-warm-gray/60 px-2 pb-4 text-[10px] font-bold tracking-widest uppercase">
+                      Source
+                    </th>
                     <th className="text-warm-gray/60 px-2 pb-4 text-right text-[10px] font-bold tracking-widest uppercase">
                       Score
                     </th>
@@ -807,6 +1001,20 @@ export default function AnalyticsPage() {
                           </span>
                         </div>
                       </td>
+                      <td className="px-2 py-4">
+                        <Badge
+                          variant={
+                            (session as any).source === "external"
+                              ? "default"
+                              : "secondary"
+                          }
+                          className="px-1.5 py-0 text-[9px] capitalize"
+                        >
+                          {(session as any).source === "external"
+                            ? "Real Call"
+                            : "Roleplay"}
+                        </Badge>
+                      </td>
                       <td className="px-2 py-4 text-right">
                         <span
                           className={cn(
@@ -829,6 +1037,15 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Coaching Insights - Below Persona Performance */}
+      <CoachingInsights
+        insights={mergedInsights}
+        loading={ragInsightsLoading}
+        onGenerate={handleManualGenerate}
+        canGenerate={milestone >= 10 && !savedInsight}
+        milestone={milestone}
+      />
 
       {/* Category Performance */}
       <div className="grid grid-cols-1 gap-6">

@@ -11,6 +11,7 @@ import { personaRoutes } from "./routes/persona.js";
 import { knowledgeRoutes } from "./routes/knowledge.js";
 import { sessionRoutes } from "./routes/session.js";
 import { healthRoutes } from "./routes/health.js";
+import { uploadRoutes } from "./routes/upload.js";
 
 const app: Express = express();
 
@@ -32,6 +33,7 @@ app.use("/api/health", healthRoutes);
 app.use("/api/persona", personaRoutes);
 app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/session", sessionRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // ─── Error Handling ─────────────────────────────────────────────────────────
 

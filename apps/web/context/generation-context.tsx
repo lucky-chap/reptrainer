@@ -9,11 +9,8 @@ import React, {
   useEffect,
 } from "react";
 import { v4 as uuidv4 } from "uuid";
-import {
-  generatePersona as generatePersonaAction,
-  generatePersonaAvatar as generateAvatarAction,
-} from "@/app/actions/api";
-import { savePersona, updatePersona } from "@/lib/db";
+import { generatePersona as generatePersonaAction } from "@/app/actions/api";
+import { savePersona } from "@/lib/db";
 import type { Persona } from "@/lib/db";
 import { useAuth } from "@/context/auth-context";
 import { toast } from "sonner";
@@ -23,7 +20,7 @@ export interface GenerationTask {
   teamId?: string;
   teamName?: string;
   status: "generating" | "completed" | "error";
-  subStatus?: "analyzing" | "creating_traits" | "generating_avatar";
+  subStatus?: "analyzing" | "creating_traits";
   type: "persona";
   personaName?: string;
   personaId?: string;
@@ -103,13 +100,12 @@ export function GenerationProvider({
       );
 
       try {
-        // Step 1: Text Generation
         setTasks((prev) =>
           prev.map((t) =>
             t.id === taskId ? { ...t, subStatus: "analyzing" } : t,
           ),
         );
-        toast.loading("Analyzing Industry...", { id: taskToastId });
+        toast.loading("Generating persona & avatar...", { id: taskToastId });
 
         const data = await generatePersonaAction({
           teamId,
@@ -156,7 +152,6 @@ export function GenerationProvider({
               data.traits?.interruptionFrequency || "medium",
             objectionStyle: data.traits?.objectionStyle || "analytical",
           },
-          // Rich Persona Fields
           companyType: data.companyType,
           industry: data.industry,
           seniorityLevel: data.seniorityLevel,
@@ -173,35 +168,11 @@ export function GenerationProvider({
           buyingAttitude: data.buyingAttitude,
           difficultyLevel: data.difficultyLevel,
           physicalDescription: data.physicalDescription,
+          ...(data.avatarUrl ? { avatarUrl: data.avatarUrl } : {}),
           createdAt: new Date().toISOString(),
         };
 
         await savePersona(persona);
-
-        // Step 2: Avatar Generation
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === taskId ? { ...t, subStatus: "generating_avatar" } : t,
-          ),
-        );
-        toast.loading("Generating Avatar...", { id: taskToastId });
-
-        try {
-          const avatarData = await generateAvatarAction({
-            gender: persona.gender,
-            role: persona.role,
-            country: persona.country,
-            physicalDescription: persona.physicalDescription,
-          });
-
-          if (activeRef.current.get(taskId) && avatarData.avatarDataUrl) {
-            await updatePersona(personaId, {
-              avatarUrl: avatarData.avatarDataUrl,
-            });
-          }
-        } catch (avatarError) {
-          console.error("Avatar generation failed:", avatarError);
-        }
 
         if (activeRef.current.get(taskId)) {
           toast.success(`Generated persona: ${persona.name}`, {

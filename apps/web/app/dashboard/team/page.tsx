@@ -209,7 +209,7 @@ export default function TeamPage() {
               Remove Demo Data
             </Button>
           )}
-          <Button
+          {/* <Button
             onClick={handleImportDemoData}
             disabled={isSeeding || hasDemoData || loading}
             variant="outline"
@@ -221,7 +221,7 @@ export default function TeamPage() {
               <Sparkles className="text-brand size-4" />
             )}
             {hasDemoData ? "Demo Data Imported" : "Import Demo Data"}
-          </Button>
+          </Button> */}
           <Button
             onClick={() => setIsInviteModalOpen(true)}
             className="flex h-12 items-center gap-2 px-4"

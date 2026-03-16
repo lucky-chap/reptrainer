@@ -4,6 +4,7 @@ import {
   calculateSessionMetrics,
 } from "@/lib/analytics-utils";
 import { calculateDynamics } from "./dynamics";
+import type { CoachingInsightsScoreSummary } from "@reptrainer/shared";
 
 export interface CoachingInsight {
   type: "needs_coaching" | "improvement" | "team_weakness" | "skill_avoidance";
@@ -179,4 +180,115 @@ export function generateCoachingInsights(
 
   // Limit to most relevant 6
   return finalInsights.slice(0, 6);
+}
+
+/**
+ * Calculates the recent performance trend for a set of sessions.
+ */
+export function calculateTrend(
+  sessions: (Session | CallSession)[],
+): "improving" | "declining" | "stable" {
+  if (sessions.length < 4) return "stable";
+
+  const half = Math.floor(sessions.length / 2);
+  const recentSessions = sessions.slice(0, half);
+  const olderSessions = sessions.slice(half, half * 2);
+
+  if (recentSessions.length === 0 || olderSessions.length === 0)
+    return "stable";
+
+  const recentAvg =
+    recentSessions.reduce(
+      (sum, s) => sum + calculateSessionMetrics(s).overall,
+      0,
+    ) / recentSessions.length;
+  const olderAvg =
+    olderSessions.reduce(
+      (sum, s) => sum + calculateSessionMetrics(s).overall,
+      0,
+    ) / olderSessions.length;
+
+  const diff = recentAvg - olderAvg;
+  if (diff > 8) return "improving";
+  if (diff < -8) return "declining";
+  return "stable";
+}
+
+/**
+ * Builds score summaries for RAG coaching insights from sessions grouped by user.
+ */
+export function buildScoreSummaries(
+  sessions: (Session | CallSession)[],
+  members: { id: string; name: string }[],
+): CoachingInsightsScoreSummary[] {
+  const sessionsByUser = new Map<string, (Session | CallSession)[]>();
+  sessions.forEach((s) => {
+    const uid = "userId" in s ? s.userId : "unknown";
+    if (!sessionsByUser.has(uid)) sessionsByUser.set(uid, []);
+    sessionsByUser.get(uid)!.push(s);
+  });
+
+  const skills = [
+    "discovery",
+    "objection_handling",
+    "positioning",
+    "closing",
+    "listening",
+  ] as const;
+
+  const summaries: CoachingInsightsScoreSummary[] = [];
+
+  sessionsByUser.forEach((userSessions, userId) => {
+    if (userSessions.length < 2) return;
+
+    const member = members.find((m) => m.id === userId);
+    const userName =
+      member?.name || (userSessions[0] as any).userName || "Representative";
+
+    const avgScores = {
+      overall: 0,
+      discovery: 0,
+      objection_handling: 0,
+      positioning: 0,
+      closing: 0,
+      listening: 0,
+    };
+
+    userSessions.forEach((s) => {
+      const metrics = calculateSessionMetrics(s);
+      avgScores.overall += metrics.overall;
+      avgScores.discovery += metrics.discovery;
+      avgScores.objection_handling += metrics.objection_handling;
+      avgScores.positioning += metrics.positioning;
+      avgScores.closing += metrics.closing;
+      avgScores.listening += metrics.listening;
+    });
+
+    const count = userSessions.length;
+    avgScores.overall = Math.round(avgScores.overall / count);
+    avgScores.discovery = Math.round(avgScores.discovery / count);
+    avgScores.objection_handling = Math.round(
+      avgScores.objection_handling / count,
+    );
+    avgScores.positioning = Math.round(avgScores.positioning / count);
+    avgScores.closing = Math.round(avgScores.closing / count);
+    avgScores.listening = Math.round(avgScores.listening / count);
+
+    const skillEntries = skills.map((skill) => ({
+      skill,
+      score: avgScores[skill],
+    }));
+    skillEntries.sort((a, b) => a.score - b.score);
+    const weakestSkills = skillEntries.slice(0, 2).map((e) => e.skill);
+
+    summaries.push({
+      userName,
+      sessionCount: count,
+      avgScores,
+      weakestSkills,
+      recentTrend: calculateTrend(userSessions),
+    });
+  });
+
+  return summaries;
 }
