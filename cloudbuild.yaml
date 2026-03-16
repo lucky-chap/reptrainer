@@ -1,0 +1,82 @@
+steps:
+  # 1. Build and Push API Service
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/reptrainer-api", "./apps/api"]
+    id: "build-api"
+
+  # 2. Build and Push Live Agent Service
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t",
+        "gcr.io/$PROJECT_ID/reptrainer-live-agent",
+        "./apps/live-agent",
+      ]
+    id: "build-live-agent"
+
+  # 3. Build and Push Web Frontend Service
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/reptrainer-web", "./apps/web"]
+    id: "build-web"
+
+  # 4. Deploy Live Agent to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "gcloud"
+    args:
+      [
+        "run",
+        "deploy",
+        "reptrainer-live-agent",
+        "--image",
+        "gcr.io/$PROJECT_ID/reptrainer-live-agent",
+        "--region",
+        "us-central1",
+        "--allow-unauthenticated",
+      ]
+    id: "deploy-live-agent"
+
+  # 5. Deploy API to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "gcloud"
+    args:
+      [
+        "run",
+        "deploy",
+        "reptrainer-api",
+        "--image",
+        "gcr.io/$PROJECT_ID/reptrainer-api",
+        "--region",
+        "us-central1",
+        "--allow-unauthenticated",
+      ]
+    id: "deploy-api"
+
+  # 6. Deploy Web to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "gcloud"
+    args:
+      [
+        "run",
+        "deploy",
+        "reptrainer-web",
+        "--image",
+        "gcr.io/$PROJECT_ID/reptrainer-web",
+        "--region",
+        "us-central1",
+        "--allow-unauthenticated",
+      ]
+    id: "deploy-web"
+
+images:
+  - "gcr.io/$PROJECT_ID/reptrainer-api"
+  - "gcr.io/$PROJECT_ID/reptrainer-live-agent"
+  - "gcr.io/$PROJECT_ID/reptrainer-web"
+
+options:
+  machineType: "E2_HIGHCPU_8"
+  logging: CLOUD_LOGGING_ONLY
+
+# Scalability Note:
+# This pipeline automates the full-stack deployment of Reptrainer to Google Cloud Run,
+# ensuring all components (Next.js, Express, and Python) are containerized and scaled serverlessly.

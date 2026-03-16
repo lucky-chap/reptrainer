@@ -4,6 +4,116 @@
 
 Reptrainer is an AI-powered sales roleplay platform that allows sales representatives to practice high-pressure buyer conversations using voice-based roleplay. It leverages the **Gemini Live API** to provide a seamless, low-latency training experience.
 
+### **[🚀 Try the DealPilot Demo](https://reptrainerai.vercel.app/)**
+
+## ⚡️ Quick Deployment
+
+Deployment to Google Cloud is fully automated. Choose your path:
+
+### 1. Full-Stack Automated Deployment (Recommended)
+
+**No local setup required.** Deploys the AI Agent, API Proxy, and Web Frontend in a single orchestrated pipeline via the Google Cloud Console.
+[![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/lucky-chap/reptrainer&utm_source=github&utm_medium=unpaidsoc&utm_campaign=GeminiLiveAgentChallenge&utm_content=reptrainer-fullstack)
+
+### 2. Professional CLI Deployment
+
+**Requires [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) installed locally.** Deploy specific components or manage manual updates:
+
+- **Full Stack Orchestrator**: `bash deploy-gcp.sh`
+- **AI Agent (Python)**: `bash apps/live-agent/deploy.sh`
+- **API Proxy (Node)**: `bash apps/api/deploy.sh`
+- **Web Frontend (Next.js)**: `bash apps/web/deploy.sh`
+
+---
+
+## 📖 Table of Contents
+
+- [📁 Gemini Live Agent Challenge: Submission Requirements](#-gemini-live-agent-challenge-submission-requirements)
+- [🏗️ Architecture](#️-architecture)
+- [✨ Key Features](#-key-features)
+- [🧩 Core Concepts](#-core-concepts)
+- [🏗️ Monorepo Structure](#️-monorepo-structure)
+- [🛠️ Tech Stack](#️-tech-stack)
+- [🚀 Getting Started](#-getting-started)
+- [💻 Environment Variables](#-environment-variables)
+- [🏃 Running the Application](#-running-the-application)
+- [📊 Analytics & Insights](#-analytics--insights)
+- [🔌 WebSocket Protocol](#-websocket-protocol)
+- [🔐 Security Rules](#-security-rules)
+- [🧪 Testing](#-testing)
+- [📁 Project Structure](#-project-structure)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+
+---
+
+## 📁 Gemini Live Agent Challenge: Submission Requirements
+
+This project is submitted to the **Gemini Live Agent Challenge**. Below are the required deliverables:
+
+### 📃 Text Description & Findings
+
+Detailed project features, technology stack, data sources, and findings/learnings:
+👉 [Submission Description & Learnings](./submission_description.md)
+
+### 📑 Technical Implementation (Hackathon Reference)
+
+For the **Gemini Live Agent Challenge** judges, the following links point to the core implementation of Google Cloud services:
+
+- **Live Agent Logic**: [main.py (L156-170)](./apps/live-agent/app/main.py#L156-170) - Gemini Live Bidi Config, [main.py (L264-269)](./apps/live-agent/app/main.py#L264-269) - ADK Live Runner.
+- **Service Orchestration**: [vertex.ts (L21-29)](./apps/api/src/services/vertex.ts#L21-29) - Vertex AI, [vertex.ts (L390-397)](./apps/api/src/services/vertex.ts#L390-397) - Imagen 3.
+- **Cloud TTS**: [tts.ts (L11-25)](./apps/api/src/services/tts.ts#L11-25) - Synthesis Implementation, [session.ts (L104-120)](./apps/api/src/routes/session.ts#L104-120) - Debrief Integration.
+- **Grounding Evidence**: [vertex.ts (L72-82)](./apps/api/src/services/vertex.ts#L72-82) - Google Search Tool, [vertex.ts (L142, L309, L489)](./apps/api/src/services/vertex.ts#L142-L493) - Knowledge Base (RAG).
+- **Firebase & Infrastructure**: [firebase.ts (L4-13)](./apps/api/src/config/firebase.ts#L4-13) - SDK Initialization, [cors.json](./apps/web/cors.json) - Storage CORS Policy, [storage.rules](./apps/web/storage.rules) - Security Rules.
+
+### 🤖 Automation & Scalability
+
+The project is optimized for industrial-grade deployment using **Google Cloud Build** and **Cloud Run**:
+
+- **One-Command Orchestration**: The [deploy-gcp.sh](./deploy-gcp.sh) script automates the build and deployment of all three services, linking them automatically via environment variables.
+- **Service-Level Scripting**: Each app directory contains its own `deploy.sh` (e.g., [apps/web/deploy.sh](./apps/web/deploy.sh)) for independent deployment of components while maintaining service links.
+- **Master Build Pipeline**: [cloudbuild.yaml](./cloudbuild.yaml) provides a centralized way to build and deploy the entire multi-service architecture from a single trigger.
+- **Serverless Scaling**: The stateless architecture allows each service (Next.js, Express, and Python) to scale horizontally on Google Cloud Run based on request load.
+
+### 🏗️ Architecture Diagram
+
+(See the [Architecture](#️-architecture) section below for the live Mermaid diagram)
+
+### 📹 Demonstration Video
+
+(Placeholder: Link to the 4-minute demo video will be provided in the official submission form)
+
+---
+
+## 🏗️ Architecture
+
+Reptrainer (DealPilot) illustrates the flow of real-time audio, agentic reasoning, and multimodal state management.
+
+```mermaid
+graph LR
+    User([User]) <--> Frontend[Next.js App]
+    Frontend <--> API_Proxy[Express API]
+    Frontend <--> LiveAgent[Python Live Agent]
+
+    subgraph Google_Cloud [Google Cloud Platform]
+        LiveAgent <--> GeminiLive[Gemini Live API]
+        API_Proxy <--> VertexAI[Gemini 1.5 Pro/Flash]
+        API_Proxy --> Imagen[Imagen 3]
+        API_Proxy --> TTS[Cloud TTS]
+        API_Proxy <--> Firestore[(Firestore)]
+        API_Proxy --> Storage[(Firebase Storage)]
+    end
+
+    classDef gcp fill:#4285F4,stroke:#333,stroke-width:2px,color:#fff;
+    class GeminiLive,VertexAI,Imagen,TTS,Firestore,Storage gcp;
+```
+
+### Data Flow Overview
+
+1. **Real-time Voice**: User audio is streamed via WebSocket to the Python **Live Agent** service, which uses the **ADK** to communicate with the **Gemini Live API**.
+2. **Contextual Grounding**: The agent retrieves product context from the **Firestore** knowledge base.
+3. **Multimodal Debrief**: Upon session end, the **Express API** orchestrates **Vertex AI** for analysis, **Imagen 3** for infographics, and **Cloud TTS** for narration, storing all assets in **Firebase Storage**.
+
 ---
 
 ## ✨ Key Features
@@ -120,30 +230,21 @@ reptrainer/
 4. Download the JSON key and set `GOOGLE_APPLICATION_CREDENTIALS` if running outside of GCP.
 5. Get a Gemini API Key from [Google AI Studio](https://aistudio.google.com/).
 
-#### 2. Firebase
+#### 2. Firebase & Storage Setup (Action Required)
+
+For the app to work smoothly (saving sessions and loading multimodal assets), you must set up Firebase:
 
 1. Create a project in [Firebase Console](https://console.firebase.google.com/).
 2. **Authentication**: Enable Google Sign-In.
 3. **Firestore**: Create a database in Native mode.
 4. **Storage**: Enable Firebase Storage.
-5. **Web App**: Register a new Web App to get your Firebase config keys.
-6. **CORS**: Configure CORS for Firebase Storage:
-
-```json
-[
-  {
-    "origin": ["http://localhost:3000", "https://your-domain.com"],
-    "method": ["GET", "PUT", "POST", "DELETE"],
-    "maxAgeSeconds": 3600
-  }
-]
-```
-
-Save as `cors.json` and apply:
-
-```bash
-gsutil cors set cors.json gs://your-bucket-name
-```
+5. **CORS Configuration**: This is critical for the browser to load audio/images from Cloud Storage.
+   - Ensure you have `gsutil` installed (part of the Google Cloud SDK).
+   - Use the pre-configured [cors.json](./apps/web/cors.json) file.
+   - Run the following command in your terminal:
+     ```bash
+     gsutil cors set apps/web/cors.json gs://YOUR_BUCKET_NAME
+     ```
 
 #### 3. Deploying Rules and Indices
 

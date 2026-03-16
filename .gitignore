@@ -56,3 +56,6 @@ web-2
 # Pyc files
 __pycache__
 *.pyc
+
+# Agent config
+.agent/

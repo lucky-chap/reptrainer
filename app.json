@@ -1,0 +1,19 @@
+{
+  "name": "Reptrainer",
+  "description": "Real-time AI sales roleplay platform powered by Gemini Live.",
+  "repository": "https://github.com/lucky-chap/reptrainer",
+  "hooks": {
+    "prebuild": [
+      "gcloud services enable run.googleapis.com aiplatform.googleapis.com texttospeech.googleapis.com firestore.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com",
+      "gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT} --member=serviceAccount:${GOOGLE_CLOUD_PROJECT_NUMBER}-compute@developer.gserviceaccount.com --role=roles/aiplatform.user"
+    ]
+  },
+  "env": {
+    "GOOGLE_CLOUD_PROJECT": {
+      "description": "The Google Cloud Project ID"
+    },
+    "FIREBASE_STORAGE_BUCKET": {
+      "description": "The Firebase Storage bucket name (e.g., project-id.firebasestorage.app)"
+    }
+  }
+}
