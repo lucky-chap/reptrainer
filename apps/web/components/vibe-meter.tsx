@@ -57,7 +57,7 @@ export function VibeMeter({ mood }: VibeMeterProps) {
           >
             <Target className="size-3 text-amber-600" />
             <span className="text-[10px] font-bold tracking-tight text-amber-700 uppercase">
-              {Math.round(dealLikelihood * 100)}% Deal Likelihood
+              {Math.min(Math.round(dealLikelihood), 100)}% Deal Likelihood
             </span>
           </motion.div>
         </AnimatePresence>

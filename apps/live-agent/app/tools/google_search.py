@@ -33,20 +33,24 @@ async def google_search(
     """
     logger.info("Tool [google_search] called with: query='%s'", query)
 
-    client = genai.Client(
-        vertexai=True,
-        project=settings.GOOGLE_CLOUD_PROJECT,
-        location=settings.GOOGLE_CLOUD_LOCATION,
-    )
+    try:
+        client = genai.Client(
+            vertexai=True,
+            project=settings.GOOGLE_CLOUD_PROJECT,
+            location=settings.GOOGLE_CLOUD_LOCATION,
+        )
 
-    response = await client.aio.models.generate_content(
-        model=settings.TEXT_MODEL,
-        contents=f"Answer this query concisely based on web search results: {query}",
-        config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
-        ),
-    )
+        response = await client.aio.models.generate_content(
+            model=settings.TEXT_MODEL,
+            contents=f"Answer this query concisely based on web search results: {query}",
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
+        )
 
-    result = response.text or "No results found."
-    logger.info("Tool [google_search] result length: %d chars", len(result))
-    return result
+        result = response.text or "No results found."
+        logger.info("Tool [google_search] result length: %d chars", len(result))
+        return result
+    except Exception as e:
+        logger.error("Tool [google_search] failed for query '%s': %s", query, e)
+        return f"Search unavailable. Use your existing knowledge instead."
