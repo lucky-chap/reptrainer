@@ -1,0 +1,2 @@
+- need to build the shared packages before it works
+- let user have uv installed
