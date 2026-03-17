@@ -40,7 +40,7 @@ app = FastAPI(title="Reptrainer Live Agent", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -49,7 +49,7 @@ app.add_middleware(
 async def health():
     return {"status": "ok", "service": "reptrainer-live-agent"}
 
-@app.websocket("/ws/{session_id}")
+@app.websocket("/ws/{session_id:path}")
 async def live_session(
     websocket: WebSocket,
     session_id: str,
