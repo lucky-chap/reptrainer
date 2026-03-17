@@ -81,11 +81,11 @@ const navItems = [
     href: "/dashboard/analytics",
     icon: Activity,
   },
-  {
-    label: "Analyze",
-    href: "/dashboard/analyze",
-    icon: Upload,
-  },
+  // {
+  //   label: "Analyze",
+  //   href: "/dashboard/analyze",
+  //   icon: Upload,
+  // },
 ];
 
 export function AppSidebar() {
