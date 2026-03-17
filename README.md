@@ -32,12 +32,19 @@ Deployment to Google Cloud is fully automated. Choose your path:
 2.  **Auth & Database**:
     - Run `gcloud auth application-default login` and `firebase login`.
     - **First time only**: Deploy rules/indexes: `firebase deploy --only firestore:rules,firestore:indexes,storage --project YOUR_PROJECT_ID`
-3.  **Dependencies**: Run `pnpm install` in the root and `uv sync` (or `pip install`) in `apps/live-agent`.
-4.  **Launch**:
-    - **Live Agent**: `cd apps/live-agent && uv run uvicorn app.main:app --reload --port 5000`
-    - **API Proxy**: `cd apps/api && pnpm dev`
-    - **Web App**: `cd apps/web && pnpm dev`
-5.  **Access the App**: Open [http://localhost:3000](http://localhost:3000) in your browser to see the app
+3.  **Dependencies & Build**:
+    - Run `pnpm install` in the root.
+    - **Note**: The `@reptrainer/shared` package is handled automatically by Turborepo during the unified launch.
+4.  **Launch (Unified)**:
+    - **Run everything**: `pnpm dev` (Starts API, Web, and Live Agent in watch mode).
+5.  **Manual Launch (Individual Services)**:
+    If you prefer to run services individually for debugging:
+    - **First**, start the shared package watcher: `pnpm --filter @reptrainer/shared dev`
+    - **Next**, start the apps you need:
+      - **API**: `pnpm --filter @reptrainer/api dev`
+      - **Web**: `pnpm --filter @reptrainer/web dev`
+      - **Live Agent**: `cd apps/live-agent && uv run uvicorn app.main:app --reload --port 5000`
+6.  **Access the App**: Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
@@ -87,7 +94,7 @@ The project is optimized for industrial-grade deployment using **Google Cloud Bu
 
 - **One-Command Orchestration**: The [deploy-gcp.sh](./deploy-gcp.sh) script automates the build and deployment of all three services, linking them automatically via environment variables.
 - **Service-Level Scripting**: Each app directory contains its own `deploy.sh` (e.g., [apps/web/deploy.sh](./apps/web/deploy.sh)) for independent deployment of components while maintaining service links.
-- **Intelligent Production Pipeline**: [cloudbuild.yaml](./cloudbuild.yaml) orchestrates a multi-stage deployment. It first deploys the backend services to discover their live URLs, then injects these URLs as build-time arguments into the Next.js frontend, ensuring zero-config inter-service connectivity.
+- **Intelligent Production Pipeline**: [cloudbuild.yaml](./cloudbuild.yaml) orchestrates a multi-stage deployment. It automatically resolves monorepo dependencies (like `@reptrainer/shared`), builds the backend services to discover their live URLs, and then injects these URLs as build-time arguments into the Next.js frontend. No manual pre-builds are required.
 - **Serverless Scaling**: The stateless architecture allows each service (Next.js, Express, and Python) to scale horizontally on Google Cloud Run based on request load.
 
 ---

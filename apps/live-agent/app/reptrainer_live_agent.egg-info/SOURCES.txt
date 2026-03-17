@@ -14,6 +14,7 @@ app/reptrainer_live_agent.egg-info/requires.txt
 app/reptrainer_live_agent.egg-info/top_level.txt
 app/tools/__init__.py
 app/tools/end_roleplay.py
+app/tools/google_search.py
 app/tools/log_objection.py
 app/tools/log_sales_insight.py
 app/tools/research_competitor.py
